@@ -41,25 +41,32 @@ class DocumentAgent:
     
     def process_file(self, file_path: Path) -> bool:
         """Process a single file: extract, classify, generate embeddings, and store in database.
-        
+
         Args:
             file_path: Path to the file to process
-        
+
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Check if already processed
-            existing = self.database.get_document(str(file_path))
+            # Generate file hash first
+            file_hash = self.file_handler.generate_file_hash(file_path)
+            if not file_hash:
+                logger.error(f"Failed to generate hash for {file_path.name}, skipping")
+                return False
+
+            # Check if already processed by hash (content-based duplicate detection)
+            existing = self.database.get_document_by_hash(file_hash)
             if existing:
-                logger.debug(f"Skipping already processed file: {file_path.name}")
+                logger.debug(f"Skipping already processed file (duplicate content): {file_path.name}")
+                logger.debug(f"Original file: {existing.get('filename', 'Unknown')}")
                 return True
-            
-            logger.info(f"Processing file: {file_path.name}")
-            
+
+            logger.info(f"Processing file: {file_path.name} (hash: {file_hash[:16]}...)")
+
             # Extract text content
             content = self.file_handler.extract_text(file_path)
-            
+
             if not content or not content.strip():
                 logger.warning(f"No content extracted from {file_path.name}, skipping")
                 return False
@@ -91,7 +98,8 @@ class DocumentAgent:
                 file_path=str(file_path),
                 content=content,
                 categories=categories,
-                metadata=metadata
+                metadata=metadata,
+                file_hash=file_hash
             )
 
             # Store embedding

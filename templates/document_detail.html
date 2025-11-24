@@ -43,6 +43,17 @@
                                 <td><strong>Classified:</strong></td>
                                 <td>{{ document.classification_date | format_date }}</td>
                             </tr>
+                            {% if document.file_hash %}
+                            <tr>
+                                <td><strong>SHA-256 Hash:</strong></td>
+                                <td>
+                                    <code class="text-break">{{ document.file_hash }}</code>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyHash('{{ document.file_hash }}')" title="Copy Hash">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endif %}
                         </table>
                     </div>
                     <div class="col-md-6">
@@ -170,6 +181,43 @@ function copyPath(path) {
                 btn.classList.add('btn-outline-secondary');
             }, 2000);
         });
+    });
+}
+
+function copyHash(hash) {
+    navigator.clipboard.writeText(hash).then(function() {
+        // Show success feedback
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+
+        setTimeout(function() {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Failed to copy hash: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = hash;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        setTimeout(function() {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
     });
 }
 </script>

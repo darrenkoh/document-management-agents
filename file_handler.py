@@ -1,5 +1,6 @@
 """File handling operations for reading files."""
 import logging
+import hashlib
 from pathlib import Path
 from typing import Optional, List
 from pypdf import PdfReader
@@ -113,5 +114,27 @@ class FileHandler:
         except Exception as e:
             logger.error(f"OCR failed for {file_path}: {e}")
             return ""
+
+    def generate_file_hash(self, file_path: Path) -> Optional[str]:
+        """Generate SHA-256 hash of the file content.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            SHA-256 hash as hexadecimal string or None if failed
+        """
+        try:
+            # Read the entire file in binary mode
+            with open(file_path, 'rb') as f:
+                file_content = f.read()
+
+            # Generate SHA-256 hash
+            hash_obj = hashlib.sha256(file_content)
+            return hash_obj.hexdigest()
+
+        except Exception as e:
+            logger.error(f"Error generating hash for {file_path}: {e}")
+            return None
     
 

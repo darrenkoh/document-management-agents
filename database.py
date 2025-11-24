@@ -24,8 +24,8 @@ class DocumentDatabase:
         self.documents = self.db.table('documents')
         self.query = Query()
     
-    def store_classification(self, file_path: str, content: str, categories: str, 
-                           metadata: Optional[Dict[str, Any]] = None) -> int:
+    def store_classification(self, file_path: str, content: str, categories: str,
+                           metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None) -> int:
         """Store a document classification in the database.
         
         Args:
@@ -45,6 +45,7 @@ class DocumentDatabase:
             'categories': categories,
             'classification_date': datetime.now().isoformat(),
             'metadata': metadata or {},
+            'file_hash': file_hash,
             'embedding': None  # Will be set when embedding is generated
         }
         
@@ -88,14 +89,26 @@ class DocumentDatabase:
     
     def get_document(self, file_path: str) -> Optional[Dict]:
         """Get a document by file path.
-        
+
         Args:
             file_path: Path to the document
-        
+
         Returns:
             Document dictionary or None if not found
         """
         results = self.documents.search(self.query.file_path == str(file_path))
+        return results[0] if results else None
+
+    def get_document_by_hash(self, file_hash: str) -> Optional[Dict]:
+        """Get a document by file hash.
+
+        Args:
+            file_hash: SHA-256 hash of the file content
+
+        Returns:
+            Document dictionary or None if not found
+        """
+        results = self.documents.search(self.query.file_hash == file_hash)
         return results[0] if results else None
     
     def search_semantic(self, query_embedding: List[float], top_k: int = 10,
