@@ -141,11 +141,49 @@ def documents():
                          available_categories=sorted_categories)
 
 
+@app.route('/unified-search', methods=['POST'])
+def unified_search():
+    """Unified search that handles both semantic and category searches."""
+    query = request.form.get('query', '').strip()
+
+    if not query:
+        flash('Please enter a search query.', 'warning')
+        return redirect(url_for('index'))
+
+    try:
+        # Check if this is a category search (starts with "category:")
+        if query.lower().startswith('category:'):
+            category = query[9:].strip()  # Remove "category:" prefix
+            return category_search_logic(category)
+
+        # Check if the query matches a known category
+        all_categories = set()
+        for doc in database.get_all_documents():
+            for cat in doc.get('categories', '').split('-'):
+                if cat.strip():
+                    all_categories.add(cat.strip().lower())
+
+        if query.lower() in all_categories:
+            return category_search_logic(query)
+
+        # Default to semantic search
+        return semantic_search_logic(query)
+
+    except Exception as e:
+        app.logger.error(f"Unified search error: {e}")
+        flash(f'Search failed: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+
 @app.route('/semantic-search', methods=['POST'])
 def semantic_search():
     """Perform semantic search."""
     query = request.form.get('query', '').strip()
+    return semantic_search_logic(query)
 
+
+def semantic_search_logic(query):
+    """Core semantic search logic."""
     if not query:
         flash('Please enter a search query.', 'warning')
         return redirect(url_for('index'))
@@ -175,7 +213,8 @@ def semantic_search():
 
         return render_template('search_results.html',
                              query=query,
-                             results=results)
+                             results=results,
+                             search_type='semantic')
 
     except Exception as e:
         app.logger.error(f"Semantic search error: {e}")
@@ -193,6 +232,11 @@ def category_search():
     else:
         category = request.args.get('category', '').strip()
 
+    return category_search_logic(category)
+
+
+def category_search_logic(category):
+    """Core category search logic."""
     if not category:
         flash('Please select a category.', 'warning')
         return redirect(url_for('documents'))

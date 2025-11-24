@@ -7,29 +7,57 @@
 <div class="search-container">
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-lg-8">
+            <div class="col-lg-10">
                 <div class="search-card p-5">
                     <h1 class="text-center mb-4">
-                        <i class="fas fa-search"></i> Semantic Document Search
+                        <i class="fas fa-search"></i> Document Search
                     </h1>
                     <p class="text-center text-muted mb-4">
-                        Search through your classified documents using natural language. Powered by AI embeddings.
+                        Search through your classified documents using natural language or categories. Powered by AI.
                     </p>
 
-                    <form action="{{ url_for('semantic_search') }}" method="post">
-                        <div class="input-group input-group-lg">
-                            <input type="text" name="query" class="form-control form-control-lg"
-                                   placeholder="e.g., 'flight booking confirmation' or 'invoice from last month'"
-                                   required autofocus>
-                            <button class="btn btn-primary" type="submit">
-                                <i class="fas fa-search"></i> Search
-                            </button>
+                    <form action="{{ url_for('unified_search') }}" method="post" id="unified-search-form">
+                        <div class="row justify-content-center">
+                            <div class="col-lg-8">
+                                <div class="input-group input-group-lg mb-3">
+                                    <input type="text" name="query" id="search-input" class="form-control form-control-lg"
+                                           placeholder="Search documents or select a category..."
+                                           autocomplete="off" autofocus>
+                                    <button class="btn btn-primary" type="submit" id="search-btn">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Category suggestions -->
+                                <div id="category-suggestions" class="mb-3" style="display: none;">
+                                    <div class="text-center">
+                                        <small class="text-muted mb-2 d-block">Or search by category:</small>
+                                        <div class="d-flex flex-wrap justify-content-center gap-2">
+                                            {% set unique_cats = [] %}
+                                            {% for doc in recent_docs %}
+                                                {% for cat in doc.categories.split('-') %}
+                                                    {% if cat and cat not in unique_cats %}
+                                                        {% set _ = unique_cats.append(cat) %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+                                            {% for cat in unique_cats | sort %}
+                                            <button type="button" class="btn btn-outline-primary btn-sm category-btn"
+                                                    data-category="{{ cat }}"
+                                                    style="border-radius: 20px; padding: 0.375rem 0.875rem; font-weight: 500; transition: all 0.3s ease;">
+                                                {{ cat.title() }}
+                                            </button>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </form>
 
-                    <div class="text-center mt-3">
+                    <div class="text-center">
                         <small class="text-muted">
-                            Try: "travel documents", "financial statements", "legal contracts"
+                            Try: "travel documents", "financial statements", "confirmation", or click a category above
                         </small>
                     </div>
                 </div>
@@ -38,45 +66,72 @@
     </div>
 </div>
 
-<!-- Category Search Section -->
-<div class="search-container">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-8">
-                <div class="search-card p-5">
-                    <h1 class="text-center mb-4">
-                        <i class="fas fa-tags"></i> Category Search
-                    </h1>
-                    <p class="text-center text-muted mb-4">
-                        Search documents by their classification categories.
-                    </p>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('search-input');
+        const categorySuggestions = document.getElementById('category-suggestions');
+        const categoryButtons = document.querySelectorAll('.category-btn');
+        const searchForm = document.getElementById('unified-search-form');
 
-                    <form action="{{ url_for('category_search') }}" method="post">
-                        <div class="input-group input-group-lg">
-                            <select name="category" class="form-select form-select-lg" required>
-                                <option value="">Select a category...</option>
-                                {% set unique_cats = [] %}
-                                {% for doc in recent_docs %}
-                                    {% for cat in doc.categories.split('-') %}
-                                        {% if cat and cat not in unique_cats %}
-                                            {% set _ = unique_cats.append(cat) %}
-                                        {% endif %}
-                                    {% endfor %}
-                                {% endfor %}
-                                {% for cat in unique_cats | sort %}
-                                <option value="{{ cat }}">{{ cat.title() }}</option>
-                                {% endfor %}
-                            </select>
-                            <button class="btn btn-success" type="submit">
-                                <i class="fas fa-search"></i> Search by Category
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+        // Show category suggestions when input is focused and empty
+        searchInput.addEventListener('focus', function() {
+            if (searchInput.value.trim() === '') {
+                categorySuggestions.style.display = 'block';
+            }
+        });
+
+        // Hide category suggestions when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !categorySuggestions.contains(e.target)) {
+                categorySuggestions.style.display = 'none';
+            }
+        });
+
+        // Handle category button clicks
+        categoryButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const category = this.getAttribute('data-category');
+                searchInput.value = `category:${category}`;
+                searchForm.submit();
+            });
+        });
+
+        // Show/hide category suggestions based on input
+        searchInput.addEventListener('input', function() {
+            const query = searchInput.value.trim();
+            if (query === '') {
+                categorySuggestions.style.display = 'block';
+            } else {
+                categorySuggestions.style.display = 'none';
+            }
+        });
+
+        // Handle form submission
+        searchForm.addEventListener('submit', function(e) {
+            const query = searchInput.value.trim();
+
+            // If query starts with "category:", treat it as category search
+            if (query.toLowerCase().startsWith('category:')) {
+                const category = query.substring(9).trim(); // Remove "category:" prefix
+                if (category) {
+                    // Change form action to category search
+                    searchForm.action = '{{ url_for("category_search") }}';
+                    // Update the input name to match what category_search expects
+                    searchInput.name = 'category';
+                    searchInput.value = category;
+                } else {
+                    e.preventDefault();
+                    alert('Please specify a category after "category:"');
+                    return;
+                }
+            } else {
+                // Default to semantic search
+                searchForm.action = '{{ url_for("semantic_search") }}';
+                searchInput.name = 'query';
+            }
+        });
+    });
+</script>
 
 <!-- Recent Documents -->
 <div class="row">
