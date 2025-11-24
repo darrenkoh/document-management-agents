@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.filename }} - Original File - Document Classification Agent{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <span class="file-icon">{{ get_file_icon(document.metadata.file_extension) }}</span>
+                    {{ document.filename }} - Original File
+                </h4>
+                <div>
+                    <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}" class="btn btn-outline-primary" target="_blank">
+                        <i class="fas fa-download"></i> Download Original
+                    </a>
+                    <a href="{{ url_for('document_detail', doc_id=document.doc_id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Document Details
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- File Information -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">File Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Source Path:</strong></td>
+                                <td><code>{{ document.file_path }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Size:</strong></td>
+                                <td>{{ "%.1f"|format(file_size / 1024) }} KB</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Type:</strong></td>
+                                <td>{{ file_extension | upper }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Modified:</strong></td>
+                                <td>{{ document.metadata.file_modified | format_timestamp if document.metadata.file_modified else 'Unknown' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Classification</h6>
+                        <div class="mb-3">
+                            <strong>Categories:</strong>
+                            <div class="mt-2">
+                                {% for category in document.categories.split('-') %}
+                                    {% if category %}
+                                    <span class="badge category-badge me-1 mb-1 fs-6">{{ category }}</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-eye"></i> Viewing the original file directly
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Viewer -->
+                <div>
+                    <h6 class="text-muted mb-2">File Content</h6>
+                    <div class="border rounded bg-light" style="min-height: 600px;">
+
+                        <!-- PDF Viewer -->
+                        {% if file_extension == '.pdf' %}
+                        <div id="pdf-container" class="w-100" style="height: 600px; overflow-y: auto; background: #f8f9fa;">
+                            <div id="pdf-viewer-toolbar" class="d-flex justify-content-between align-items-center p-2 bg-white border-bottom" style="position: sticky; top: 0; z-index: 10;">
+                                <div>
+                                    <button id="prev-page" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-chevron-left"></i> Previous
+                                    </button>
+                                    <button id="next-page" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-chevron-right"></i> Next
+                                    </button>
+                                    <span class="ms-3">
+                                        Page: <span id="page-num">1</span> / <span id="page-count">1</span>
+                                    </span>
+                                </div>
+                                <div>
+                                    <button id="zoom-out" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-search-minus"></i>
+                                    </button>
+                                    <span id="zoom-level" class="mx-2">100%</span>
+                                    <button id="zoom-in" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-search-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <canvas id="pdf-canvas" class="d-block mx-auto" style="max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"></canvas>
+                        </div>
+                        <script>
+                            // PDF.js viewer
+                            let pdfDoc = null;
+                            let pageNum = 1;
+                            let pageRendering = false;
+                            let pageNumPending = null;
+                            let scale = 1.0;
+                            const canvas = document.getElementById('pdf-canvas');
+                            const ctx = canvas.getContext('2d');
+
+                            // Load PDF
+                            pdfjsLib.getDocument('{{ url_for("serve_original_file", doc_id=document.doc_id) }}').promise.then(function(pdf) {
+                                pdfDoc = pdf;
+                                document.getElementById('page-count').textContent = pdf.numPages;
+
+                                // Initial page render
+                                renderPage(pageNum);
+                            });
+
+                            // Render page
+                            function renderPage(num) {
+                                pageRendering = true;
+
+                                pdfDoc.getPage(num).then(function(page) {
+                                    const viewport = page.getViewport({scale: scale});
+                                    canvas.height = viewport.height;
+                                    canvas.width = viewport.width;
+
+                                    const renderContext = {
+                                        canvasContext: ctx,
+                                        viewport: viewport
+                                    };
+
+                                    const renderTask = page.render(renderContext);
+
+                                    renderTask.promise.then(function() {
+                                        pageRendering = false;
+                                        if (pageNumPending !== null) {
+                                            renderPage(pageNumPending);
+                                            pageNumPending = null;
+                                        }
+                                    });
+                                });
+
+                                document.getElementById('page-num').textContent = num;
+                            }
+
+                            // Queue render page
+                            function queueRenderPage(num) {
+                                if (pageRendering) {
+                                    pageNumPending = num;
+                                } else {
+                                    renderPage(num);
+                                }
+                            }
+
+                            // Show prev page
+                            document.getElementById('prev-page').addEventListener('click', function() {
+                                if (pageNum <= 1) return;
+                                pageNum--;
+                                queueRenderPage(pageNum);
+                            });
+
+                            // Show next page
+                            document.getElementById('next-page').addEventListener('click', function() {
+                                if (pageNum >= pdfDoc.numPages) return;
+                                pageNum++;
+                                queueRenderPage(pageNum);
+                            });
+
+                            // Zoom controls
+                            document.getElementById('zoom-in').addEventListener('click', function() {
+                                scale = Math.min(scale + 0.25, 3.0);
+                                document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
+                                queueRenderPage(pageNum);
+                            });
+
+                            document.getElementById('zoom-out').addEventListener('click', function() {
+                                scale = Math.max(scale - 0.25, 0.5);
+                                document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
+                                queueRenderPage(pageNum);
+                            });
+                        </script>
+
+                        <!-- Text File Viewer -->
+                        {% elif file_extension in ['.txt', '.md', '.py', '.js', '.html', '.css', '.json', '.xml', '.yaml', '.yml'] %}
+                        <div class="p-3">
+                            <pre id="text-content" class="mb-0" style="white-space: pre-wrap; font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace; font-size: 0.85rem; line-height: 1.4; max-height: 550px; overflow-y: auto;"></pre>
+                        </div>
+                        <script>
+                            // Load text content via fetch
+                            fetch('{{ url_for("serve_original_file", doc_id=document.doc_id) }}')
+                                .then(response => response.text())
+                                .then(text => {
+                                    const textElement = document.getElementById('text-content');
+                                    textElement.textContent = text;
+                                    // Add syntax highlighting class if it's a code file
+                                    {% if file_extension in ['.py', '.js', '.html', '.css', '.json', '.xml'] %}
+                                    textElement.classList.add('language-' + '{{ file_extension[1:] }}'.replace('js', 'javascript'));
+                                    {% endif %}
+                                })
+                                .catch(error => {
+                                    document.getElementById('text-content').textContent = 'Error loading text content: ' + error.message;
+                                });
+                        </script>
+
+                        <!-- Image Viewer -->
+                        {% elif file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'] %}
+                        <div class="text-center p-3">
+                            <img src="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                                 alt="{{ document.filename }}"
+                                 class="img-fluid rounded shadow"
+                                 style="max-height: 550px; max-width: 100%;">
+                        </div>
+
+                        <!-- Word Document Viewer -->
+                        {% elif file_extension in ['.docx', '.doc'] %}
+                        <div class="text-center p-5">
+                            <div class="mb-4">
+                                <i class="fas fa-file-word fa-4x text-primary"></i>
+                            </div>
+                            <h5>Word Document</h5>
+                            <p class="text-muted">Word documents cannot be viewed directly in the browser.</p>
+                            <div class="mt-4">
+                                <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}" class="btn btn-primary" target="_blank">
+                                    <i class="fas fa-external-link-alt"></i> Open in Word Viewer
+                                </a>
+                                <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}" class="btn btn-outline-primary" download>
+                                    <i class="fas fa-download"></i> Download File
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Unsupported File Type -->
+                        {% else %}
+                        <div class="text-center p-5">
+                            <div class="mb-4">
+                                <i class="fas fa-file fa-4x text-secondary"></i>
+                            </div>
+                            <h5>Unsupported File Type</h5>
+                            <p class="text-muted">This file type ({{ file_extension | upper }}) cannot be viewed directly in the browser.</p>
+                            <div class="mt-4">
+                                <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}" class="btn btn-primary" download>
+                                    <i class="fas fa-download"></i> Download File
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Copy Path Function -->
+<script>
+function copyPath(path) {
+    navigator.clipboard.writeText(path).then(function() {
+        // Show success feedback
+        const btns = document.querySelectorAll('button[onclick*="copyPath"]');
+        btns.forEach(btn => {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-success');
+
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    }).catch(function(err) {
+        console.error('Failed to copy path: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = path;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+
+        const btns = document.querySelectorAll('button[onclick*="copyPath"]');
+        btns.forEach(btn => {
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-success');
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    });
+}
+</script>
+
+{% endblock %}

@@ -90,6 +90,9 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
+                    <a href="{{ url_for('view_original_content', doc_id=document.doc_id) }}" class="btn btn-outline-info">
+                        <i class="fas fa-file-alt"></i> View Original Content
+                    </a>
                     <button class="btn btn-outline-primary" onclick="window.print()">
                         <i class="fas fa-print"></i> Print Document
                     </button>

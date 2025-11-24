@@ -2,10 +2,12 @@
 """Document Classification Agent - Web App Interface."""
 import os
 import argparse
-from flask import Flask, render_template, request, jsonify, flash, redirect, url_for
+from pathlib import Path
+from flask import Flask, render_template, request, jsonify, flash, redirect, url_for, send_file
 from config import Config
 from database import DocumentDatabase
 from agent import DocumentAgent
+from file_handler import FileHandler
 from typing import List, Dict, Any
 import math
 
@@ -227,6 +229,83 @@ def document_detail(doc_id: int):
         return redirect(url_for('documents'))
 
     return render_template('document_detail.html', document=doc)
+
+
+@app.route('/document/<int:doc_id>/view-original')
+def view_original_content(doc_id: int):
+    """Show the original file in an appropriate viewer based on file type."""
+    # Get the document
+    all_docs = database.get_all_documents()
+    doc = None
+    for d in all_docs:
+        if d.get('doc_id') == doc_id:
+            doc = d
+            break
+
+    if not doc:
+        flash('Document not found.', 'error')
+        return redirect(url_for('documents'))
+
+    try:
+        file_path = Path(doc['file_path'])
+        if not file_path.exists():
+            flash(f'Original file not found at: {file_path}', 'error')
+            return redirect(url_for('document_detail', doc_id=doc_id))
+
+        # Determine file type and viewer
+        file_extension = doc['metadata'].get('file_extension', '').lower()
+        file_size = doc['metadata'].get('file_size', 0)
+
+        return render_template('view_original_content.html',
+                             document=doc,
+                             file_path=file_path,
+                             file_extension=file_extension,
+                             file_size=file_size)
+
+    except Exception as e:
+        app.logger.error(f"Error viewing original content for document {doc_id}: {e}")
+        flash(f'Error loading original content: {str(e)}', 'error')
+        return redirect(url_for('document_detail', doc_id=doc_id))
+
+
+@app.route('/document/<int:doc_id>/file')
+def serve_original_file(doc_id: int):
+    """Serve the original file for viewing."""
+    # Get the document
+    all_docs = database.get_all_documents()
+    doc = None
+    for d in all_docs:
+        if d.get('doc_id') == doc_id:
+            doc = d
+            break
+
+    if not doc:
+        return 'Document not found', 404
+
+    file_path = Path(doc['file_path'])
+    if not file_path.exists():
+        return 'File not found', 404
+
+    # Determine MIME type
+    file_extension = doc['metadata'].get('file_extension', '').lower()
+    mime_types = {
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.doc': 'application/msword'
+    }
+
+    mime_type = mime_types.get(file_extension, 'application/octet-stream')
+
+    try:
+        return send_file(file_path, mimetype=mime_type, as_attachment=False)
+    except Exception as e:
+        app.logger.error(f"Error serving file {file_path}: {e}")
+        return 'Error serving file', 500
 
 
 @app.route('/api/search', methods=['POST'])
