@@ -1,0 +1,64 @@
+# Document Classification Agent Configuration
+
+# Source directory to monitor for files
+source_path: "./input"
+
+# Base destination directory where classified files will be copied
+destination_path: "./output"
+
+# Ollama configuration
+ollama:
+  # Ollama API endpoint (default: http://localhost:11434)
+  endpoint: "http://spark-7819.local:11434"
+  # Model name to use for classification
+  model: "deepseek-r1:8b"
+  # Timeout in seconds for API calls
+  timeout: 30
+  # Maximum number of tokens to predict (higher for reasoning models)
+  num_predict: 2000
+
+# File extensions to process (empty list means process all files)
+file_extensions:
+  - ".pdf"
+  - ".docx"
+  - ".doc"
+  - ".txt"
+  - ".png"
+  - ".jpg"
+  - ".jpeg"
+  - ".gif"
+  - ".tiff"
+
+# Optional: Predefined classification categories
+# If empty, the agent will auto-detect categories
+categories: []
+
+# Classification prompt template
+# Use {filename} and {content} as placeholders
+# If not specified, a default prompt will be used
+# prompt_template: |
+#   Analyze the following document content and classify it into up to 3 specific categories.
+ 
+#   Common categories include but should be be limited to: invoice, contract, receipt, letter, report, resume, certificate, form, statement, manual, article, email, memo, note, presentation, spreadsheet, confirmation, booking, ticket, itinerary, image, other.
+ 
+#   Filename: {filename}
+ 
+#   Content:
+#   {content}
+ 
+#   Based on the content above, classify this document into up to 3 categories. Respond with ONLY the category names separated by commas, nothing else. Use lowercase and single words or short phrases (e.g., "invoice", "contract", "receipt", "confirmation", "booking"). If uncertain, use "other". Examples: "invoice", "confirmation,booking", "contract,legal,agreement".
+ 
+#   Categories:
+
+# Watch mode settings
+watch:
+  # Polling interval in seconds (for watch mode)
+  interval: 5
+  # Recursively watch subdirectories
+  recursive: true
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "agent.log"
+
