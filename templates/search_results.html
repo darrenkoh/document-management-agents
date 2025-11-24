@@ -71,7 +71,7 @@
                         </h6>
                         <div class="content-preview">
                             <strong>Content Preview:</strong>
-                            <p class="mt-2">{{ result.content_preview | truncate_content(300) }}</p>
+                            <p class="mt-2 highlight-search">{{ result.content_preview | truncate_content(300) | safe }}</p>
                         </div>
                     </div>
                     <div class="col-md-4">

@@ -257,6 +257,23 @@
             opacity: 0.8;
         }
 
+        /* Specific styling for highlighted terms in search results */
+        .content-preview mark.search-highlight {
+            background: linear-gradient(135deg, #ffeb3b, #ffc107);
+            color: #1a1a1a;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-weight: 600;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+
+        [data-theme="dark"] .content-preview mark.search-highlight {
+            background: linear-gradient(135deg, #ffd700, #ffb347);
+            color: #1a1a1a;
+            border: 1px solid rgba(255, 215, 0, 0.5);
+        }
+
         .file-icon {
             font-size: 1.5rem;
             margin-right: 0.5rem;

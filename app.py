@@ -2,6 +2,7 @@
 """Document Classification Agent - Web App Interface."""
 import os
 import argparse
+import re
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, flash, redirect, url_for, send_file
 from config import Config
@@ -65,6 +66,45 @@ else:
 
 # Pagination settings
 ITEMS_PER_PAGE = 20
+
+
+def highlight_search_terms_in_results(results, search_terms):
+    """Highlight search terms in content previews of search results.
+
+    Args:
+        results: List of search result dictionaries
+        search_terms: List of terms to highlight
+
+    Returns:
+        List of results with highlighted content previews
+    """
+    if not results or not search_terms:
+        return results
+
+    highlighted_results = []
+
+    for result in results:
+        highlighted_result = result.copy()
+
+        # Get content preview
+        content_preview = result.get('content_preview', '')
+
+        # Highlight each search term
+        highlighted_content = content_preview
+        for term in search_terms:
+            if len(term.strip()) > 0:
+                # Create case-insensitive regex pattern
+                pattern = re.escape(term.strip())
+                regex = re.compile(f'({pattern})', re.IGNORECASE)
+                highlighted_content = regex.sub(
+                    r'<mark class="search-highlight">\1</mark>',
+                    highlighted_content
+                )
+
+        highlighted_result['content_preview'] = highlighted_content
+        highlighted_results.append(highlighted_result)
+
+    return highlighted_results
 
 
 @app.route('/')
@@ -164,7 +204,19 @@ def unified_search():
                     all_categories.add(cat.strip().lower())
 
         if query.lower() in all_categories:
-            return category_search_logic(query)
+            # Perform category search with highlighting
+            try:
+                results = agent.search_by_category(query)
+                highlighted_results = highlight_search_terms_in_results(results, [query])
+
+                return render_template('search_results.html',
+                                     query=f"Category: {query}",
+                                     results=highlighted_results,
+                                     search_type='category')
+            except Exception as e:
+                app.logger.error(f"Category search error: {e}")
+                flash(f'Search failed: {str(e)}', 'error')
+                return redirect(url_for('index'))
 
         # Default to semantic search
         return semantic_search_logic(query)
@@ -202,6 +254,9 @@ def semantic_search_logic(query):
 
         app.logger.info(f"Semantic search completed. Found {len(results)} results")
 
+        # Highlight relevant terms in content previews
+        highlighted_results = highlight_search_terms_in_results(results, query.split())
+
         # Debug: Log details about results
         if results:
             app.logger.debug(f"First result: {results[0].get('filename', 'N/A')} - similarity: {results[0].get('similarity', 'N/A')}")
@@ -213,7 +268,7 @@ def semantic_search_logic(query):
 
         return render_template('search_results.html',
                              query=query,
-                             results=results,
+                             results=highlighted_results,
                              search_type='semantic')
 
     except Exception as e:
@@ -245,9 +300,12 @@ def category_search_logic(category):
         # Perform category search
         results = agent.search_by_category(category)
 
+        # Highlight category terms in content previews
+        highlighted_results = highlight_search_terms_in_results(results, [category])
+
         return render_template('search_results.html',
                              query=f"Category: {category}",
-                             results=results,
+                             results=highlighted_results,
                              search_type='category')
 
     except Exception as e:
