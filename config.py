@@ -111,11 +111,29 @@ class Config:
     @property
     def prompt_template(self) -> Optional[str]:
         """Get the classification prompt template.
-        
+
         Returns:
             Prompt template string with {filename} and {content} placeholders, or None for default
         """
         return self._config.get('prompt_template')
+
+    @property
+    def webapp_port(self) -> int:
+        """Get the web app port."""
+        webapp_config = self._config.get('webapp', {})
+        return webapp_config.get('port', 5000)
+
+    @property
+    def webapp_host(self) -> str:
+        """Get the web app host."""
+        webapp_config = self._config.get('webapp', {})
+        return webapp_config.get('host', '0.0.0.0')
+
+    @property
+    def webapp_debug(self) -> bool:
+        """Get the web app debug mode."""
+        webapp_config = self._config.get('webapp', {})
+        return webapp_config.get('debug', True)
     
     @property
     def database_path(self) -> str:

@@ -63,6 +63,15 @@ watch:
   # Recursively watch subdirectories
   recursive: true
 
+# Web app configuration
+webapp:
+  # Port to run the web application on
+  port: 5000
+  # Host to bind the web application to (0.0.0.0 for all interfaces)
+  host: "0.0.0.0"
+  # Enable debug mode (set to false for production)
+  debug: true
+
 # Logging
 logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR

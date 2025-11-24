@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Document Classification Agent - Web App Interface."""
 import os
+import argparse
 from flask import Flask, render_template, request, jsonify, flash, redirect, url_for
 from config import Config
 from database import DocumentDatabase
@@ -8,11 +9,38 @@ from agent import DocumentAgent
 from typing import List, Dict, Any
 import math
 
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Document Classification Agent - Web Interface')
+parser.add_argument('--config', type=str, default='config.yaml',
+                   help='Path to configuration file (default: config.yaml)')
+parser.add_argument('--port', type=int,
+                   help='Port to run the web app on (overrides config)')
+parser.add_argument('--host', type=str,
+                   help='Host to bind the web app to (overrides config)')
+parser.add_argument('--debug', action='store_true', default=None,
+                   help='Enable debug mode (overrides config)')
+parser.add_argument('--no-debug', action='store_true',
+                   help='Disable debug mode (overrides config)')
+
+args = parser.parse_args()
+
+# Initialize configuration
+config = Config(args.config)
+
+# Override config with command line arguments
+if args.port:
+    config._config.setdefault('webapp', {})['port'] = args.port
+if args.host:
+    config._config.setdefault('webapp', {})['host'] = args.host
+if args.debug is True:
+    config._config.setdefault('webapp', {})['debug'] = True
+if args.no_debug:
+    config._config.setdefault('webapp', {})['debug'] = False
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
 # Initialize components
-config = Config()
 database = DocumentDatabase(config.database_path)
 agent = DocumentAgent(config)
 
@@ -250,4 +278,8 @@ def utility_processor():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(
+        debug=config.webapp_debug,
+        host=config.webapp_host,
+        port=config.webapp_port
+    )
