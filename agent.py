@@ -74,14 +74,18 @@ class DocumentAgent:
             # Generate embedding for semantic search
             logger.info(f"Generating embedding for {file_path.name}...")
             embedding = self.embedding_generator.generate_embedding(content)
-            
+
+            if not embedding:
+                logger.error(f"Failed to generate embedding for {file_path.name}")
+                return False
+
             # Prepare metadata
             metadata = {
                 'file_size': file_path.stat().st_size if file_path.exists() else 0,
                 'file_extension': file_path.suffix,
                 'file_modified': file_path.stat().st_mtime if file_path.exists() else None
             }
-            
+
             # Store in database
             doc_id = self.database.store_classification(
                 file_path=str(file_path),
@@ -89,10 +93,9 @@ class DocumentAgent:
                 categories=categories,
                 metadata=metadata
             )
-            
-            # Store embedding if generated
-            if embedding:
-                self.database.store_embedding(str(file_path), embedding)
+
+            # Store embedding
+            self.database.store_embedding(str(file_path), embedding)
             
             # Export to JSON file
             self.database.export_to_json(self.config.json_export_path)
@@ -159,27 +162,50 @@ class DocumentAgent:
     
     def search(self, query: str, top_k: int = 10) -> List[Dict]:
         """Perform semantic search on documents.
-        
+
         Args:
             query: Search query text
             top_k: Number of results to return
-        
+
         Returns:
             List of matching documents with similarity scores
         """
         logger.info(f"Performing semantic search for: '{query}'")
-        
-        # Generate query embedding
-        query_embedding = self.embedding_generator.generate_query_embedding(query)
-        
-        if not query_embedding:
-            logger.error("Failed to generate query embedding")
+
+        # Check if embedding generator is available
+        if not hasattr(self, 'embedding_generator') or self.embedding_generator is None:
+            logger.error("Embedding generator not available")
             return []
-        
+
+        # Generate query embedding
+        logger.debug("Generating query embedding...")
+        try:
+            query_embedding = self.embedding_generator.generate_query_embedding(query)
+        except Exception as e:
+            logger.error(f"Exception during query embedding generation: {e}")
+            return []
+
+        if not query_embedding:
+            logger.error("Failed to generate query embedding - returned None")
+            return []
+
+        if not isinstance(query_embedding, list) or len(query_embedding) == 0:
+            logger.error(f"Invalid query embedding: {type(query_embedding)}, length: {len(query_embedding) if isinstance(query_embedding, list) else 'N/A'}")
+            return []
+
+        logger.debug(f"Generated query embedding with {len(query_embedding)} dimensions")
+
         # Search database
-        results = self.database.search_semantic(query_embedding, top_k=top_k)
-        
+        logger.debug("Searching database for semantic matches...")
+        try:
+            results = self.database.search_semantic(query_embedding, top_k=top_k)
+        except Exception as e:
+            logger.error(f"Exception during database search: {e}")
+            return []
+
         logger.info(f"Found {len(results)} matching documents")
+        if results:
+            logger.debug(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
         return results
     
     def search_by_category(self, category: str) -> List[Dict]:

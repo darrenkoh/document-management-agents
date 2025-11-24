@@ -43,7 +43,7 @@
                         {{ get_file_icon(result.metadata.file_extension) }}
                     </div>
                     <h6 class="mb-0">
-                        <a href="{{ url_for('document_detail', doc_id=result.doc_id) }}" class="text-decoration-none">
+                        <a href="{{ url_for('document_detail', doc_id=result['doc_id']) }}" class="text-decoration-none">
                             {{ result.filename }}
                         </a>
                     </h6>
@@ -92,7 +92,7 @@
             </div>
             <div class="card-footer bg-transparent">
                 <div class="d-flex gap-2">
-                    <a href="{{ url_for('document_detail', doc_id=result.doc_id) }}" class="btn btn-primary btn-sm">
+                    <a href="{{ url_for('document_detail', doc_id=result['doc_id']) }}" class="btn btn-primary btn-sm">
                         <i class="fas fa-eye"></i> View Full Details
                     </a>
                     <button class="btn btn-outline-secondary btn-sm" onclick="copyPath('{{ result.file_path }}')">

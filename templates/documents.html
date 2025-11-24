@@ -17,17 +17,30 @@
                         <i class="fas fa-search"></i>
                     </button>
                 </form>
+
+                {% if available_categories %}
+                <form method="GET" class="d-flex">
+                    <select name="category" class="form-select" style="width: 200px;" onchange="this.form.submit()">
+                        <option value="">All Categories</option>
+                        {% for cat in available_categories %}
+                        <option value="{{ cat }}" {{ 'selected' if category_filter == cat else '' }}>{{ cat.title() }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
 <!-- Search Results Info -->
-{% if search %}
+{% if search or category_filter %}
 <div class="alert alert-info">
     <i class="fas fa-info-circle"></i>
     Found {{ total_docs }} document{{ 's' if total_docs != 1 else '' }}
     {% if search %}matching "{{ search }}"{% endif %}
+    {% if search and category_filter %} and {% endif %}
+    {% if category_filter %}in category "{{ category_filter }}"{% endif %}
 </div>
 {% endif %}
 

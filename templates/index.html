@@ -38,6 +38,46 @@
     </div>
 </div>
 
+<!-- Category Search Section -->
+<div class="search-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="search-card p-5">
+                    <h1 class="text-center mb-4">
+                        <i class="fas fa-tags"></i> Category Search
+                    </h1>
+                    <p class="text-center text-muted mb-4">
+                        Search documents by their classification categories.
+                    </p>
+
+                    <form action="{{ url_for('category_search') }}" method="post">
+                        <div class="input-group input-group-lg">
+                            <select name="category" class="form-select form-select-lg" required>
+                                <option value="">Select a category...</option>
+                                {% set unique_cats = [] %}
+                                {% for doc in recent_docs %}
+                                    {% for cat in doc.categories.split('-') %}
+                                        {% if cat and cat not in unique_cats %}
+                                            {% set _ = unique_cats.append(cat) %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endfor %}
+                                {% for cat in unique_cats | sort %}
+                                <option value="{{ cat }}">{{ cat.title() }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-success" type="submit">
+                                <i class="fas fa-search"></i> Search by Category
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Recent Documents -->
 <div class="row">
     <div class="col-lg-8">

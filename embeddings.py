@@ -32,10 +32,10 @@ class EmbeddingGenerator:
     
     def generate_embedding(self, text: str) -> Optional[List[float]]:
         """Generate embedding vector for text.
-        
+
         Args:
             text: Text to generate embedding for
-        
+
         Returns:
             Embedding vector as list of floats, or None if failed
         """
@@ -43,12 +43,14 @@ class EmbeddingGenerator:
             # Truncate text if too long (embedding models have limits)
             # Most embedding models handle up to ~8192 tokens, so ~6000 chars is safe
             truncated_text = text[:6000] if len(text) > 6000 else text
-            
+
+            logger.debug(f"Generating embedding for text (length: {len(truncated_text)} chars)")
+
             response = self.client.embeddings(
                 model=self.model,
                 prompt=truncated_text
             )
-            
+
             embedding = response.get('embedding', [])
             if embedding:
                 logger.debug(f"Generated embedding of dimension {len(embedding)}")
@@ -56,7 +58,7 @@ class EmbeddingGenerator:
             else:
                 logger.warning("No embedding returned from model")
                 return None
-        
+
         except CONNECTION_EXCEPTIONS as e:
             # Connection/timeout errors should be logged as failures
             logger.error(f"LLM connection error during embedding generation: {e}")
