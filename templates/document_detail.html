@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.filename }} - Document Classification Agent{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <span class="file-icon">{{ get_file_icon(document.metadata.file_extension) }}</span>
+                    {{ document.filename }}
+                </h4>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="copyPath('{{ document.file_path }}')">
+                        <i class="fas fa-copy"></i> Copy Path
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Document Info -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">File Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Path:</strong></td>
+                                <td><code>{{ document.file_path }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Size:</strong></td>
+                                <td>{{ "%.1f"|format(document.metadata.file_size / 1024) }} KB</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Type:</strong></td>
+                                <td>{{ document.metadata.file_extension | upper }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Modified:</strong></td>
+                                <td>{{ document.metadata.file_modified | strftime('%Y-%m-%d %H:%M') if document.metadata.file_modified else 'Unknown' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Classified:</strong></td>
+                                <td>{{ document.classification_date | format_date }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Classification</h6>
+                        <div class="mb-3">
+                            <strong>Categories:</strong>
+                            <div class="mt-2">
+                                {% for category in document.categories.split('-') %}
+                                    {% if category %}
+                                    <span class="badge category-badge me-1 mb-1 fs-6">{{ category }}</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% if document.embedding %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-brain"></i> This document has AI embeddings for semantic search
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i> No embeddings available for this document
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Content Preview -->
+                <div>
+                    <h6 class="text-muted mb-2">Content Preview</h6>
+                    <div class="border rounded p-3 bg-light">
+                        <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9rem;">{{ document.content }}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Quick Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-bolt"></i> Actions
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" onclick="window.print()">
+                        <i class="fas fa-print"></i> Print Document
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="copyPath('{{ document.file_path }}')">
+                        <i class="fas fa-copy"></i> Copy File Path
+                    </button>
+                    <a href="{{ url_for('documents') }}" class="btn btn-outline-success">
+                        <i class="fas fa-arrow-left"></i> Back to Documents
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metadata -->
+        {% if document.metadata %}
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle"></i> Additional Metadata
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for key, value in document.metadata.items() %}
+                        {% if key not in ['file_size', 'file_extension', 'file_modified'] %}
+                        <div class="col-12 mb-2">
+                            <small class="text-muted">{{ key | replace('_', ' ') | title }}:</small>
+                            <br>
+                            <span class="fw-bold">{{ value }}</span>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function copyPath(path) {
+    navigator.clipboard.writeText(path).then(function() {
+        // Show success feedback
+        const btns = document.querySelectorAll('button[onclick*="copyPath"]');
+        btns.forEach(btn => {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-success');
+
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    }).catch(function(err) {
+        console.error('Failed to copy path: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = path;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+
+        const btns = document.querySelectorAll('button[onclick*="copyPath"]');
+        btns.forEach(btn => {
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-success');
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    });
+}
+</script>
+
+{% endblock %}

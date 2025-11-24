@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Document Classification Agent{% endblock %}
+
+{% block content %}
+<!-- Search Section -->
+<div class="search-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="search-card p-5">
+                    <h1 class="text-center mb-4">
+                        <i class="fas fa-search"></i> Semantic Document Search
+                    </h1>
+                    <p class="text-center text-muted mb-4">
+                        Search through your classified documents using natural language. Powered by AI embeddings.
+                    </p>
+
+                    <form action="{{ url_for('semantic_search') }}" method="post">
+                        <div class="input-group input-group-lg">
+                            <input type="text" name="query" class="form-control form-control-lg"
+                                   placeholder="e.g., 'flight booking confirmation' or 'invoice from last month'"
+                                   required autofocus>
+                            <button class="btn btn-primary" type="submit">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="text-center mt-3">
+                        <small class="text-muted">
+                            Try: "travel documents", "financial statements", "legal contracts"
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Documents -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card document-card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock"></i> Recent Documents
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_docs %}
+                    <div class="row">
+                        {% for doc in recent_docs %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-start">
+                                        <div class="file-icon">
+                                            {{ get_file_icon(doc.metadata.file_extension) }}
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="card-title mb-1">
+                                                <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}" class="text-decoration-none">
+                                                    {{ doc.filename }}
+                                                </a>
+                                            </h6>
+                                            <p class="card-text small text-muted mb-2">
+                                                {{ doc.content_preview | truncate_content(100) }}
+                                            </p>
+                                            <div class="mb-2">
+                                                {% for category in doc.categories.split('-') %}
+                                                    {% if category %}
+                                                    <span class="badge category-badge me-1">{{ category }}</span>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar"></i> {{ doc.classification_date | format_date }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('documents') }}" class="btn btn-primary">
+                            <i class="fas fa-list"></i> View All Documents
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No documents yet</h5>
+                        <p class="text-muted">Run the classification agent to get started!</p>
+                        <a href="{{ url_for('documents') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add Documents
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Quick Stats -->
+        <div class="card stats-card text-white mb-4">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-chart-line"></i> Quick Stats
+                </h5>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h3>{{ recent_docs | length }}</h3>
+                        <small>Recent Docs</small>
+                    </div>
+                    <div class="col-6">
+                        <h3>
+                            {% set unique_cats = [] %}
+                            {% for doc in recent_docs %}
+                                {% for cat in doc.categories.split('-') %}
+                                    {% if cat and cat not in unique_cats %}
+                                        {% set _ = unique_cats.append(cat) %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                            {{ unique_cats | length }}
+                        </h3>
+                        <small>Categories</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-bolt"></i> Quick Actions
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('documents') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-file-alt"></i> Browse All Documents
+                    </a>
+                    <a href="{{ url_for('stats') }}" class="btn btn-outline-success">
+                        <i class="fas fa-chart-bar"></i> View Statistics
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mt-3">
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            {{ message }}
+        </div>
+        {% endif %}
+    {% endif %}
+{% endwith %}
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Documents - Document Classification Agent{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>
+                <i class="fas fa-file-alt"></i> All Documents
+            </h2>
+            <div class="d-flex gap-2">
+                <form method="GET" class="d-flex">
+                    <input type="text" name="search" class="form-control" placeholder="Search documents..."
+                           value="{{ search }}" style="width: 250px;">
+                    <button type="submit" class="btn btn-outline-primary ms-2">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Results Info -->
+{% if search %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i>
+    Found {{ total_docs }} document{{ 's' if total_docs != 1 else '' }}
+    {% if search %}matching "{{ search }}"{% endif %}
+</div>
+{% endif %}
+
+<!-- Documents Grid -->
+{% if documents %}
+<div class="row">
+    {% for doc in documents %}
+    <div class="col-lg-6 col-xl-4 mb-4">
+        <div class="card document-card h-100">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-start mb-3">
+                    <div class="file-icon">
+                        {{ get_file_icon(doc.metadata.file_extension) }}
+                    </div>
+                    <div class="flex-grow-1">
+                        <h6 class="card-title mb-1">
+                            <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}" class="text-decoration-none">
+                                {{ doc.filename }}
+                            </a>
+                        </h6>
+                        <small class="text-muted">
+                            <i class="fas fa-calendar"></i> {{ doc.classification_date | format_date }}
+                        </small>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    {% for category in doc.categories.split('-') %}
+                        {% if category %}
+                        <span class="badge category-badge me-1 mb-1">{{ category }}</span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <p class="card-text flex-grow-1 highlight-search">
+                    {{ doc.content_preview | truncate_content(150) }}
+                </p>
+
+                <div class="mt-auto">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <small class="text-muted">Size</small>
+                            <br>
+                            <span class="fw-bold">{{ "%.1f"|format(doc.metadata.file_size / 1024) }} KB</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Type</small>
+                            <br>
+                            <span class="fw-bold">{{ doc.metadata.file_extension | upper }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="fas fa-eye"></i> View Details
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<nav aria-label="Document pagination">
+    <ul class="pagination justify-content-center">
+        {% set start_page = [1, page - 2] | max %}
+        {% set end_page = [total_pages, page + 2] | min %}
+
+        {% if start_page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('documents', page=1, search=search) }}">1</a>
+        </li>
+        {% if start_page > 2 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        {% endif %}
+
+        {% for page_num in range(start_page, end_page + 1) %}
+        <li class="page-item {{ 'active' if page_num == page else '' }}">
+            <a class="page-link" href="{{ url_for('documents', page=page_num, search=search) }}">
+                {{ page_num }}
+            </a>
+        </li>
+        {% endfor %}
+
+        {% if end_page < total_pages %}
+        {% if end_page < total_pages - 1 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('documents', page=total_pages, search=search) }}">{{ total_pages }}</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+    <h4 class="text-muted">No documents found</h4>
+    {% if search %}
+    <p class="text-muted">Try a different search term or <a href="{{ url_for('documents') }}">view all documents</a>.</p>
+    {% else %}
+    <p class="text-muted">No documents have been classified yet.</p>
+    <p>Run the classification agent to get started!</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mt-3">
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+{% endblock %}

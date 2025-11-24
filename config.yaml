@@ -3,8 +3,12 @@
 # Source directory to monitor for files
 source_path: "./input"
 
-# Base destination directory where classified files will be copied
-destination_path: "./output"
+# Database configuration
+database:
+  # Path to the NoSQL database file (TinyDB JSON format)
+  path: "documents.json"
+  # Path to export JSON output file
+  json_export_path: "classifications.json"
 
 # Ollama configuration
 ollama:
@@ -16,6 +20,8 @@ ollama:
   timeout: 30
   # Maximum number of tokens to predict (higher for reasoning models)
   num_predict: 2000
+  # Embedding model for semantic search (default: nomic-embed-text)
+  embedding_model: "nomic-embed-text"
 
 # File extensions to process (empty list means process all files)
 file_extensions:

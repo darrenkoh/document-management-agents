@@ -46,3 +46,8 @@ input/
 output/
 *.yaml.bak
 
+# Database and exports
+documents.json
+*.json.bak
+classifications.json
+

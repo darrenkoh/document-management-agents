@@ -116,4 +116,22 @@ class Config:
             Prompt template string with {filename} and {content} placeholders, or None for default
         """
         return self._config.get('prompt_template')
+    
+    @property
+    def database_path(self) -> str:
+        """Get the database file path."""
+        db_config = self._config.get('database', {})
+        return db_config.get('path', 'documents.json')
+    
+    @property
+    def json_export_path(self) -> str:
+        """Get the JSON export file path."""
+        db_config = self._config.get('database', {})
+        return db_config.get('json_export_path', 'classifications.json')
+    
+    @property
+    def ollama_embedding_model(self) -> str:
+        """Get the embedding model name."""
+        ollama_config = self._config.get('ollama', {})
+        return ollama_config.get('embedding_model', 'nomic-embed-text')
 

@@ -4,6 +4,14 @@ import ollama
 from typing import Optional, Dict
 import re
 
+# Try to import httpx exceptions in case ollama uses httpx
+try:
+    import httpx
+    CONNECTION_EXCEPTIONS = (ConnectionError, TimeoutError, OSError, 
+                             httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError)
+except ImportError:
+    CONNECTION_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
+
 logger = logging.getLogger(__name__)
 
 
@@ -172,7 +180,15 @@ class Classifier:
                 logger.warning(f"Could not extract category from LLM response. Raw response: '{raw_response}'")
                 return "uncategorized"
         
+        except CONNECTION_EXCEPTIONS as e:
+            # Connection/timeout errors should be treated as failures
+            logger.error(f"LLM connection error during classification: {e}")
+            if verbose:
+                import traceback
+                logger.error(f"Full traceback:\n{traceback.format_exc()}")
+            return None  # Return None to indicate failure
         except Exception as e:
+            # Other errors (e.g., parsing issues) can fall back to uncategorized
             logger.error(f"Classification error: {e}")
             if verbose:
                 import traceback

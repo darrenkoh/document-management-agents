@@ -63,11 +63,6 @@ def main():
         type=str,
         help='Override source directory from config'
     )
-    classify_parser.add_argument(
-        '--output',
-        type=str,
-        help='Override output/destination directory from config'
-    )
     
     # Watch command
     watch_parser = subparsers.add_parser(
@@ -80,14 +75,37 @@ def main():
         help='Override source directory from config'
     )
     watch_parser.add_argument(
-        '--output',
-        type=str,
-        help='Override output/destination directory from config'
-    )
-    watch_parser.add_argument(
         '--interval',
         type=int,
         help='Override polling interval from config (seconds)'
+    )
+    
+    # Search command
+    search_parser = subparsers.add_parser(
+        'search',
+        help='Perform semantic search on classified documents'
+    )
+    search_parser.add_argument(
+        'query',
+        type=str,
+        help='Search query text'
+    )
+    search_parser.add_argument(
+        '--top-k',
+        type=int,
+        default=10,
+        help='Number of results to return (default: 10)'
+    )
+    
+    # Category search command
+    category_parser = subparsers.add_parser(
+        'category',
+        help='Search documents by category'
+    )
+    category_parser.add_argument(
+        'category',
+        type=str,
+        help='Category to search for'
     )
     
     args = parser.parse_args()
@@ -101,14 +119,9 @@ def main():
         config = Config(args.config)
         
         # Override source path if provided
-        if args.source:
+        if hasattr(args, 'source') and args.source:
             source_path = os.path.expanduser(args.source)
             config._config['source_path'] = os.path.abspath(source_path)
-        
-        # Override destination path if provided
-        if hasattr(args, 'output') and args.output:
-            dest_path = os.path.expanduser(args.output)
-            config._config['destination_path'] = os.path.abspath(dest_path)
         
         # Setup logging
         verbose = getattr(args, 'verbose', False)
@@ -117,7 +130,7 @@ def main():
         logger = logging.getLogger(__name__)
         logger.info("Document Classification Agent starting...")
         logger.info(f"Source: {config.source_path}")
-        logger.info(f"Destination: {config.destination_path}")
+        logger.info(f"Database: {config.database_path}")
         logger.info(f"Ollama Model: {config.ollama_model}")
         if verbose:
             logger.info("Verbose logging enabled - LLM requests and responses will be logged")
@@ -125,19 +138,51 @@ def main():
         # Initialize agent
         agent = DocumentAgent(config, verbose=verbose)
         
-        # Execute command
-        if args.command == 'classify':
-            stats = agent.process_all()
-            print(f"\nProcessing complete:")
-            print(f"  Total files: {stats['total']}")
-            print(f"  Processed: {stats['processed']}")
-            print(f"  Failed: {stats['failed']}")
+        try:
+            # Execute command
+            if args.command == 'classify':
+                stats = agent.process_all()
+                print(f"\nProcessing complete:")
+                print(f"  Total files: {stats['total']}")
+                print(f"  Processed: {stats['processed']}")
+                print(f"  Failed: {stats['failed']}")
+                print(f"  JSON export: {config.json_export_path}")
+                
+                if stats['failed'] > 0:
+                    sys.exit(1)
             
-            if stats['failed'] > 0:
-                sys.exit(1)
+            elif args.command == 'watch':
+                agent.watch(interval=getattr(args, 'interval', None))
+            
+            elif args.command == 'search':
+                results = agent.search(args.query, top_k=args.top_k)
+                print(f"\nSearch results for '{args.query}':")
+                print(f"  Found {len(results)} documents\n")
+                for i, doc in enumerate(results, 1):
+                    print(f"{i}. {doc.get('filename', 'unknown')}")
+                    print(f"   Categories: {doc.get('categories', 'N/A')}")
+                    print(f"   Similarity: {doc.get('similarity', 0):.3f}")
+                    print(f"   Path: {doc.get('file_path', 'N/A')}")
+                    preview = doc.get('content_preview', '')
+                    if preview:
+                        print(f"   Preview: {preview[:100]}...")
+                    print()
+            
+            elif args.command == 'category':
+                results = agent.search_by_category(args.category)
+                print(f"\nDocuments in category '{args.category}':")
+                print(f"  Found {len(results)} documents\n")
+                for i, doc in enumerate(results, 1):
+                    print(f"{i}. {doc.get('filename', 'unknown')}")
+                    print(f"   Categories: {doc.get('categories', 'N/A')}")
+                    print(f"   Path: {doc.get('file_path', 'N/A')}")
+                    preview = doc.get('content_preview', '')
+                    if preview:
+                        print(f"   Preview: {preview[:100]}...")
+                    print()
         
-        elif args.command == 'watch':
-            agent.watch(interval=args.interval)
+        finally:
+            agent.close()
     
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)

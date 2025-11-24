@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Search Results - Document Classification Agent{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="fas fa-search"></i> Search Results
+                </h2>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-quote-left"></i>
+                    <strong>{{ query }}</strong>
+                    <i class="fas fa-quote-right"></i>
+                </p>
+            </div>
+            <div>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> New Search
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Summary -->
+<div class="alert alert-success">
+    <i class="fas fa-check-circle"></i>
+    Found {{ results | length }} relevant document{{ 's' if results | length != 1 else '' }}
+</div>
+
+<!-- Search Results -->
+{% if results %}
+<div class="row">
+    {% for result in results %}
+    <div class="col-12 mb-4">
+        <div class="card document-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="file-icon">
+                        {{ get_file_icon(result.metadata.file_extension) }}
+                    </div>
+                    <h6 class="mb-0">
+                        <a href="{{ url_for('document_detail', doc_id=result.doc_id) }}" class="text-decoration-none">
+                            {{ result.filename }}
+                        </a>
+                    </h6>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    {% if result.similarity %}
+                    <span class="similarity-score">
+                        <i class="fas fa-star"></i> {{ "%.1f"|format(result.similarity * 100) }}%
+                    </span>
+                    {% endif %}
+                    {% for category in result.categories.split('-') %}
+                        {% if category %}
+                        <span class="badge category-badge">{{ category }}</span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6 class="text-muted mb-2">
+                            <i class="fas fa-folder"></i> Location: {{ result.file_path }}
+                        </h6>
+                        <div class="content-preview">
+                            <strong>Content Preview:</strong>
+                            <p class="mt-2">{{ result.content_preview | truncate_content(300) }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <small class="text-muted d-block">File Size</small>
+                                <span class="fw-bold">{{ "%.1f"|format(result.metadata.file_size / 1024) }} KB</span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Type</small>
+                                <span class="fw-bold">{{ result.metadata.file_extension | upper }}</span>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <small class="text-muted d-block">Classified</small>
+                                <span class="fw-bold">{{ result.classification_date | format_date }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('document_detail', doc_id=result.doc_id) }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-eye"></i> View Full Details
+                    </a>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="copyPath('{{ result.file_path }}')">
+                        <i class="fas fa-copy"></i> Copy Path
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+    <h4 class="text-muted">No results found</h4>
+    <p class="text-muted">Try different search terms or check if documents have been processed with embeddings.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary">
+        <i class="fas fa-search"></i> Try Another Search
+    </a>
+</div>
+{% endif %}
+
+<script>
+function copyPath(path) {
+    navigator.clipboard.writeText(path).then(function() {
+        // Show temporary success message
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+
+        setTimeout(function() {
+            btn.innerHTML = originalText;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Failed to copy path: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = path;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+
+        const btn = event.target.closest('button');
+        btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        setTimeout(function() {
+            btn.innerHTML = originalText;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    });
+}
+</script>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mt-3">
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+{% endblock %}

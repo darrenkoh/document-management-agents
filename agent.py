@@ -2,10 +2,12 @@
 import logging
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from file_handler import FileHandler
 from classifier import Classifier
 from config import Config
+from database import DocumentDatabase
+from embeddings import EmbeddingGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +24,7 @@ class DocumentAgent:
         """
         self.config = config
         self.verbose = verbose
-        self.file_handler = FileHandler(
-            config.source_path,
-            config.destination_path
-        )
+        self.file_handler = FileHandler(config.source_path)
         self.classifier = Classifier(
             endpoint=config.ollama_endpoint,
             model=config.ollama_model,
@@ -33,9 +32,15 @@ class DocumentAgent:
             num_predict=config.ollama_num_predict,
             prompt_template=config.prompt_template
         )
+        self.database = DocumentDatabase(config.database_path)
+        self.embedding_generator = EmbeddingGenerator(
+            endpoint=config.ollama_endpoint,
+            model=config.ollama_embedding_model,
+            timeout=config.ollama_timeout
+        )
     
     def process_file(self, file_path: Path) -> bool:
-        """Process a single file: extract, classify, and copy.
+        """Process a single file: extract, classify, generate embeddings, and store in database.
         
         Args:
             file_path: Path to the file to process
@@ -44,8 +49,9 @@ class DocumentAgent:
             True if successful, False otherwise
         """
         try:
-            # Skip if already processed
-            if self.file_handler.is_processed(file_path):
+            # Check if already processed
+            existing = self.database.get_document(str(file_path))
+            if existing:
                 logger.debug(f"Skipping already processed file: {file_path.name}")
                 return True
             
@@ -59,20 +65,40 @@ class DocumentAgent:
                 return False
             
             # Classify content
-            category = self.classifier.classify(content, file_path.name, verbose=self.verbose)
+            categories = self.classifier.classify(content, file_path.name, verbose=self.verbose)
             
-            if not category:
+            if not categories:
                 logger.error(f"Failed to classify {file_path.name}")
                 return False
             
-            # Copy file to category folder
-            success = self.file_handler.move_file(file_path, category)
+            # Generate embedding for semantic search
+            logger.info(f"Generating embedding for {file_path.name}...")
+            embedding = self.embedding_generator.generate_embedding(content)
             
-            if success:
-                self.file_handler.mark_processed(file_path)
-                logger.info(f"Successfully processed {file_path.name} -> {category}")
+            # Prepare metadata
+            metadata = {
+                'file_size': file_path.stat().st_size if file_path.exists() else 0,
+                'file_extension': file_path.suffix,
+                'file_modified': file_path.stat().st_mtime if file_path.exists() else None
+            }
             
-            return success
+            # Store in database
+            doc_id = self.database.store_classification(
+                file_path=str(file_path),
+                content=content,
+                categories=categories,
+                metadata=metadata
+            )
+            
+            # Store embedding if generated
+            if embedding:
+                self.database.store_embedding(str(file_path), embedding)
+            
+            # Export to JSON file
+            self.database.export_to_json(self.config.json_export_path)
+            
+            logger.info(f"Successfully processed {file_path.name} -> {categories} (DB ID: {doc_id})")
+            return True
         
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {e}")
@@ -125,7 +151,51 @@ class DocumentAgent:
             f"{stats['failed']} failed, {stats['total']} total"
         )
         
+        # Final JSON export
+        self.database.export_to_json(self.config.json_export_path)
+        logger.info(f"Classification results exported to {self.config.json_export_path}")
+        
         return stats
+    
+    def search(self, query: str, top_k: int = 10) -> List[Dict]:
+        """Perform semantic search on documents.
+        
+        Args:
+            query: Search query text
+            top_k: Number of results to return
+        
+        Returns:
+            List of matching documents with similarity scores
+        """
+        logger.info(f"Performing semantic search for: '{query}'")
+        
+        # Generate query embedding
+        query_embedding = self.embedding_generator.generate_query_embedding(query)
+        
+        if not query_embedding:
+            logger.error("Failed to generate query embedding")
+            return []
+        
+        # Search database
+        results = self.database.search_semantic(query_embedding, top_k=top_k)
+        
+        logger.info(f"Found {len(results)} matching documents")
+        return results
+    
+    def search_by_category(self, category: str) -> List[Dict]:
+        """Search documents by category.
+        
+        Args:
+            category: Category to search for
+        
+        Returns:
+            List of matching documents
+        """
+        return self.database.search_by_category(category)
+    
+    def close(self):
+        """Close database connections."""
+        self.database.close()
     
     def watch(self, interval: Optional[int] = None):
         """Watch source directory and process new files continuously.
