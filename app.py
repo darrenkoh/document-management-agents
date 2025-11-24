@@ -380,6 +380,19 @@ def format_date(date_string):
         return date_string
 
 
+@app.template_filter('format_timestamp')
+def format_timestamp(timestamp):
+    """Format Unix timestamp for display."""
+    if not timestamp:
+        return 'Unknown'
+    try:
+        from datetime import datetime
+        dt = datetime.fromtimestamp(timestamp)
+        return dt.strftime('%Y-%m-%d %H:%M')
+    except:
+        return str(timestamp)
+
+
 @app.template_filter('truncate_content')
 def truncate_content(content, length=200):
     """Truncate content to specified length."""

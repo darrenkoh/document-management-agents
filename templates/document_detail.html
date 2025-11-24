@@ -37,7 +37,7 @@
                             </tr>
                             <tr>
                                 <td><strong>Modified:</strong></td>
-                                <td>{{ document.metadata.file_modified | strftime('%Y-%m-%d %H:%M') if document.metadata.file_modified else 'Unknown' }}</td>
+                                <td>{{ document.metadata.file_modified | format_timestamp if document.metadata.file_modified else 'Unknown' }}</td>
                             </tr>
                             <tr>
                                 <td><strong>Classified:</strong></td>

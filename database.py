@@ -183,11 +183,16 @@ class DocumentDatabase:
     
     def get_all_documents(self) -> List[Dict]:
         """Get all documents from the database.
-        
+
         Returns:
             List of all documents
         """
-        return self.documents.all()
+        docs = []
+        for doc in self.documents.all():
+            doc_dict = dict(doc)
+            doc_dict['doc_id'] = doc.doc_id
+            docs.append(doc_dict)
+        return docs
     
     def export_to_json(self, output_path: str) -> bool:
         """Export all documents to a JSON file.

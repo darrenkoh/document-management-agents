@@ -50,8 +50,10 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     {% if result.similarity %}
-                    <span class="similarity-score">
-                        <i class="fas fa-star"></i> {{ "%.1f"|format(result.similarity * 100) }}%
+                    {% set score_percent = result.similarity * 100 %}
+                    {% set score_class = 'similarity-score-high' if score_percent >= 85 else 'similarity-score-medium' if score_percent >= 51 else 'similarity-score-low' %}
+                    <span class="similarity-score {{ score_class }}">
+                        <i class="fas fa-star"></i> {{ "%.1f"|format(score_percent) }}%
                     </span>
                     {% endif %}
                     {% for category in result.categories.split('-') %}
