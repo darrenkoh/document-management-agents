@@ -50,4 +50,5 @@ output/
 documents.json
 *.json.bak
 classifications.json
+vector_store/
 
