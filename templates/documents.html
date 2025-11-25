@@ -75,9 +75,7 @@
                     {% endfor %}
                 </div>
 
-                <p class="card-text flex-grow-1 highlight-search">
-                    {{ doc.content_preview | truncate_content(150) }}
-                </p>
+                <div class="card-text flex-grow-1 highlight-search markdown-preview" data-content="{{ doc.content_preview | truncate_content(150) }}"></div>
 
                 <div class="mt-auto">
                     <div class="row text-center">
@@ -164,4 +162,28 @@
         {% endfor %}
     {% endif %}
 {% endwith %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Render markdown content in document cards
+        const previewElements = document.querySelectorAll('.markdown-preview');
+        previewElements.forEach(element => {
+            const rawContent = element.getAttribute('data-content');
+            if (rawContent) {
+                // Clean and render markdown
+                const cleaned = rawContent
+                    .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')  // Remove reference tags
+                    .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')  // Remove bounding box data
+                    .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')  // Remove image tags
+                    .replace(/\n{3,}/g, '\n\n')  // Clean up excessive newlines
+                    .trim();
+
+                element.innerHTML = marked.parse(cleaned, {
+                    breaks: true,
+                    gfm: true
+                });
+            }
+        });
+    });
+</script>
 {% endblock %}

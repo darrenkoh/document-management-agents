@@ -130,6 +130,26 @@
                 searchInput.name = 'query';
             }
         });
+
+        // Render markdown content in recent documents
+        const previewElements = document.querySelectorAll('.markdown-preview');
+        previewElements.forEach(element => {
+            const rawContent = element.getAttribute('data-content');
+            if (rawContent) {
+                // Clean and render markdown
+                const cleaned = rawContent
+                    .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')  // Remove reference tags
+                    .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')  // Remove bounding box data
+                    .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')  // Remove image tags
+                    .replace(/\n{3,}/g, '\n\n')  // Clean up excessive newlines
+                    .trim();
+
+                element.innerHTML = marked.parse(cleaned, {
+                    breaks: true,
+                    gfm: true
+                });
+            }
+        });
     });
 </script>
 
@@ -159,9 +179,7 @@
                                                     {{ doc.filename }}
                                                 </a>
                                             </h6>
-                                            <p class="card-text small text-muted mb-2">
-                                                {{ doc.content_preview | truncate_content(100) }}
-                                            </p>
+                                            <div class="card-text small text-muted mb-2 markdown-preview" data-content="{{ doc.content_preview | truncate_content(100) }}"></div>
                                             <div class="mb-2">
                                                 {% for category in doc.categories.split('-') %}
                                                     {% if category %}

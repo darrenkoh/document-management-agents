@@ -528,7 +528,8 @@
         }
 
         /* Markdown rendering styles */
-        #content-preview {
+        #content-preview,
+        .markdown-preview {
             line-height: 1.6;
         }
 
@@ -537,25 +538,31 @@
         #content-preview h3,
         #content-preview h4,
         #content-preview h5,
-        #content-preview h6 {
+        #content-preview h6,
+        .markdown-preview h1,
+        .markdown-preview h2,
+        .markdown-preview h3,
+        .markdown-preview h4,
+        .markdown-preview h5,
+        .markdown-preview h6 {
             margin-top: 1.5rem;
             margin-bottom: 0.75rem;
             font-weight: 600;
             color: var(--text-primary);
         }
 
-        #content-preview h1 { font-size: 1.75rem; border-bottom: 2px solid var(--border-subtle); padding-bottom: 0.5rem; }
-        #content-preview h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.25rem; }
-        #content-preview h3 { font-size: 1.25rem; }
-        #content-preview h4 { font-size: 1.125rem; }
-        #content-preview h5 { font-size: 1rem; }
-        #content-preview h6 { font-size: 0.875rem; }
+        #content-preview h1, .markdown-preview h1 { font-size: 1.75rem; border-bottom: 2px solid var(--border-subtle); padding-bottom: 0.5rem; }
+        #content-preview h2, .markdown-preview h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.25rem; }
+        #content-preview h3, .markdown-preview h3 { font-size: 1.25rem; }
+        #content-preview h4, .markdown-preview h4 { font-size: 1.125rem; }
+        #content-preview h5, .markdown-preview h5 { font-size: 1rem; }
+        #content-preview h6, .markdown-preview h6 { font-size: 0.875rem; }
 
-        #content-preview p {
+        #content-preview p, .markdown-preview p {
             margin-bottom: 1rem;
         }
 
-        #content-preview table {
+        #content-preview table, .markdown-preview table {
             width: 100%;
             margin-bottom: 1rem;
             border-collapse: collapse;
@@ -567,37 +574,46 @@
         }
 
         #content-preview th,
-        #content-preview td {
+        #content-preview td,
+        .markdown-preview th,
+        .markdown-preview td {
             padding: 0.75rem;
             text-align: left;
             border-bottom: 1px solid var(--border-subtle);
         }
 
-        #content-preview th {
+        #content-preview th,
+        .markdown-preview th {
             background: linear-gradient(135deg, var(--bg-secondary), var(--bg-primary));
             font-weight: 600;
             color: var(--text-primary);
         }
 
-        #content-preview tr:nth-child(even) {
+        #content-preview tr:nth-child(even),
+        .markdown-preview tr:nth-child(even) {
             background-color: var(--bg-secondary);
         }
 
-        #content-preview tr:hover {
+        #content-preview tr:hover,
+        .markdown-preview tr:hover {
             background-color: var(--bg-secondary);
         }
 
         #content-preview ul,
-        #content-preview ol {
+        #content-preview ol,
+        .markdown-preview ul,
+        .markdown-preview ol {
             margin-bottom: 1rem;
             padding-left: 2rem;
         }
 
-        #content-preview li {
+        #content-preview li,
+        .markdown-preview li {
             margin-bottom: 0.25rem;
         }
 
-        #content-preview blockquote {
+        #content-preview blockquote,
+        .markdown-preview blockquote {
             border-left: 4px solid var(--accent-color);
             padding-left: 1rem;
             margin: 1rem 0;
@@ -607,7 +623,8 @@
             border-radius: 0 8px 8px 0;
         }
 
-        #content-preview code {
+        #content-preview code,
+        .markdown-preview code {
             background-color: var(--bg-secondary);
             color: var(--text-primary);
             padding: 0.125rem 0.25rem;
@@ -616,7 +633,8 @@
             font-size: 0.875em;
         }
 
-        #content-preview pre {
+        #content-preview pre,
+        .markdown-preview pre {
             background-color: var(--bg-secondary);
             border: 1px solid var(--border-subtle);
             border-radius: 8px;
@@ -625,28 +643,33 @@
             margin-bottom: 1rem;
         }
 
-        #content-preview pre code {
+        #content-preview pre code,
+        .markdown-preview pre code {
             background-color: transparent;
             padding: 0;
             border-radius: 0;
         }
 
-        #content-preview strong {
+        #content-preview strong,
+        .markdown-preview strong {
             font-weight: 600;
             color: var(--text-primary);
         }
 
-        #content-preview em {
+        #content-preview em,
+        .markdown-preview em {
             font-style: italic;
             color: var(--text-secondary);
         }
 
-        #content-preview a {
+        #content-preview a,
+        .markdown-preview a {
             color: var(--accent-color);
             text-decoration: none;
         }
 
-        #content-preview a:hover {
+        #content-preview a:hover,
+        .markdown-preview a:hover {
             text-decoration: underline;
         }
     </style>
