@@ -24,17 +24,17 @@ logger = logging.getLogger(__name__)
 class FileHandler:
     """Handles file operations including text extraction and file moving."""
 
-    def __init__(self, source_path: str, ollama_endpoint: str = "http://localhost:11434",
+    def __init__(self, source_paths: List[str], ollama_endpoint: str = "http://localhost:11434",
                  ocr_model: str = "deepseek-ocr:3b", ocr_timeout: int = 60):
         """Initialize file handler.
 
         Args:
-            source_path: Source directory to read files from
+            source_paths: List of source directories to read files from
             ollama_endpoint: Ollama API endpoint for OCR
             ocr_model: OCR model name (default: deepseek-ocr:3b)
             ocr_timeout: Timeout for OCR operations in seconds
         """
-        self.source_path = Path(source_path)
+        self.source_paths = [Path(path) for path in source_paths]
         self.ollama_endpoint = ollama_endpoint
         self.ocr_model = ocr_model
         self.ocr_timeout = ocr_timeout
@@ -43,8 +43,9 @@ class FileHandler:
         self.ocr_client = ollama.Client(host=ollama_endpoint, timeout=ocr_timeout)
         self.ocr_available = self._check_ocr_availability()
 
-        # Ensure source directory exists
-        self.source_path.mkdir(parents=True, exist_ok=True)
+        # Ensure source directories exist
+        for source_path in self.source_paths:
+            source_path.mkdir(parents=True, exist_ok=True)
 
     def _check_ocr_availability(self) -> bool:
         """Check if DeepSeek-OCR is available and accessible."""
@@ -61,32 +62,33 @@ class FileHandler:
             return False
     
     def get_files(self, extensions: Optional[List[str]] = None, recursive: bool = True) -> List[Path]:
-        """Get list of files from source directory.
-        
+        """Get list of files from source directories.
+
         Args:
             extensions: List of file extensions to filter (e.g., ['.pdf', '.docx'])
                        If None, returns all files
             recursive: Whether to search recursively
-        
+
         Returns:
             List of file paths
         """
         files = []
-        
-        if not self.source_path.exists():
-            logger.warning(f"Source path does not exist: {self.source_path}")
-            return files
-        
-        pattern = "**/*" if recursive else "*"
-        
-        for file_path in self.source_path.glob(pattern):
-            if file_path.is_file():
-                # Filter by extension if specified
-                if extensions:
-                    if file_path.suffix.lower() in extensions:
+
+        for source_path in self.source_paths:
+            if not source_path.exists():
+                logger.warning(f"Source path does not exist: {source_path}")
+                continue
+
+            pattern = "**/*" if recursive else "*"
+
+            for file_path in source_path.glob(pattern):
+                if file_path.is_file():
+                    # Filter by extension if specified
+                    if extensions:
+                        if file_path.suffix.lower() in extensions:
+                            files.append(file_path)
+                    else:
                         files.append(file_path)
-                else:
-                    files.append(file_path)
         
         return files
     

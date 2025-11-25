@@ -61,7 +61,8 @@ def main():
     classify_parser.add_argument(
         '--source',
         type=str,
-        help='Override source directory from config'
+        nargs='+',
+        help='Override source directories from config (can specify multiple)'
     )
     
     # Watch command
@@ -72,7 +73,8 @@ def main():
     watch_parser.add_argument(
         '--source',
         type=str,
-        help='Override source directory from config'
+        nargs='+',
+        help='Override source directories from config (can specify multiple)'
     )
     watch_parser.add_argument(
         '--interval',
@@ -118,10 +120,10 @@ def main():
         # Load configuration
         config = Config(args.config)
         
-        # Override source path if provided
+        # Override source paths if provided
         if hasattr(args, 'source') and args.source:
-            source_path = os.path.expanduser(args.source)
-            config._config['source_path'] = os.path.abspath(source_path)
+            source_paths = [os.path.abspath(os.path.expanduser(path)) for path in args.source]
+            config._config['source_paths'] = source_paths
         
         # Setup logging
         verbose = getattr(args, 'verbose', False)
@@ -129,7 +131,8 @@ def main():
         
         logger = logging.getLogger(__name__)
         logger.info("Document Classification Agent starting...")
-        logger.info(f"Source: {config.source_path}")
+        source_paths_str = ", ".join(config.source_paths)
+        logger.info(f"Source paths: {source_paths_str}")
         logger.info(f"Database: {config.database_path}")
         logger.info(f"Ollama Model: {config.ollama_model}")
         if verbose:

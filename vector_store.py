@@ -115,8 +115,11 @@ class ChromaVectorStore(VectorStore):
         self.collection_name = collection_name
 
         # Filter out ChromaDB-specific parameters that shouldn't go to Settings
-        chromadb_settings = {k: v for k, v in kwargs.items() if k not in ['dimension']}
+        chromadb_settings = {k: v for k, v in kwargs.items() if k not in ['dimension', 'distance_metric']}
         # Note: 'dimension' is not used by ChromaDB as it handles embedding dimensions automatically
+
+        # Extract distance metric configuration
+        distance_metric = kwargs.get('distance_metric', 'l2')  # Default to 'l2' for backward compatibility
 
         # Initialize ChromaDB client
         self.client = chromadb.PersistentClient(
@@ -124,14 +127,21 @@ class ChromaVectorStore(VectorStore):
             settings=Settings(**chromadb_settings)
         )
 
-        # Get or create collection
+        # Get or create collection with distance metric
         try:
             self.collection = self.client.get_collection(name=collection_name)
-            logger.info(f"Loaded existing ChromaDB collection: {collection_name}")
+            logger.info(f"Loaded existing ChromaDB collection: {collection_name} (using distance metric: {distance_metric})")
         except NotFoundError:
             # ChromaDB raises NotFoundError when collection doesn't exist
-            self.collection = self.client.create_collection(name=collection_name)
-            logger.info(f"Created new ChromaDB collection: {collection_name}")
+            # Create collection with specified distance metric
+            collection_metadata = {"hnsw:space": distance_metric}
+            self.collection = self.client.create_collection(
+                name=collection_name,
+                metadata=collection_metadata
+            )
+            logger.info(f"Created new ChromaDB collection: {collection_name} (distance metric: {distance_metric})")
+
+        self.distance_metric = distance_metric
 
     def add_embeddings(self, embeddings: List[List[float]],
                       metadata: List[Dict[str, Any]],
@@ -189,7 +199,7 @@ class ChromaVectorStore(VectorStore):
             else:
                 normalized_query = query_embedding
 
-            # Query ChromaDB (returns L2 distances for normalized vectors, converted to similarity scores)
+            # Query ChromaDB (distance metric depends on collection configuration)
             results = self.collection.query(
                 query_embeddings=[normalized_query],
                 n_results=min(top_k * 3, 50),  # Get more results to rank properly
@@ -207,10 +217,17 @@ class ChromaVectorStore(VectorStore):
                 for i, (doc_id, distance, metadata) in enumerate(
                     zip(results['ids'][0], distances, results['metadatas'][0])):
 
-                    # Convert L2 distance to similarity
-                    # For L2 distance with normalized vectors: similarity = 1 / (1 + distance)
-                    # This gives similarity scores from 1.0 (identical) to 0.5 (unrelated) to ~0.0 (very different)
-                    similarity = 1.0 / (1.0 + distance)
+                    # Convert distance to similarity based on metric
+                    if self.distance_metric == 'cosine':
+                        # Cosine distance: 0 (identical) to 2 (opposite)
+                        # Convert to similarity: 1 - (distance/2) gives 1.0 to 0.0 range
+                        similarity = 1.0 - (distance / 2.0)
+                    elif self.distance_metric == 'l2':
+                        # L2 distance with normalized vectors: convert using 1/(1+distance)
+                        similarity = 1.0 / (1.0 + distance)
+                    else:
+                        # For other metrics (like 'ip'), use L2-style conversion as fallback
+                        similarity = 1.0 / (1.0 + distance)
 
                     logger.debug(f"Result {i}: ID={doc_id}, distance={distance:.3f}, similarity={similarity:.3f}")
                     search_results.append((doc_id, similarity, metadata))

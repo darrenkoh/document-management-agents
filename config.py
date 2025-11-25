@@ -32,6 +32,16 @@ class Config:
         if 'source_path' in config:
             config['source_path'] = os.path.expanduser(config['source_path'])
             config['source_path'] = os.path.abspath(config['source_path'])
+
+        if 'source_paths' in config:
+            if isinstance(config['source_paths'], str):
+                # Convert single string to list for consistency
+                config['source_paths'] = [config['source_paths']]
+            # Expand user paths and make them absolute
+            config['source_paths'] = [
+                os.path.abspath(os.path.expanduser(path))
+                for path in config['source_paths']
+            ]
         
         if 'destination_path' in config:
             config['destination_path'] = os.path.expanduser(config['destination_path'])
@@ -41,8 +51,21 @@ class Config:
     
     @property
     def source_path(self) -> str:
-        """Get the source directory path."""
+        """Get the source directory path (for backward compatibility)."""
         return self._config.get('source_path', './input')
+
+    @property
+    def source_paths(self) -> List[str]:
+        """Get the list of source directory paths."""
+        # Check if source_paths is configured
+        if 'source_paths' in self._config:
+            return self._config['source_paths']
+        # Fall back to source_path for backward compatibility
+        elif 'source_path' in self._config:
+            return [self._config['source_path']]
+        # Default to single input directory
+        else:
+            return ['./input']
     
     @property
     def destination_path(self) -> str:
@@ -192,6 +215,13 @@ class Config:
         db_config = self._config.get('database', {})
         vector_config = db_config.get('vector_store', {})
         return vector_config.get('dimension', 768)
+
+    @property
+    def vector_store_distance_metric(self) -> str:
+        """Get the vector store distance metric."""
+        db_config = self._config.get('database', {})
+        vector_config = db_config.get('vector_store', {})
+        return vector_config.get('distance_metric', 'l2')
 
     @property
     def semantic_search_top_k(self) -> int:

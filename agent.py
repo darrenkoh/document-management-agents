@@ -26,7 +26,7 @@ class DocumentAgent:
         self.config = config
         self.verbose = verbose
         self.file_handler = FileHandler(
-            config.source_path,
+            config.source_paths,
             ollama_endpoint=config.ollama_endpoint,
             ocr_model=config.ollama_ocr_model,
             ocr_timeout=config.ollama_ocr_timeout
@@ -44,7 +44,8 @@ class DocumentAgent:
                 store_type=config.vector_store_type,
                 persist_directory=config.vector_store_directory,
                 collection_name=config.vector_store_collection,
-                dimension=config.embedding_dimension
+                dimension=config.embedding_dimension,
+                distance_metric=config.vector_store_distance_metric
             )
             logger.info(f"Initialized {config.vector_store_type} vector store")
         except Exception as e:
@@ -215,6 +216,45 @@ class DocumentAgent:
         
         return stats
     
+    def _preprocess_query(self, query: str) -> str:
+        """Preprocess search query to improve semantic search quality.
+
+        Args:
+            query: Raw search query
+
+        Returns:
+            Processed query string
+        """
+        import re
+
+        # Convert to lowercase
+        query = query.lower().strip()
+
+        # Remove extra whitespace
+        query = re.sub(r'\s+', ' ', query)
+
+        # Common stop words that don't add much semantic value
+        stop_words = {
+            'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+            'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
+            'to', 'was', 'will', 'with', 'what', 'when', 'where', 'who', 'why'
+        }
+
+        # Remove stop words but keep important domain terms
+        words = query.split()
+        filtered_words = []
+        for word in words:
+            # Keep numbers, short important words, and domain-specific terms
+            if len(word) <= 2 or word not in stop_words or word in {'ai', 'ml', 'api', 'pdf', 'doc', 'txt'}:
+                filtered_words.append(word)
+
+        # If we filtered too much, use original query
+        if len(filtered_words) < len(words) * 0.5 and len(words) > 3:
+            filtered_words = words
+
+        return ' '.join(filtered_words)
+
+
     def search(self, query: str, top_k: int = None) -> List[Dict]:
         """Perform semantic search on documents.
 
@@ -232,7 +272,9 @@ class DocumentAgent:
         threshold = self.config.semantic_search_min_threshold
         debug_enabled = self.config.semantic_search_debug or logger.isEnabledFor(logging.DEBUG)
 
-        logger.info(f"Performing semantic search for: '{query}' (top_k={top_k}, threshold={threshold}, debug={debug_enabled})")
+        # Preprocess query for better semantic search
+        processed_query = self._preprocess_query(query)
+        logger.info(f"Performing semantic search for: '{query}' -> '{processed_query}' (top_k={top_k}, threshold={threshold}, debug={debug_enabled})")
 
         # Check if embedding generator is available
         if not hasattr(self, 'embedding_generator') or self.embedding_generator is None:
@@ -243,7 +285,7 @@ class DocumentAgent:
         if debug_enabled:
             logger.debug("Generating query embedding...")
         try:
-            query_embedding = self.embedding_generator.generate_query_embedding(query)
+            query_embedding = self.embedding_generator.generate_query_embedding(processed_query)
         except Exception as e:
             logger.error(f"Exception during query embedding generation: {e}")
             return []
@@ -273,7 +315,7 @@ class DocumentAgent:
             if debug_enabled:
                 logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
                 for i, result in enumerate(results[:3]):
-                    logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} (similarity: {result.get('similarity', 'N/A')})")
+                    logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} (similarity: {results[i].get('similarity', 'N/A')})")
             else:
                 logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
         return results
@@ -319,16 +361,24 @@ class DocumentAgent:
                         self.processed.add(str(file_path))
                         self.agent.process_file(file_path)
         
-        logger.info(f"Starting watch mode on {self.config.source_path}")
+        source_paths_str = ", ".join(str(path) for path in self.config.source_paths)
+        logger.info(f"Starting watch mode on: {source_paths_str}")
         logger.info(f"Polling interval: {interval or self.config.watch_interval} seconds")
-        
+
         event_handler = WatchFileHandler(self)
         observer = Observer()
-        observer.schedule(
-            event_handler,
-            self.config.source_path,
-            recursive=self.config.watch_recursive
-        )
+
+        # Schedule each source path for watching
+        for source_path in self.config.source_paths:
+            if Path(source_path).exists():
+                observer.schedule(
+                    event_handler,
+                    source_path,
+                    recursive=self.config.watch_recursive
+                )
+                logger.info(f"Watching directory: {source_path}")
+            else:
+                logger.warning(f"Source path does not exist, skipping: {source_path}")
         
         observer.start()
         

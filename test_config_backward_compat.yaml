@@ -1,0 +1,4 @@
+# Test configuration for backward compatibility
+source_path: "./input"
+database:
+  path: "test_documents.json"

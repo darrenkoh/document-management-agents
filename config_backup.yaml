@@ -1,14 +1,8 @@
 # Document Classification Agent Configuration
 
 # Source directories to monitor for files (supports single path or list of paths)
-# You can specify multiple directories to monitor:
-# source_paths:
-#   - "./input"
-#   - "./documents"
-#   - "/path/to/other/folder"
 source_paths:
   - "./input"
-  - "/Volumes/1TB/Private/401K"
 
 # Database configuration
 database:

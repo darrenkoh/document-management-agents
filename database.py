@@ -260,6 +260,16 @@ class DocumentDatabase:
             logger.error(f"Error exporting to JSON: {e}")
             return False
     
+    def refresh(self):
+        """Refresh the database by reloading from disk."""
+        logger.info("Refreshing database from disk...")
+        # Close the current database connection
+        self.db.close()
+        # Reinitialize TinyDB to reload from disk
+        self.db = TinyDB(str(self.db_path))
+        self.documents = self.db.table('documents')
+        logger.info("Database refreshed successfully")
+
     def close(self):
         """Close the database connection."""
         self.db.close()

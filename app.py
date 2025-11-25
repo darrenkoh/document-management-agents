@@ -59,6 +59,17 @@ setup_logging(config, verbose=(config.log_level.upper() == 'DEBUG'))
 database = DocumentDatabase(config.database_path, config=config)
 agent = DocumentAgent(config)
 
+# Global function to refresh database data
+def refresh_database():
+    """Refresh the database data from disk."""
+    try:
+        database.refresh()
+        app.logger.info("Database refreshed successfully")
+        return True
+    except Exception as e:
+        app.logger.error(f"Failed to refresh database: {e}")
+        return False
+
 # Debug: Check if agent has embedding generator
 app.logger.info("Initializing Document Agent...")
 app.logger.info(f"Agent has embedding generator: {hasattr(agent, 'embedding_generator')}")
@@ -114,6 +125,9 @@ def highlight_search_terms_in_results(results, search_terms):
 @app.route('/')
 def index():
     """Home page - show recent documents and search interface."""
+    # Refresh data to ensure we have latest documents
+    refresh_database()
+
     # Get recent documents
     all_docs = database.get_all_documents()
     recent_docs = sorted(all_docs, key=lambda x: x.get('classification_date', ''), reverse=True)[:10]
@@ -127,6 +141,9 @@ def documents():
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '').strip()
     category_filter = request.args.get('category', '').strip()
+
+    # Refresh data to ensure we have latest documents
+    refresh_database()
 
     # Get all documents
     all_docs = database.get_all_documents()
@@ -195,6 +212,9 @@ def unified_search():
         return redirect(url_for('index'))
 
     try:
+        # Refresh data before searching
+        refresh_database()
+
         # Check if this is a category search (starts with "category:")
         if query.lower().startswith('category:'):
             category = query[9:].strip()  # Remove "category:" prefix
@@ -441,6 +461,9 @@ def api_search():
 @app.route('/debug/search')
 def debug_search():
     """Debug endpoint to check search functionality."""
+    # Refresh data before testing
+    refresh_database()
+
     # Test category search
     try:
         category_results = agent.search_by_category('confirmation')
@@ -491,6 +514,9 @@ def api_documents():
     limit = request.args.get('limit', ITEMS_PER_PAGE, type=int)
     search = request.args.get('search', '').strip()
 
+    # Refresh data to ensure we have latest documents
+    refresh_database()
+
     all_docs = database.get_all_documents()
 
     # Filter by search if provided
@@ -527,9 +553,22 @@ def api_documents():
     })
 
 
+@app.route('/refresh')
+def refresh_data():
+    """Refresh database data from disk."""
+    if refresh_database():
+        flash('Database refreshed successfully.', 'success')
+    else:
+        flash('Failed to refresh database.', 'error')
+    return redirect(url_for('index'))
+
+
 @app.route('/stats')
 def stats():
     """Show database statistics."""
+    # Refresh data to ensure we have latest documents
+    refresh_database()
+
     all_docs = database.get_all_documents()
 
     # Calculate statistics

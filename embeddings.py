@@ -19,7 +19,7 @@ class EmbeddingGenerator:
     
     def __init__(self, endpoint: str, model: str = "qwen3-embedding:8b", timeout: int = 30):
         """Initialize embedding generator.
-
+        
         Args:
             endpoint: Ollama API endpoint
             model: Embedding model name (default: qwen3-embedding:8b)
