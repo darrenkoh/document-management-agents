@@ -1,11 +1,14 @@
 # Document Classification Agent
 
-An intelligent Python agent that automatically classifies documents by content using a local LLM (Ollama), stores classifications in a NoSQL database, and provides semantic search (RAG) capabilities.
+An intelligent Python agent that automatically classifies documents by content using a local LLM (Ollama), with advanced OCR capabilities for image-based PDFs via DeepSeek-OCR, stores classifications in a NoSQL database, and provides semantic search (RAG) capabilities with beautiful markdown rendering.
 
 ## Features
 
 - **Content-based Classification**: Uses Ollama LLM to analyze file content and classify documents (supports up to 3 categories per document)
-- **Multiple File Formats**: Supports PDF, DOCX, TXT, and images (with OCR)
+- **Multiple File Formats**: Supports PDF, DOCX, TXT, and images (with OCR and DeepSeek-OCR fallback for complex PDFs)
+- **Advanced PDF Processing**: Uses DeepSeek-OCR as fallback for image-based PDFs that regular text extraction cannot handle
+- **Structured Markdown Output**: DeepSeek-OCR outputs documents in structured markdown format with tables, headers, and layout information
+- **Markdown Rendering UI**: Beautiful markdown rendering across all content previews in the web interface
 - **NoSQL Database Storage**: Stores all classifications in TinyDB (JSON-based NoSQL database)
 - **JSON Export**: Automatically exports classification results to JSON file
 - **Semantic Search (RAG)**: Perform semantic search on document content using embeddings
@@ -21,6 +24,8 @@ An intelligent Python agent that automatically classifies documents by content u
 - Ollama installed and running locally
 - Classification model (e.g., `deepseek-r1:8b`, `llama3.2`)
 - Embedding model (e.g., `nomic-embed-text`)
+- OCR model (e.g., `deepseek-ocr:3b`) for advanced PDF processing
+- Poppler (system library for PDF-to-image conversion)
 
 ## Installation
 
@@ -48,10 +53,16 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
    - **Linux**: `sudo apt-get install tesseract-ocr`
    - **Windows**: Download from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
 
-4. Install and start Ollama:
+4. Install system dependencies:
+   - **macOS**: `brew install poppler` (required for PDF processing)
+   - **Linux**: `sudo apt-get install poppler-utils`
+   - **Windows**: Poppler is included with pdf2image
+
+5. Install and start Ollama:
    - Visit [ollama.ai](https://ollama.ai) for installation instructions
    - Pull a classification model: `ollama pull deepseek-r1:8b` (or `llama3.2`)
    - Pull an embedding model: `ollama pull nomic-embed-text`
+   - Pull the OCR model: `ollama pull deepseek-ocr:3b` (for advanced PDF processing)
 
 5. Configure the agent by editing `config.yaml`:
 ```yaml
@@ -148,23 +159,24 @@ The web app will be available at the configured host and port (default: `http://
 
 ### Home Page
 - **Semantic Search Bar**: Search documents using natural language (e.g., "travel documents", "financial statements")
-- **Recent Documents**: View the 10 most recently classified documents
+- **Recent Documents**: View the 10 most recently classified documents with formatted markdown previews
 - **Quick Stats**: Overview of total documents and categories
 
 ### Document Browser
 - **Paginated List**: Browse all documents with pagination (20 per page)
 - **Search & Filter**: Search documents by filename, categories, or content
 - **File Information**: View file size, type, classification date, and categories
+- **Content Preview**: Formatted markdown previews for each document
 - **Category Badges**: Visual category tags for easy identification
 
 ### Semantic Search Results
 - **Relevance Scoring**: Results ranked by similarity percentage
 - **File Location**: Direct path to each document
-- **Content Preview**: Excerpt of document content
+- **Content Preview**: Excerpt of document content rendered as formatted markdown
 - **Quick Actions**: Copy file path or view detailed information
 
 ### Document Details
-- **Full Content**: Complete extracted text content
+- **Full Content**: Complete extracted text content rendered as beautiful markdown (tables, headers, formatting)
 - **File Metadata**: Size, type, modification date, classification date
 - **Category Information**: All assigned categories
 - **Embedding Status**: Whether AI embeddings are available for search
@@ -191,6 +203,8 @@ Edit `config.yaml` to customize:
   - **endpoint**: Ollama API endpoint URL
   - **model**: Model name for classification
   - **embedding_model**: Model name for embeddings (default: nomic-embed-text)
+  - **ocr_model**: Model name for OCR processing (default: deepseek-ocr:3b)
+  - **ocr_timeout**: Timeout for OCR operations in seconds (default: 60)
   - **timeout**: API timeout in seconds
   - **num_predict**: Maximum tokens to predict (higher for reasoning models)
 - **file_extensions**: List of file types to process (empty = all files)
@@ -208,12 +222,16 @@ Edit `config.yaml` to customize:
 ## How It Works
 
 1. **Scan**: The agent scans the source directory for files
-2. **Extract**: Text content is extracted from files (PDF, DOCX, TXT, or OCR for images)
-3. **Classify**: Content is sent to Ollama LLM for classification (supports up to 3 categories per document)
-4. **Embed**: Embedding vector is generated for semantic search
-5. **Store**: Classification, content, and embedding are stored in NoSQL database
-6. **Export**: Results are exported to JSON file
-7. **Search**: Use semantic search to find documents by content similarity
+2. **Extract**: Text content is extracted from files using intelligent fallback:
+   - **PDF/DOCX/TXT**: Standard text extraction
+   - **Images**: Tesseract OCR for basic image text
+   - **PDF Fallback**: If standard PDF extraction yields minimal content (< 50 chars), automatically switches to DeepSeek-OCR for advanced processing of image-based PDFs
+3. **OCR Processing**: DeepSeek-OCR converts document images to structured markdown with tables, headers, and layout preservation
+4. **Classify**: Content is sent to Ollama LLM for classification (supports up to 3 categories per document)
+5. **Embed**: Embedding vector is generated for semantic search
+6. **Store**: Classification, content, and embedding are stored in NoSQL database
+7. **Export**: Results are exported to JSON file
+8. **Search**: Use semantic search to find documents by content similarity
 
 ## Database Schema
 
@@ -223,8 +241,8 @@ Each document in the database contains:
 {
   "file_path": "/path/to/document.pdf",
   "filename": "document.pdf",
-  "content": "Full extracted text content...",
-  "content_preview": "First 500 characters...",
+  "content": "Full extracted content (may include markdown formatting from DeepSeek-OCR)...",
+  "content_preview": "First 500 characters (may include markdown)...",
   "categories": "invoice-receipt-financial",
   "classification_date": "2025-11-24T10:30:00",
   "metadata": {
@@ -283,22 +301,27 @@ The agent automatically detects categories such as:
 - image
 - other
 
-Documents can have up to 3 categories, which are sorted and joined with "-" (e.g., "booking-confirmation-travel").
+Thanks to advanced OCR and structured markdown output, the system can better classify complex documents with tables, forms, and structured layouts. Documents can have up to 3 categories, which are sorted and joined with "-" (e.g., "booking-confirmation-travel").
 
 ## Example Workflow
 
 ```bash
-# 1. Classify documents
+# 1. Ensure all models are available
+ollama pull deepseek-r1:8b              # Classification model
+ollama pull nomic-embed-text            # Embedding model
+ollama pull deepseek-ocr:3b             # OCR model for PDFs
+
+# 2. Classify documents (now with advanced OCR fallback)
 python main.py classify --source ./documents
 
-# 2. Launch the web interface (custom port)
+# 3. Launch the web interface (with markdown rendering)
 python app.py --port 8080
 
-# 3. Or use command-line search
+# 4. Or use command-line search
 python main.py search "flight booking confirmation"
 python main.py category invoice
 
-# 4. Check the JSON export
+# 5. Check the JSON export (may include markdown content)
 cat classifications.json
 ```
 
@@ -318,6 +341,9 @@ Open your browser to the configured URL (default: `http://localhost:5000`) to ac
 ### OCR Not Working
 - Ensure Tesseract is installed and in your PATH
 - For images, ensure they contain readable text
+- For advanced PDF OCR, ensure Poppler is installed (see Installation section)
+- Ensure DeepSeek-OCR model is installed: `ollama pull deepseek-ocr:3b`
+- Check that Ollama can access the OCR model
 
 ### Database Errors
 - Check file permissions on the database file
