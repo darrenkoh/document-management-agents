@@ -13,7 +13,7 @@ class MockConfig:
         self.vector_store_type = "chromadb"
         self.vector_store_directory = "vector_store"
         self.vector_store_collection = "documents"
-        self.embedding_dimension = 768
+        self.embedding_dimension = 4096
 
 def test_vector_store():
     """Test basic vector store functionality."""

@@ -25,7 +25,7 @@ database:
     type: "chromadb"
     persist_directory: "vector_store"
     collection_name: "documents"
-    dimension: 768
+    dimension: 4096
 ```
 
 **Pros:**
@@ -45,7 +45,7 @@ database:
   vector_store:
     type: "faiss"
     persist_directory: "vector_store"
-    dimension: 768
+    dimension: 4096
 ```
 
 **Pros:**
@@ -82,7 +82,7 @@ database:
     type: "chromadb"  # or "faiss"
     persist_directory: "vector_store"
     collection_name: "documents"
-    dimension: 768  # Match your embedding model dimension
+    dimension: 4096  # Match your embedding model dimension
 ```
 
 ## Migration Process

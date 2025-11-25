@@ -189,7 +189,7 @@ class ChromaVectorStore(VectorStore):
             else:
                 normalized_query = query_embedding
 
-            # Query ChromaDB (returns L2 distances for normalized vectors)
+            # Query ChromaDB (returns L2 distances for normalized vectors, converted to similarity scores)
             results = self.collection.query(
                 query_embeddings=[normalized_query],
                 n_results=min(top_k * 3, 50),  # Get more results to rank properly
@@ -198,23 +198,19 @@ class ChromaVectorStore(VectorStore):
 
             logger.debug(f"ChromaDB query returned {len(results['ids'][0])} results")
 
-            # Get all distances to find min/max for normalization
+            # Convert distances to absolute similarities
+            # ChromaDB returns cosine distances (0-2 range), convert to similarity (1 to -1)
+            # For positive similarities, clamp to 0-1 range
             distances = results['distances'][0]
             if distances:
-                min_distance = min(distances)
-                max_distance = max(distances)
-                distance_range = max_distance - min_distance if max_distance > min_distance else 1.0
-
                 search_results = []
                 for i, (doc_id, distance, metadata) in enumerate(
                     zip(results['ids'][0], distances, results['metadatas'][0])):
 
-                    # Normalize distance to 0-1 range and convert to similarity
-                    if distance_range > 0:
-                        normalized_distance = (distance - min_distance) / distance_range
-                        similarity = 1.0 - normalized_distance  # Invert so smaller distance = higher similarity
-                    else:
-                        similarity = 1.0 if distance == 0 else 0.5  # Fallback for identical distances
+                    # Convert L2 distance to similarity
+                    # For L2 distance with normalized vectors: similarity = 1 / (1 + distance)
+                    # This gives similarity scores from 1.0 (identical) to 0.5 (unrelated) to ~0.0 (very different)
+                    similarity = 1.0 / (1.0 + distance)
 
                     logger.debug(f"Result {i}: ID={doc_id}, distance={distance:.3f}, similarity={similarity:.3f}")
                     search_results.append((doc_id, similarity, metadata))
@@ -272,7 +268,7 @@ class ChromaVectorStore(VectorStore):
 class FAISSVectorStore(VectorStore):
     """FAISS-based vector store implementation for high-performance search."""
 
-    def __init__(self, persist_directory: str, dimension: int = 768, **kwargs):
+    def __init__(self, persist_directory: str, dimension: int = 4096, **kwargs):
         """Initialize FAISS vector store.
 
         Args:

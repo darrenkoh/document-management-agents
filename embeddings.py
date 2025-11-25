@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 class EmbeddingGenerator:
     """Generates embeddings for document content using Ollama."""
     
-    def __init__(self, endpoint: str, model: str = "nomic-embed-text", timeout: int = 30):
+    def __init__(self, endpoint: str, model: str = "qwen3-embedding:8b", timeout: int = 30):
         """Initialize embedding generator.
-        
+
         Args:
             endpoint: Ollama API endpoint
-            model: Embedding model name (default: nomic-embed-text)
+            model: Embedding model name (default: qwen3-embedding:8b)
             timeout: API timeout in seconds
         """
         self.endpoint = endpoint

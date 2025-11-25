@@ -18,7 +18,7 @@ database:
     # Collection name for ChromaDB
     collection_name: "documents"
     # Embedding dimension (should match your embedding model)
-    dimension: 768
+    dimension: 4096
 
 # Ollama configuration
 ollama:
@@ -29,9 +29,9 @@ ollama:
   # Timeout in seconds for API calls
   timeout: 120
   # Maximum number of tokens to predict (higher for reasoning models)
-  num_predict: 2000
-  # Embedding model for semantic search (default: nomic-embed-text)
-  embedding_model: "nomic-embed-text"
+  num_predict: 6000
+  # Embedding model for semantic search (default: qwen3-embedding:8b)
+  embedding_model: "qwen3-embedding:8b"
   # OCR model for fallback text extraction from images/PDFs
   ocr_model: "deepseek-ocr:3b"
   # Timeout for OCR operations (can be longer than regular models)
@@ -92,7 +92,7 @@ semantic_search:
   top_k: 10
   # Minimum similarity threshold (0.0 to 1.0)
   # Lower values return more results, higher values return more precise results
-  min_similarity_threshold: 0.3
+  min_similarity_threshold: 0.1
   # Maximum number of results to retrieve before filtering (for better ranking)
   max_candidates: 50
   # Enable debug logging for similarity calculations

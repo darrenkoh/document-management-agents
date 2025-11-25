@@ -151,7 +151,7 @@ class Config:
     def ollama_embedding_model(self) -> str:
         """Get the embedding model name."""
         ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('embedding_model', 'nomic-embed-text')
+        return ollama_config.get('embedding_model', 'qwen3-embedding:8b')
 
     @property
     def ollama_ocr_model(self) -> str:
