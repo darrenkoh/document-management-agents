@@ -1,95 +1,256 @@
 {% extends "base.html" %}
 
-{% block title %}Home - Document Classification Agent{% endblock %}
+{% block title %}MISSION CONTROL - DOC AGENT{% endblock %}
 
 {% block content %}
 <!-- Search Section -->
-<div class="search-container">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <div class="search-card p-5">
-                    <h1 class="text-center mb-4">
-                        <i class="fas fa-search"></i> Document Search
-                    </h1>
-                    <p class="text-center text-muted mb-4">
-                        Search through your classified documents using natural language or categories. Powered by AI.
-                    </p>
+<div class="relative mb-12">
+    <!-- Decorative border -->
+    <div class="absolute -inset-1 bg-gradient-to-r from-retro-primary to-retro-secondary rounded-lg blur opacity-25">
+    </div>
 
-                    <form action="{{ url_for('unified_search') }}" method="post" id="unified-search-form">
-                        <div class="row justify-content-center">
-                            <div class="col-lg-8">
-                                <div class="input-group input-group-lg mb-3">
-                                    <input type="text" name="query" id="search-input" class="form-control form-control-lg"
-                                           placeholder="Search documents or select a category..."
-                                           autocomplete="off" autofocus>
-                                    <button class="btn btn-primary" type="submit" id="search-btn">
-                                        <i class="fas fa-search"></i>
-                                    </button>
-                                </div>
+    <div class="relative bg-retro-card border-2 border-retro-border rounded-lg p-8 box-glow">
+        <div class="text-center mb-8">
+            <h1 class="font-arcade text-2xl md:text-3xl text-retro-primary mb-4 text-glow-primary">
+                <i class="fas fa-search mr-2"></i>DATABASE ACCESS
+            </h1>
+            <p class="font-terminal text-xl text-retro-muted">
+                > INITIALIZING SEARCH PROTOCOLS...<br>
+                > ENTER QUERY OR SELECT CATEGORY
+            </p>
+        </div>
 
-                                <!-- Category suggestions -->
-                                <div id="category-suggestions" class="mb-3" style="display: none;">
-                                    <div class="text-center">
-                                        <small class="text-muted mb-2 d-block">Or search by category:</small>
-                                        <div class="d-flex flex-wrap justify-content-center gap-2">
-                                            {% set unique_cats = [] %}
-                                            {% for doc in recent_docs %}
-                                                {% for cat in doc.categories.split('-') %}
-                                                    {% if cat and cat not in unique_cats %}
-                                                        {% set _ = unique_cats.append(cat) %}
-                                                    {% endif %}
-                                                {% endfor %}
-                                            {% endfor %}
-                                            {% for cat in unique_cats | sort %}
-                                            <button type="button" class="btn btn-outline-primary btn-sm category-btn"
-                                                    data-category="{{ cat }}"
-                                                    style="border-radius: 20px; padding: 0.375rem 0.875rem; font-weight: 500; transition: all 0.3s ease;">
-                                                {{ cat.title() }}
-                                            </button>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
+        <form action="{{ url_for('unified_search') }}" method="post" id="unified-search-form" class="max-w-3xl mx-auto">
+            <div class="relative group">
+                <div
+                    class="absolute -inset-0.5 bg-gradient-to-r from-retro-primary to-retro-secondary rounded opacity-50 group-hover:opacity-100 transition duration-200 blur">
+                </div>
+                <div class="relative flex">
+                    <input type="text" name="query" id="search-input"
+                        class="w-full bg-retro-bg border-2 border-retro-border text-retro-text font-terminal text-xl p-4 focus:outline-none focus:border-retro-secondary placeholder-retro-muted/50"
+                        placeholder="> INPUT SEARCH QUERY..." autocomplete="off" autofocus>
+                    <button
+                        class="bg-retro-bg border-2 border-l-0 border-retro-border text-retro-secondary px-6 hover:bg-retro-secondary/10 transition-colors"
+                        type="submit" id="search-btn">
+                        <i class="fas fa-search text-xl"></i>
+                    </button>
+                </div>
+            </div>
 
-                    <div class="text-center">
-                        <small class="text-muted">
-                            Try: "travel documents", "financial statements", "confirmation", or click a category above
-                        </small>
+            <!-- Category suggestions -->
+            <div id="category-suggestions" class="mt-4 hidden">
+                <div class="text-center">
+                    <small class="font-terminal text-retro-muted mb-2 block">> DETECTED CATEGORIES:</small>
+                    <div class="flex flex-wrap justify-center gap-3">
+                        {% set unique_cats = [] %}
+                        {% for doc in recent_docs %}
+                        {% for cat in doc.categories.split('-') %}
+                        {% if cat and cat not in unique_cats %}
+                        {% set _ = unique_cats.append(cat) %}
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                        {% for cat in unique_cats | sort %}
+                        <button type="button"
+                            class="category-btn font-arcade text-xs px-3 py-2 border border-retro-secondary text-retro-secondary hover:bg-retro-secondary hover:text-retro-bg transition-all duration-300 transform hover:scale-105"
+                            data-category="{{ cat }}">
+                            [{{ cat | upper }}]
+                        </button>
+                        {% endfor %}
                     </div>
                 </div>
+            </div>
+        </form>
+
+        <div class="text-center mt-6">
+            <small class="font-terminal text-retro-muted">
+                > EXAMPLES: "TRAVEL DOCUMENTS", "FINANCIAL STATEMENTS", "CONFIRMATION"
+            </small>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Recent Documents -->
+    <div class="lg:col-span-2">
+        <div class="bg-retro-card border-2 border-retro-border rounded-lg overflow-hidden h-full">
+            <div class="bg-retro-bg border-b-2 border-retro-border p-4 flex justify-between items-center">
+                <h5 class="font-arcade text-sm text-retro-text">
+                    <i class="fas fa-clock text-retro-accent mr-2"></i>RECENT_LOGS
+                </h5>
+                <div class="h-2 w-2 bg-retro-success rounded-full animate-pulse"></div>
+            </div>
+
+            <div class="p-4 space-y-4">
+                {% if recent_docs %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% for doc in recent_docs %}
+                    <div
+                        class="group bg-retro-bg border border-retro-border p-4 hover:border-retro-primary transition-all duration-300 hover:shadow-[0_0_10px_rgba(255,0,255,0.3)] relative overflow-hidden">
+                        <!-- Corner accents -->
+                        <div
+                            class="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-retro-secondary opacity-50 group-hover:opacity-100">
+                        </div>
+                        <div
+                            class="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-retro-secondary opacity-50 group-hover:opacity-100">
+                        </div>
+                        <div
+                            class="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-retro-secondary opacity-50 group-hover:opacity-100">
+                        </div>
+                        <div
+                            class="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-retro-secondary opacity-50 group-hover:opacity-100">
+                        </div>
+
+                        <div class="flex items-start gap-3">
+                            <div class="text-2xl text-retro-secondary group-hover:text-retro-primary transition-colors">
+                                {{ get_file_icon(doc.metadata.file_extension) }}
+                            </div>
+                            <div class="flex-grow min-w-0">
+                                <h6 class="font-arcade text-xs mb-2 truncate">
+                                    <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}"
+                                        class="text-retro-text hover:text-retro-primary transition-colors">
+                                        {{ doc.filename }}
+                                    </a>
+                                </h6>
+                                <div class="font-terminal text-sm text-retro-muted mb-2 line-clamp-2 markdown-preview"
+                                    data-content="{{ doc.content_preview | truncate_content(100) }}"></div>
+                                <div class="flex flex-wrap gap-1 mb-2">
+                                    {% for category in doc.categories.split('-') %}
+                                    {% if category %}
+                                    <span
+                                        class="text-[10px] font-arcade px-2 py-1 bg-retro-secondary/10 text-retro-secondary border border-retro-secondary/30 rounded">{{
+                                        category | upper }}</span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                                <small class="font-terminal text-retro-muted block text-right">
+                                    {{ doc.classification_date | format_date }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-6">
+                    <a href="{{ url_for('documents') }}" class="btn-retro btn-retro-primary">
+                        <i class="fas fa-list mr-2"></i>VIEW ALL LOGS
+                    </a>
+                </div>
+                {% else %}
+                <div class="text-center py-12">
+                    <i class="fas fa-inbox text-4xl text-retro-muted mb-4 opacity-50"></i>
+                    <h5 class="font-arcade text-retro-muted mb-2">NO DATA FOUND</h5>
+                    <p class="font-terminal text-retro-muted mb-6">SYSTEM WAITING FOR INPUT...</p>
+                    <a href="{{ url_for('documents') }}" class="btn-retro btn-retro-primary">
+                        <i class="fas fa-plus mr-2"></i>UPLOAD DATA
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1 space-y-8">
+        <!-- Quick Stats -->
+        <div class="bg-retro-card border-2 border-retro-border rounded-lg overflow-hidden relative group">
+            <div class="absolute inset-0 bg-gradient-to-b from-retro-primary/5 to-transparent pointer-events-none">
+            </div>
+            <div class="p-6">
+                <h5 class="font-arcade text-sm text-retro-primary mb-6 text-glow-primary">
+                    <i class="fas fa-chart-line mr-2"></i>SYSTEM STATUS
+                </h5>
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-retro-bg border border-retro-border p-4 rounded relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-1 bg-retro-secondary"></div>
+                        <h3 class="font-arcade text-2xl text-retro-text mb-1">{{ recent_docs | length }}</h3>
+                        <small class="font-terminal text-retro-muted text-sm">FILES</small>
+                    </div>
+                    <div class="bg-retro-bg border border-retro-border p-4 rounded relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-1 bg-retro-accent"></div>
+                        <h3 class="font-arcade text-2xl text-retro-text mb-1">
+                            {% set unique_cats = [] %}
+                            {% for doc in recent_docs %}
+                            {% for cat in doc.categories.split('-') %}
+                            {% if cat and cat not in unique_cats %}
+                            {% set _ = unique_cats.append(cat) %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endfor %}
+                            {{ unique_cats | length }}
+                        </h3>
+                        <small class="font-terminal text-retro-muted text-sm">TYPES</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="bg-retro-card border-2 border-retro-border rounded-lg overflow-hidden">
+            <div class="bg-retro-bg border-b-2 border-retro-border p-4">
+                <h6 class="font-arcade text-sm text-retro-text">
+                    <i class="fas fa-bolt text-retro-accent mr-2"></i>COMMANDS
+                </h6>
+            </div>
+            <div class="p-4 flex flex-col gap-3">
+                <a href="{{ url_for('documents') }}" class="btn-retro w-full text-center">
+                    <i class="fas fa-file-alt mr-2"></i>BROWSE FILES
+                </a>
+                <a href="{{ url_for('stats') }}"
+                    class="btn-retro w-full text-center border-retro-success text-retro-success hover:text-white hover:bg-retro-success/20">
+                    <i class="fas fa-chart-bar mr-2"></i>VIEW METRICS
+                </a>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    {% for category, message in messages %}
+    {% set border_color = 'border-retro-danger' if category == 'error' else 'border-retro-success' %}
+    {% set text_color = 'text-retro-danger' if category == 'error' else 'text-retro-success' %}
+    <div
+        class="alert-dismissible bg-retro-card border-2 {{ border_color }} p-4 shadow-lg max-w-md animate-slide-in-right">
+        <div class="flex items-start gap-3">
+            <i class="fas fa-info-circle {{ text_color }} mt-1"></i>
+            <div class="font-terminal {{ text_color }}">{{ message }}</div>
+            <button type="button" class="text-retro-muted hover:text-retro-text ml-auto"
+                onclick="this.parentElement.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const searchInput = document.getElementById('search-input');
         const categorySuggestions = document.getElementById('category-suggestions');
         const categoryButtons = document.querySelectorAll('.category-btn');
         const searchForm = document.getElementById('unified-search-form');
 
         // Show category suggestions when input is focused and empty
-        searchInput.addEventListener('focus', function() {
+        searchInput.addEventListener('focus', function () {
             if (searchInput.value.trim() === '') {
-                categorySuggestions.style.display = 'block';
+                categorySuggestions.classList.remove('hidden');
             }
         });
 
         // Hide category suggestions when clicking outside
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', function (e) {
             if (!searchInput.contains(e.target) && !categorySuggestions.contains(e.target)) {
-                categorySuggestions.style.display = 'none';
+                categorySuggestions.classList.add('hidden');
             }
         });
 
         // Handle category button clicks
         categoryButtons.forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function () {
                 const category = this.getAttribute('data-category');
                 searchInput.value = `category:${category}`;
                 searchForm.submit();
@@ -97,17 +258,17 @@
         });
 
         // Show/hide category suggestions based on input
-        searchInput.addEventListener('input', function() {
+        searchInput.addEventListener('input', function () {
             const query = searchInput.value.trim();
             if (query === '') {
-                categorySuggestions.style.display = 'block';
+                categorySuggestions.classList.remove('hidden');
             } else {
-                categorySuggestions.style.display = 'none';
+                categorySuggestions.classList.add('hidden');
             }
         });
 
         // Handle form submission
-        searchForm.addEventListener('submit', function(e) {
+        searchForm.addEventListener('submit', function (e) {
             const query = searchInput.value.trim();
 
             // If query starts with "category:", treat it as category search
@@ -148,134 +309,11 @@
                     breaks: true,
                     gfm: true
                 });
+
+                // Add styling to markdown content
+                element.classList.add('markdown-content');
             }
         });
     });
 </script>
-
-<!-- Recent Documents -->
-<div class="row">
-    <div class="col-lg-8">
-        <div class="card document-card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-clock"></i> Recent Documents
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if recent_docs %}
-                    <div class="row">
-                        {% for doc in recent_docs %}
-                        <div class="col-md-6 mb-3">
-                            <div class="card h-100">
-                                <div class="card-body">
-                                    <div class="d-flex align-items-start">
-                                        <div class="file-icon">
-                                            {{ get_file_icon(doc.metadata.file_extension) }}
-                                        </div>
-                                        <div class="flex-grow-1">
-                                            <h6 class="card-title mb-1">
-                                                <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}" class="text-decoration-none">
-                                                    {{ doc.filename }}
-                                                </a>
-                                            </h6>
-                                            <div class="card-text small text-muted mb-2 markdown-preview" data-content="{{ doc.content_preview | truncate_content(100) }}"></div>
-                                            <div class="mb-2">
-                                                {% for category in doc.categories.split('-') %}
-                                                    {% if category %}
-                                                    <span class="badge category-badge me-1">{{ category }}</span>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            </div>
-                                            <small class="text-muted">
-                                                <i class="fas fa-calendar"></i> {{ doc.classification_date | format_date }}
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    <div class="text-center mt-3">
-                        <a href="{{ url_for('documents') }}" class="btn btn-primary">
-                            <i class="fas fa-list"></i> View All Documents
-                        </a>
-                    </div>
-                {% else %}
-                    <div class="text-center py-5">
-                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                        <h5 class="text-muted">No documents yet</h5>
-                        <p class="text-muted">Run the classification agent to get started!</p>
-                        <a href="{{ url_for('documents') }}" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> Add Documents
-                        </a>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-4">
-        <!-- Quick Stats -->
-        <div class="card stats-card text-white mb-4">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-chart-line"></i> Quick Stats
-                </h5>
-                <div class="row text-center">
-                    <div class="col-6">
-                        <h3>{{ recent_docs | length }}</h3>
-                        <small>Recent Docs</small>
-                    </div>
-                    <div class="col-6">
-                        <h3>
-                            {% set unique_cats = [] %}
-                            {% for doc in recent_docs %}
-                                {% for cat in doc.categories.split('-') %}
-                                    {% if cat and cat not in unique_cats %}
-                                        {% set _ = unique_cats.append(cat) %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endfor %}
-                            {{ unique_cats | length }}
-                        </h3>
-                        <small>Categories</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">
-                    <i class="fas fa-bolt"></i> Quick Actions
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('documents') }}" class="btn btn-outline-primary">
-                        <i class="fas fa-file-alt"></i> Browse All Documents
-                    </a>
-                    <a href="{{ url_for('stats') }}" class="btn btn-outline-success">
-                        <i class="fas fa-chart-bar"></i> View Statistics
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Flash Messages -->
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mt-3">
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            {{ message }}
-        </div>
-        {% endfor %}
-    {% endif %}
-{% endwith %}
 {% endblock %}

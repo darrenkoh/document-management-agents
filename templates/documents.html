@@ -1,102 +1,112 @@
 {% extends "base.html" %}
 
-{% block title %}Documents - Document Classification Agent{% endblock %}
+{% block title %}ARCHIVES - DOC AGENT{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h2>
-                <i class="fas fa-file-alt"></i> All Documents
-            </h2>
-            <div class="d-flex gap-2">
-                <form method="GET" class="d-flex">
-                    <input type="text" name="search" class="form-control" placeholder="Search documents..."
-                           value="{{ search }}" style="width: 250px;">
-                    <button type="submit" class="btn btn-outline-primary ms-2">
+<div class="mb-8">
+    <div
+        class="flex flex-col md:flex-row justify-between items-center gap-4 bg-retro-card border-2 border-retro-border p-4 rounded-lg box-glow">
+        <h2 class="font-arcade text-xl text-retro-primary text-glow-primary">
+            <i class="fas fa-database mr-2"></i>ARCHIVES
+        </h2>
+        <div class="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+            <form method="GET" class="flex flex-grow md:flex-grow-0">
+                <div class="relative flex w-full md:w-64">
+                    <input type="text" name="search"
+                        class="w-full bg-retro-bg border-2 border-r-0 border-retro-border text-retro-text font-terminal px-3 py-2 focus:outline-none focus:border-retro-secondary"
+                        placeholder="SEARCH_LOGS..." value="{{ search }}">
+                    <button type="submit"
+                        class="bg-retro-bg border-2 border-l-0 border-retro-border text-retro-secondary px-3 hover:bg-retro-secondary/10 transition-colors">
                         <i class="fas fa-search"></i>
                     </button>
-                </form>
+                </div>
+            </form>
 
-                {% if available_categories %}
-                <form method="GET" class="d-flex">
-                    <select name="category" class="form-select" style="width: 200px;" onchange="this.form.submit()">
-                        <option value="">All Categories</option>
-                        {% for cat in available_categories %}
-                        <option value="{{ cat }}" {{ 'selected' if category_filter == cat else '' }}>{{ cat.title() }}</option>
-                        {% endfor %}
-                    </select>
-                </form>
-                {% endif %}
-            </div>
+            {% if available_categories %}
+            <form method="GET" class="flex-grow md:flex-grow-0">
+                <select name="category"
+                    class="w-full md:w-48 bg-retro-bg border-2 border-retro-border text-retro-text font-terminal px-3 py-2 focus:outline-none focus:border-retro-secondary cursor-pointer"
+                    onchange="this.form.submit()">
+                    <option value="">ALL_CATEGORIES</option>
+                    {% for cat in available_categories %}
+                    <option value="{{ cat }}" {{ 'selected' if category_filter==cat else '' }}>{{ cat | upper }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
         </div>
     </div>
 </div>
 
 <!-- Search Results Info -->
 {% if search or category_filter %}
-<div class="alert alert-info">
+<div
+    class="mb-6 bg-retro-secondary/10 border border-retro-secondary/30 p-3 rounded text-retro-secondary font-terminal flex items-center gap-2">
     <i class="fas fa-info-circle"></i>
-    Found {{ total_docs }} document{{ 's' if total_docs != 1 else '' }}
-    {% if search %}matching "{{ search }}"{% endif %}
-    {% if search and category_filter %} and {% endif %}
-    {% if category_filter %}in category "{{ category_filter }}"{% endif %}
+    <span>
+        FOUND {{ total_docs }} FILE{{ 'S' if total_docs != 1 else '' }}
+        {% if search %}MATCHING "{{ search }}"{% endif %}
+        {% if search and category_filter %} AND {% endif %}
+        {% if category_filter %}IN CATEGORY "{{ category_filter }}"{% endif %}
+    </span>
 </div>
 {% endif %}
 
 <!-- Documents Grid -->
 {% if documents %}
-<div class="row">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for doc in documents %}
-    <div class="col-lg-6 col-xl-4 mb-4">
-        <div class="card document-card h-100">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex align-items-start mb-3">
-                    <div class="file-icon">
-                        {{ get_file_icon(doc.metadata.file_extension) }}
-                    </div>
-                    <div class="flex-grow-1">
-                        <h6 class="card-title mb-1">
-                            <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}" class="text-decoration-none">
-                                {{ doc.filename }}
-                            </a>
-                        </h6>
-                        <small class="text-muted">
-                            <i class="fas fa-calendar"></i> {{ doc.classification_date | format_date }}
-                        </small>
-                    </div>
+    <div
+        class="group bg-retro-bg border-2 border-retro-border rounded-lg overflow-hidden hover:border-retro-primary transition-all duration-300 hover:shadow-[0_0_15px_rgba(255,0,255,0.2)] flex flex-col h-full">
+        <div class="p-4 flex-grow">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="text-2xl text-retro-secondary group-hover:text-retro-primary transition-colors">
+                    {{ get_file_icon(doc.metadata.file_extension) }}
                 </div>
-
-                <div class="mb-3">
-                    {% for category in doc.categories.split('-') %}
-                        {% if category %}
-                        <span class="badge category-badge me-1 mb-1">{{ category }}</span>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-
-                <div class="card-text flex-grow-1 highlight-search markdown-preview" data-content="{{ doc.content_preview | truncate_content(150) }}"></div>
-
-                <div class="mt-auto">
-                    <div class="row text-center">
-                        <div class="col-6">
-                            <small class="text-muted">Size</small>
-                            <br>
-                            <span class="fw-bold">{{ "%.1f"|format(doc.metadata.file_size / 1024) }} KB</span>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted">Type</small>
-                            <br>
-                            <span class="fw-bold">{{ doc.metadata.file_extension | upper }}</span>
-                        </div>
-                    </div>
+                <div class="flex-grow min-w-0">
+                    <h6 class="font-arcade text-xs mb-1 truncate">
+                        <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}"
+                            class="text-retro-text hover:text-retro-primary transition-colors">
+                            {{ doc.filename }}
+                        </a>
+                    </h6>
+                    <small class="font-terminal text-retro-muted block">
+                        {{ doc.classification_date | format_date }}
+                    </small>
                 </div>
             </div>
-            <div class="card-footer bg-transparent">
-                <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}" class="btn btn-sm btn-outline-primary w-100">
-                    <i class="fas fa-eye"></i> View Details
-                </a>
+
+            <div class="mb-4 flex flex-wrap gap-1">
+                {% for category in doc.categories.split('-') %}
+                {% if category %}
+                <span
+                    class="font-arcade text-[10px] px-2 py-1 bg-retro-secondary/10 text-retro-secondary border border-retro-secondary/30 rounded">{{
+                    category | upper }}</span>
+                {% endif %}
+                {% endfor %}
             </div>
+
+            <div class="font-terminal text-sm text-retro-muted mb-4 line-clamp-3 markdown-preview"
+                data-content="{{ doc.content_preview | truncate_content(150) }}"></div>
+
+            <div class="mt-auto grid grid-cols-2 gap-2 text-center border-t border-retro-border pt-3">
+                <div>
+                    <small class="font-terminal text-retro-muted block text-xs">SIZE</small>
+                    <span class="font-arcade text-xs text-retro-text">{{ "%.1f"|format(doc.metadata.file_size / 1024) }}
+                        KB</span>
+                </div>
+                <div>
+                    <small class="font-terminal text-retro-muted block text-xs">TYPE</small>
+                    <span class="font-arcade text-xs text-retro-text">{{ doc.metadata.file_extension | upper }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="bg-retro-card border-t-2 border-retro-border p-2">
+            <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}"
+                class="block w-full text-center font-arcade text-xs py-2 text-retro-primary hover:text-retro-secondary transition-colors">
+                <i class="fas fa-eye mr-1"></i>ACCESS_FILE
+            </a>
         </div>
     </div>
     {% endfor %}
@@ -104,67 +114,80 @@
 
 <!-- Pagination -->
 {% if total_pages > 1 %}
-<nav aria-label="Document pagination">
-    <ul class="pagination justify-content-center">
+<nav aria-label="Document pagination" class="mt-8 flex justify-center">
+    <ul class="flex gap-2">
         {% set start_page = [1, page - 2] | max %}
         {% set end_page = [total_pages, page + 2] | min %}
 
         {% if start_page > 1 %}
-        <li class="page-item">
-            <a class="page-link" href="{{ url_for('documents', page=1, search=search) }}">1</a>
+        <li>
+            <a class="flex items-center justify-center w-8 h-8 border border-retro-border bg-retro-bg text-retro-text font-arcade text-xs hover:border-retro-secondary hover:text-retro-secondary transition-colors"
+                href="{{ url_for('documents', page=1, search=search) }}">1</a>
         </li>
         {% if start_page > 2 %}
-        <li class="page-item disabled"><span class="page-link">...</span></li>
+        <li class="flex items-center justify-center w-8 h-8 text-retro-muted font-arcade text-xs">...</li>
         {% endif %}
         {% endif %}
 
         {% for page_num in range(start_page, end_page + 1) %}
-        <li class="page-item {{ 'active' if page_num == page else '' }}">
-            <a class="page-link" href="{{ url_for('documents', page=page_num, search=search) }}">
+        <li>
+            <a class="flex items-center justify-center w-8 h-8 border {{ 'border-retro-primary text-retro-primary box-glow' if page_num == page else 'border-retro-border text-retro-text hover:border-retro-secondary hover:text-retro-secondary' }} bg-retro-bg font-arcade text-xs transition-all"
+                href="{{ url_for('documents', page=page_num, search=search) }}">
                 {{ page_num }}
             </a>
         </li>
         {% endfor %}
 
-        {% if end_page < total_pages %}
-        {% if end_page < total_pages - 1 %}
-        <li class="page-item disabled"><span class="page-link">...</span></li>
-        {% endif %}
-        <li class="page-item">
-            <a class="page-link" href="{{ url_for('documents', page=total_pages, search=search) }}">{{ total_pages }}</a>
-        </li>
-        {% endif %}
+        {% if end_page < total_pages %} {% if end_page < total_pages - 1 %} <li
+            class="flex items-center justify-center w-8 h-8 text-retro-muted font-arcade text-xs">...</li>
+            {% endif %}
+            <li>
+                <a class="flex items-center justify-center w-8 h-8 border border-retro-border bg-retro-bg text-retro-text font-arcade text-xs hover:border-retro-secondary hover:text-retro-secondary transition-colors"
+                    href="{{ url_for('documents', page=total_pages, search=search) }}">{{ total_pages }}</a>
+            </li>
+            {% endif %}
     </ul>
 </nav>
 {% endif %}
 
 {% else %}
-<div class="text-center py-5">
-    <i class="fas fa-search fa-3x text-muted mb-3"></i>
-    <h4 class="text-muted">No documents found</h4>
+<div class="text-center py-16 border-2 border-dashed border-retro-border rounded-lg opacity-50">
+    <i class="fas fa-search text-4xl text-retro-muted mb-4"></i>
+    <h4 class="font-arcade text-retro-muted mb-2">NO_FILES_FOUND</h4>
     {% if search %}
-    <p class="text-muted">Try a different search term or <a href="{{ url_for('documents') }}">view all documents</a>.</p>
+    <p class="font-terminal text-retro-muted">TRY DIFFERENT QUERY OR <a href="{{ url_for('documents') }}"
+            class="text-retro-secondary hover:underline">RESET</a></p>
     {% else %}
-    <p class="text-muted">No documents have been classified yet.</p>
-    <p>Run the classification agent to get started!</p>
+    <p class="font-terminal text-retro-muted">ARCHIVE EMPTY. INITIATE CLASSIFICATION.</p>
     {% endif %}
 </div>
 {% endif %}
 
 <!-- Flash Messages -->
 {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mt-3">
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            {{ message }}
+{% if messages %}
+<div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    {% for category, message in messages %}
+    {% set border_color = 'border-retro-danger' if category == 'error' else 'border-retro-success' %}
+    {% set text_color = 'text-retro-danger' if category == 'error' else 'text-retro-success' %}
+    <div
+        class="alert-dismissible bg-retro-card border-2 {{ border_color }} p-4 shadow-lg max-w-md animate-slide-in-right">
+        <div class="flex items-start gap-3">
+            <i class="fas fa-info-circle {{ text_color }} mt-1"></i>
+            <div class="font-terminal {{ text_color }}">{{ message }}</div>
+            <button type="button" class="text-retro-muted hover:text-retro-text ml-auto"
+                onclick="this.parentElement.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
-        {% endfor %}
-    {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endwith %}
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // Render markdown content in document cards
         const previewElements = document.querySelectorAll('.markdown-preview');
         previewElements.forEach(element => {
@@ -172,18 +195,22 @@
             if (rawContent) {
                 // Clean and render markdown
                 const cleaned = rawContent
-                    .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')  // Remove reference tags
-                    .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')  // Remove bounding box data
-                    .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')  // Remove image tags
-                    .replace(/\n{3,}/g, '\n\n')  // Clean up excessive newlines
+                    .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')
+                    .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')
+                    .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')
+                    .replace(/\n{3,}/g, '\n\n')
                     .trim();
 
                 element.innerHTML = marked.parse(cleaned, {
                     breaks: true,
                     gfm: true
                 });
+
+                // Add styling to markdown content
+                element.classList.add('markdown-content');
             }
         });
     });
 </script>
+{% endblock %}
 {% endblock %}

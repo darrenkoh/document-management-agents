@@ -1,800 +1,470 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Document Classification Agent{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>{% block title %}RETRO DOC AGENT{% endblock %}</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- PDF.js for PDF viewing -->
+
+    <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <!-- Marked.js for Markdown rendering -->
+
+    <!-- Marked.js -->
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/lib/marked.umd.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        retro: {
+                            bg: 'var(--color-bg)',
+                            card: 'var(--color-card)',
+                            border: 'var(--color-border)',
+                            primary: 'var(--color-primary)',
+                            secondary: 'var(--color-secondary)',
+                            accent: 'var(--color-accent)',
+                            success: 'var(--color-success)',
+                            danger: 'var(--color-danger)',
+                            text: 'var(--color-text)',
+                            muted: 'var(--color-muted)'
+                        }
+                    },
+                    fontFamily: {
+                        'arcade': ['"Press Start 2P"', 'cursive'],
+                        'terminal': ['"VT323"', 'monospace'],
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'scanline': 'scanline 8s linear infinite',
+                    },
+                    keyframes: {
+                        scanline: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(100%)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        /* CSS Variables for theming */
-        :root {
-            --bg-primary: #fafbfc;
-            --bg-secondary: #f1f3f4;
-            --bg-card: #ffffff;
-            --text-primary: #1c1e21;
-            --text-secondary: #65676b;
-            --text-muted: #8a8d91;
-            --border-color: #dadde1;
-            --border-subtle: #e4e6ea;
-            --shadow: 0 1px 2px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.05);
-            --shadow-hover: 0 2px 12px rgba(0,0,0,0.15), 0 4px 20px rgba(0,0,0,0.1);
-            --shadow-card: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
-            --accent-color: #1877f2;
-            --accent-hover: #166fe5;
-            --success-color: #42b883;
-            --warning-color: #ffba08;
-            --error-color: #e53e3e;
+        /* Theme Definitions */
+        :root,
+        [data-theme="retro-game"] {
+            --color-bg: #050510;
+            --color-card: #0a0a1f;
+            --color-border: #2a2a5a;
+            --color-primary: #ff00ff;
+            --color-secondary: #00ffff;
+            --color-accent: #ffff00;
+            --color-success: #00ff00;
+            --color-danger: #ff0000;
+            --color-text: #e0e0e0;
+            --color-muted: #8a8a8a;
+            --font-primary: 'VT323', monospace;
+            --font-heading: 'Press Start 2P', cursive;
+            --scanline-opacity: 1;
         }
 
-        [data-theme="dark"] {
-            --bg-primary: #0f0f0f;
-            --bg-secondary: #1a1a1a;
-            --bg-card: #1f1f1f;
-            --text-primary: #ffffff;
-            --text-secondary: #e1e3e6;
-            --text-muted: #b8bbbf;
-            --border-color: #333333;
-            --border-subtle: #404040;
-            --shadow: 0 1px 2px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
-            --shadow-hover: 0 2px 12px rgba(0,0,0,0.6), 0 4px 20px rgba(0,0,0,0.4);
-            --shadow-card: 0 1px 3px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.8);
-            --accent-color: #4a90e2;
-            --accent-hover: #357abd;
-            --success-color: #42b883;
-            --warning-color: #ffba08;
-            --error-color: #e53e3e;
+        [data-theme="modern-dark"] {
+            --color-bg: #0f172a;
+            --color-card: #1e293b;
+            --color-border: #334155;
+            --color-primary: #3b82f6;
+            --color-secondary: #8b5cf6;
+            --color-accent: #f59e0b;
+            --color-success: #10b981;
+            --color-danger: #ef4444;
+            --color-text: #f1f5f9;
+            --color-muted: #94a3b8;
+            --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --scanline-opacity: 0;
         }
 
+        [data-theme="light"] {
+            --color-bg: #ffffff;
+            --color-card: #f8fafc;
+            --color-border: #e2e8f0;
+            --color-primary: #2563eb;
+            --color-secondary: #7c3aed;
+            --color-accent: #d97706;
+            --color-success: #059669;
+            --color-danger: #dc2626;
+            --color-text: #1e293b;
+            --color-muted: #64748b;
+            --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --scanline-opacity: 0;
+        }
+
+        /* Custom Retro Effects */
         body {
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-family: var(--font-primary);
+            font-size: 1.2rem;
+            overflow-x: hidden;
             transition: background-color 0.3s ease, color 0.3s ease;
-            line-height: 1.5;
         }
 
-        .navbar {
-            background-color: var(--bg-card) !important;
-            border-bottom: 1px solid var(--border-color);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(10px);
+        [data-theme="retro-game"] body {
+            background-image:
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
         }
 
-        .navbar-brand {
-            color: var(--text-primary) !important;
-            font-weight: 600;
-            font-size: 1.25rem;
-        }
-
-        .navbar-nav .nav-link {
-            color: var(--text-secondary) !important;
-            transition: all 0.2s ease;
-            font-weight: 500;
-            padding: 0.5rem 1rem;
-        }
-
-        .navbar-nav .nav-link:hover {
-            color: var(--accent-color) !important;
-            background-color: var(--bg-secondary);
-            border-radius: 6px;
-        }
-
-        .search-container {
-            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-            padding: 4rem 0 3rem 0;
-            margin-bottom: 2rem;
-            position: relative;
-        }
-
-        .search-container::before {
-            content: '';
-            position: absolute;
+        /* CRT Scanline Effect */
+        .scanlines::before {
+            content: " ";
+            display: block;
+            position: fixed;
             top: 0;
             left: 0;
-            right: 0;
             bottom: 0;
-            background: radial-gradient(circle at 50% 50%, rgba(24, 119, 242, 0.03) 0%, transparent 70%);
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 9999;
+            background-size: 100% 2px, 3px 100%;
             pointer-events: none;
         }
 
-        .search-card {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-subtle);
-            border-radius: 16px;
-            box-shadow: var(--shadow-card);
-            transition: all 0.3s ease;
-            position: relative;
-            z-index: 1;
+        /* Neon Glow Text */
+        .text-glow {
+            text-shadow: 0 0 5px currentColor;
         }
 
-        .search-card:hover {
-            box-shadow: var(--shadow-hover);
-            transform: translateY(-2px);
+        .text-glow-primary {
+            text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
         }
 
-        .document-card {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-subtle);
-            border-radius: 12px;
-            box-shadow: var(--shadow-card);
-            transition: all 0.3s ease;
-            overflow: hidden;
+        .text-glow-secondary {
+            text-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff;
         }
 
-        .document-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-hover);
-            border-color: var(--accent-color);
+        /* Box Glow */
+        .box-glow {
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3), inset 0 0 5px rgba(0, 255, 255, 0.1);
         }
 
-        .category-badge {
-            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
-            color: white;
-            border: none;
-            border-radius: 20px;
-            padding: 0.375rem 0.75rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            transition: all 0.2s ease;
+        .box-glow-hover:hover {
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.5), inset 0 0 10px rgba(255, 0, 255, 0.2);
         }
 
-        .category-badge:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-
-        .stats-card {
-            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
-            color: white;
-            border: none;
-            border-radius: 16px;
-            box-shadow: var(--shadow-card);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stats-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, rgba(255,255,255,0.1), transparent);
-            pointer-events: none;
-        }
-
-        .stats-card .card-body {
-            position: relative;
-            z-index: 1;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
-            border: none;
-            border-radius: 10px;
-            padding: 0.625rem 1.5rem;
-            font-weight: 600;
-            box-shadow: 0 2px 8px rgba(24, 119, 242, 0.3);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-primary::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .btn-primary:hover::before {
-            left: 100%;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(24, 119, 242, 0.4);
-        }
-
-        .btn-outline-primary {
-            border: 2px solid var(--accent-color);
-            color: var(--accent-color);
-            background-color: transparent;
-            border-radius: 10px;
-            font-weight: 600;
-            padding: 0.5rem 1.5rem;
-            transition: all 0.3s ease;
-        }
-
-        .btn-outline-primary:hover {
-            background-color: var(--accent-color);
-            border-color: var(--accent-color);
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(24, 119, 242, 0.3);
-        }
-
-        .pagination .page-link {
-            color: var(--text-secondary);
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-subtle);
-            border-radius: 8px;
-            margin: 0 2px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            box-shadow: var(--shadow);
-        }
-
-        .pagination .page-link:hover {
-            color: var(--accent-color);
-            background-color: var(--bg-secondary);
-            border-color: var(--accent-color);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-hover);
-        }
-
-        .pagination .page-item.active .page-link {
-            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
-            border-color: var(--accent-color);
-            color: white;
-            box-shadow: 0 2px 8px rgba(24, 119, 242, 0.3);
-        }
-
-        .search-highlight {
-            background-color: var(--accent-color);
-            color: var(--bg-primary);
-            padding: 2px 4px;
-            border-radius: 3px;
-            opacity: 0.8;
-        }
-
-        /* Specific styling for highlighted terms in search results */
-        .content-preview mark.search-highlight {
-            background: linear-gradient(135deg, #ffeb3b, #ffc107);
-            color: #1a1a1a;
-            padding: 2px 4px;
-            border-radius: 4px;
-            font-weight: 600;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3);
-        }
-
-        [data-theme="dark"] .content-preview mark.search-highlight {
-            background: linear-gradient(135deg, #ffd700, #ffb347);
-            color: #1a1a1a;
-            border: 1px solid rgba(255, 215, 0, 0.5);
-        }
-
-        .file-icon {
-            font-size: 1.5rem;
-            margin-right: 0.5rem;
-        }
-
-        .similarity-score {
-            color: var(--bg-primary);
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-
-        .similarity-score-high {
-            background-color: #28a745;
-        }
-
-        .similarity-score-medium {
-            background-color: #ffc107;
-        }
-
-        .similarity-score-low {
-            background-color: #dc3545;
-        }
-
-        .alert {
-            border-radius: 12px;
-            border: none;
-            box-shadow: var(--shadow-card);
-            font-weight: 500;
-            padding: 1rem 1.25rem;
-            margin-bottom: 1rem;
-        }
-
-        .alert-success {
-            background: linear-gradient(135deg, var(--success-color), #38a169);
-            color: white;
-        }
-
-        .alert-warning {
-            background: linear-gradient(135deg, var(--warning-color), #d69e2e);
-            color: #1a202c;
-        }
-
-        .alert-danger {
-            background: linear-gradient(135deg, var(--error-color), #c53030);
-            color: white;
-        }
-
-        .form-control {
-            background-color: var(--bg-card);
-            border: 2px solid var(--border-subtle);
-            color: var(--text-primary);
-            border-radius: 10px;
-            padding: 0.75rem 1rem;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
-        }
-
-        .form-control:focus {
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1), inset 0 1px 2px rgba(0,0,0,0.05);
-            outline: none;
-        }
-
-        .form-control::placeholder {
-            color: var(--text-muted);
-        }
-
-        .form-select {
-            background-color: var(--bg-card);
-            border: 2px solid var(--border-subtle);
-            color: var(--text-primary);
-            border-radius: 10px;
-            padding: 0.75rem 1rem;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
-        }
-
-        .form-select:focus {
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1), inset 0 1px 2px rgba(0,0,0,0.05);
-        }
-
-        /* Bootstrap component overrides for dark mode */
-        .card-header {
-            background-color: var(--bg-card) !important;
-            border-bottom-color: var(--border-subtle) !important;
-            color: var(--text-primary) !important;
-        }
-
-        .card-header h1, .card-header h2, .card-header h3,
-        .card-header h4, .card-header h5, .card-header h6 {
-            color: var(--text-primary) !important;
-        }
-
-        .card-title, .card-subtitle {
-            color: var(--text-primary) !important;
-        }
-
-        .text-muted {
-            color: var(--text-muted) !important;
-        }
-
-        /* Ensure all headings are visible in dark mode */
-        h1, h2, h3, h4, h5, h6 {
-            color: var(--text-primary) !important;
-        }
-
-        /* Override Bootstrap's default card styling */
-        .card {
-            background-color: var(--bg-card);
-            border-color: var(--border-subtle);
-        }
-
-        /* Links in dark mode */
-        a {
-            color: var(--accent-color);
-        }
-
-        a:hover {
-            color: var(--accent-hover);
-        }
-
-        /* List group items */
-        .list-group-item {
-            background-color: var(--bg-card) !important;
-            border-color: var(--border-subtle) !important;
-            color: var(--text-primary) !important;
-        }
-
-        /* Table styling for dark mode */
-        .table {
-            color: var(--text-primary);
-        }
-
-        .table thead th {
-            border-bottom-color: var(--border-color);
-            color: var(--text-secondary);
-        }
-
-        .table td {
-            border-bottom-color: var(--border-subtle);
-        }
-
-        .text-muted {
-            color: var(--text-muted) !important;
-        }
-
-        .footer {
-            background-color: var(--bg-secondary);
-            border-top: 1px solid var(--border-subtle);
-            color: var(--text-secondary);
-            padding: 2rem 0 1rem 0;
-            margin-top: 4rem;
-        }
-
-        /* Theme toggle button */
-        .theme-toggle {
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            font-size: 1.25rem;
-            cursor: pointer;
-            padding: 0.625rem;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-        }
-
-        .theme-toggle:hover {
-            background-color: var(--bg-secondary);
-            color: var(--accent-color);
-            transform: scale(1.05);
-        }
-
-        .theme-toggle:active {
-            transform: scale(0.95);
-        }
-
-        /* Custom scrollbar */
+        /* Scrollbar */
         ::-webkit-scrollbar {
-            width: 10px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--bg-secondary);
-            border-radius: 5px;
+            width: 12px;
+            background: #050510;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: var(--accent-color);
-            border-radius: 5px;
-            border: 2px solid var(--bg-secondary);
+            background: #2a2a5a;
+            border: 2px solid #050510;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: var(--accent-hover);
+            background: #ff00ff;
         }
 
-        /* Selection styling */
+        /* Selection */
         ::selection {
-            background-color: var(--accent-color);
-            color: white;
+            background: #ff00ff;
+            color: #000;
         }
 
-        ::-moz-selection {
-            background-color: var(--accent-color);
-            color: white;
-        }
-
-        /* Focus styles for accessibility */
-        .btn:focus,
-        .form-control:focus,
-        .form-select:focus {
-            outline: 2px solid var(--accent-color);
-            outline-offset: 2px;
-        }
-
-        /* Loading animation for buttons */
-        .btn-loading {
+        /* Retro Button */
+        .btn-retro {
             position: relative;
-            color: transparent;
+            display: inline-block;
+            padding: 0.5rem 1.5rem;
+            background: transparent;
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            text-transform: uppercase;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+            box-shadow: 4px 4px 0 #2a2a5a;
         }
 
-        .btn-loading::after {
-            content: '';
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            top: 50%;
-            left: 50%;
-            margin-left: -8px;
-            margin-top: -8px;
-            border: 2px solid transparent;
-            border-top: 2px solid currentColor;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        .btn-retro:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #2a2a5a;
+            background: rgba(0, 255, 255, 0.1);
+            color: #fff;
+            text-shadow: 0 0 5px #00ffff;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .btn-retro:active {
+            transform: translate(4px, 4px);
+            box-shadow: none;
         }
 
-        /* Markdown rendering styles */
-        #content-preview,
-        .markdown-preview {
+        .btn-retro-primary {
+            border-color: #ff00ff;
+            color: #ff00ff;
+        }
+
+        .btn-retro-primary:hover {
+            background: rgba(255, 0, 255, 0.1);
+            color: #fff;
+            text-shadow: 0 0 5px #ff00ff;
+        }
+
+        /* Markdown Content Styling */
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3 {
+            font-family: 'Press Start 2P', cursive;
+            color: #00ffff;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .markdown-content h1 {
+            font-size: 1.5rem;
+            border-bottom: 2px dashed #2a2a5a;
+            padding-bottom: 0.5rem;
+        }
+
+        .markdown-content h2 {
+            font-size: 1.2rem;
+        }
+
+        .markdown-content p {
+            margin-bottom: 1rem;
             line-height: 1.6;
         }
 
-        #content-preview h1,
-        #content-preview h2,
-        #content-preview h3,
-        #content-preview h4,
-        #content-preview h5,
-        #content-preview h6,
-        .markdown-preview h1,
-        .markdown-preview h2,
-        .markdown-preview h3,
-        .markdown-preview h4,
-        .markdown-preview h5,
-        .markdown-preview h6 {
-            margin-top: 1.5rem;
-            margin-bottom: 0.75rem;
-            font-weight: 600;
-            color: var(--text-primary);
+        .markdown-content code {
+            background: #2a2a5a;
+            color: #00ff00;
+            padding: 0.2rem 0.4rem;
+            font-family: 'VT323', monospace;
         }
 
-        #content-preview h1, .markdown-preview h1 { font-size: 1.75rem; border-bottom: 2px solid var(--border-subtle); padding-bottom: 0.5rem; }
-        #content-preview h2, .markdown-preview h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.25rem; }
-        #content-preview h3, .markdown-preview h3 { font-size: 1.25rem; }
-        #content-preview h4, .markdown-preview h4 { font-size: 1.125rem; }
-        #content-preview h5, .markdown-preview h5 { font-size: 1rem; }
-        #content-preview h6, .markdown-preview h6 { font-size: 0.875rem; }
-
-        #content-preview p, .markdown-preview p {
-            margin-bottom: 1rem;
-        }
-
-        #content-preview table, .markdown-preview table {
-            width: 100%;
-            margin-bottom: 1rem;
-            border-collapse: collapse;
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-subtle);
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: var(--shadow-card);
-        }
-
-        #content-preview th,
-        #content-preview td,
-        .markdown-preview th,
-        .markdown-preview td {
-            padding: 0.75rem;
-            text-align: left;
-            border-bottom: 1px solid var(--border-subtle);
-        }
-
-        #content-preview th,
-        .markdown-preview th {
-            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-primary));
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        #content-preview tr:nth-child(even),
-        .markdown-preview tr:nth-child(even) {
-            background-color: var(--bg-secondary);
-        }
-
-        #content-preview tr:hover,
-        .markdown-preview tr:hover {
-            background-color: var(--bg-secondary);
-        }
-
-        #content-preview ul,
-        #content-preview ol,
-        .markdown-preview ul,
-        .markdown-preview ol {
-            margin-bottom: 1rem;
-            padding-left: 2rem;
-        }
-
-        #content-preview li,
-        .markdown-preview li {
-            margin-bottom: 0.25rem;
-        }
-
-        #content-preview blockquote,
-        .markdown-preview blockquote {
-            border-left: 4px solid var(--accent-color);
-            padding-left: 1rem;
-            margin: 1rem 0;
-            color: var(--text-secondary);
-            background-color: var(--bg-secondary);
-            padding: 1rem;
-            border-radius: 0 8px 8px 0;
-        }
-
-        #content-preview code,
-        .markdown-preview code {
-            background-color: var(--bg-secondary);
-            color: var(--text-primary);
-            padding: 0.125rem 0.25rem;
-            border-radius: 3px;
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-            font-size: 0.875em;
-        }
-
-        #content-preview pre,
-        .markdown-preview pre {
-            background-color: var(--bg-secondary);
-            border: 1px solid var(--border-subtle);
-            border-radius: 8px;
+        .markdown-content pre {
+            background: #0a0a1f;
+            border: 1px solid #2a2a5a;
             padding: 1rem;
             overflow-x: auto;
             margin-bottom: 1rem;
         }
 
-        #content-preview pre code,
-        .markdown-preview pre code {
-            background-color: transparent;
-            padding: 0;
-            border-radius: 0;
+        .markdown-content blockquote {
+            border-left: 4px solid #ff00ff;
+            padding-left: 1rem;
+            color: #8a8a8a;
         }
 
-        #content-preview strong,
-        .markdown-preview strong {
-            font-weight: 600;
-            color: var(--text-primary);
+        .markdown-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
         }
 
-        #content-preview em,
-        .markdown-preview em {
-            font-style: italic;
-            color: var(--text-secondary);
+        .markdown-content th,
+        .markdown-content td {
+            border: 1px solid #2a2a5a;
+            padding: 0.5rem;
         }
 
-        #content-preview a,
-        .markdown-preview a {
-            color: var(--accent-color);
-            text-decoration: none;
-        }
-
-        #content-preview a:hover,
-        .markdown-preview a:hover {
-            text-decoration: underline;
+        .markdown-content th {
+            background: #0a0a1f;
+            color: #ff00ff;
         }
     </style>
 </head>
-<body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-brain"></i> Document Classification Agent
+
+<body class="min-h-screen flex flex-col scanlines">
+
+    <!-- Navbar -->
+    <nav class="border-b-2 border-retro-border bg-retro-bg/90 backdrop-blur-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <a href="{{ url_for('index') }}" class="flex items-center gap-3 group">
+                <i
+                    class="fas fa-gamepad text-2xl text-retro-primary group-hover:text-retro-secondary transition-colors animate-pulse"></i>
+                <span
+                    class="font-arcade text-sm md:text-base text-retro-primary group-hover:text-retro-secondary transition-colors text-glow-primary">DOC.AGENT_v2.0</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
+
+            <button class="md:hidden text-retro-primary" id="mobile-menu-btn">
+                <i class="fas fa-bars text-xl"></i>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">
-                            <i class="fas fa-home"></i> Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documents') }}">
-                            <i class="fas fa-file-alt"></i> Documents
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('stats') }}">
-                            <i class="fas fa-chart-bar"></i> Statistics
-                        </a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('refresh_data') }}" title="Refresh database">
-                            <i class="fas fa-sync-alt"></i>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <button id="theme-toggle" class="theme-toggle" title="Toggle theme">
-                            <i class="fas fa-moon"></i>
-                        </button>
-                    </li>
-                </ul>
+
+            <div class="hidden md:flex items-center gap-6" id="nav-links">
+                <a href="{{ url_for('index') }}"
+                    class="font-arcade text-xs text-retro-text hover:text-retro-secondary transition-colors hover:underline decoration-retro-secondary underline-offset-4">
+                    <i class="fas fa-home mr-1"></i> HOME
+                </a>
+                <a href="{{ url_for('documents') }}"
+                    class="font-arcade text-xs text-retro-text hover:text-retro-secondary transition-colors hover:underline decoration-retro-secondary underline-offset-4">
+                    <i class="fas fa-file-code mr-1"></i> FILES
+                </a>
+                <a href="{{ url_for('stats') }}"
+                    class="font-arcade text-xs text-retro-text hover:text-retro-secondary transition-colors hover:underline decoration-retro-secondary underline-offset-4">
+                    <i class="fas fa-chart-pie mr-1"></i> STATS
+                </a>
+
+                <!-- Theme Switcher -->
+                <div class="relative" id="theme-switcher">
+                    <button id="theme-btn"
+                        class="font-arcade text-xs text-retro-text hover:text-retro-primary transition-colors flex items-center gap-2">
+                        <i class="fas fa-palette"></i>
+                        <span id="current-theme-name">RETRO</span>
+                        <i class="fas fa-chevron-down text-xs"></i>
+                    </button>
+                    <div id="theme-menu"
+                        class="hidden absolute right-0 mt-2 w-56 bg-retro-card border-2 border-retro-border rounded shadow-lg z-50">
+                        <div class="p-2 space-y-1">
+                            <button onclick="setTheme('retro-game')"
+                                class="theme-option w-full text-left px-3 py-2 font-arcade text-xs text-retro-text hover:bg-retro-primary/10 hover:text-retro-primary rounded flex items-center gap-3">
+                                <i class="fas fa-gamepad text-retro-primary"></i>
+                                <span>RETRO-GAME</span>
+                            </button>
+                            <button onclick="setTheme('modern-dark')"
+                                class="theme-option w-full text-left px-3 py-2 font-arcade text-xs text-retro-text hover:bg-retro-primary/10 hover:text-retro-primary rounded flex items-center gap-3">
+                                <i class="fas fa-moon text-retro-secondary"></i>
+                                <span>MODERN-DARK</span>
+                            </button>
+                            <button onclick="setTheme('light')"
+                                class="theme-option w-full text-left px-3 py-2 font-arcade text-xs text-retro-text hover:bg-retro-primary/10 hover:text-retro-primary rounded flex items-center gap-3">
+                                <i class="fas fa-sun text-retro-accent"></i>
+                                <span>LIGHT</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <a href="{{ url_for('refresh_data') }}" class="text-retro-success hover:text-white transition-colors"
+                    title="Reload System">
+                    <i class="fas fa-sync-alt fa-spin-hover"></i>
+                </a>
             </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div class="hidden md:hidden border-t border-retro-border bg-retro-card p-4" id="mobile-menu">
+            <a href="{{ url_for('index') }}"
+                class="block py-2 font-arcade text-xs text-retro-text hover:text-retro-secondary">HOME</a>
+            <a href="{{ url_for('documents') }}"
+                class="block py-2 font-arcade text-xs text-retro-text hover:text-retro-secondary">FILES</a>
+            <a href="{{ url_for('stats') }}"
+                class="block py-2 font-arcade text-xs text-retro-text hover:text-retro-secondary">STATS</a>
         </div>
     </nav>
 
     <!-- Main Content -->
-    <main class="container">
+    <main class="flex-grow container mx-auto px-4 py-8 relative">
+        <!-- Grid Background Effect -->
+        <div class="absolute inset-0 -z-10 opacity-10 pointer-events-none"
+            style="background-image: linear-gradient(#2a2a5a 1px, transparent 1px), linear-gradient(90deg, #2a2a5a 1px, transparent 1px); background-size: 40px 40px;">
+        </div>
+
         {% block content %}{% endblock %}
     </main>
 
     <!-- Footer -->
-    <footer class="footer mt-5 py-4">
-        <div class="container text-center">
-            <p class="mb-0">
-                <i class="fas fa-brain"></i> Document Classification Agent - Powered by AI
+    <footer class="border-t-2 border-retro-border bg-retro-card py-6 mt-8">
+        <div class="container mx-auto px-4 text-center">
+            <p class="font-arcade text-xs text-retro-muted">
+                <i class="fas fa-robot mr-2"></i>POWERED BY AI // SYSTEM ONLINE
+            </p>
+            <p class="text-xs text-retro-muted mt-2 opacity-50">
+                INSERT COIN TO CONTINUE...
             </p>
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Theme management
-        function initTheme() {
-            const theme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', theme);
-            updateThemeIcon(theme);
-        }
+        // Theme Management
+        const THEME_STORAGE_KEY = 'doc-agent-theme';
+        const THEME_NAMES = {
+            'retro-game': 'RETRO',
+            'modern-dark': 'MODERN',
+            'light': 'LIGHT'
+        };
 
-        function updateThemeIcon(theme) {
-            const toggleBtn = document.getElementById('theme-toggle');
-            const icon = toggleBtn.querySelector('i');
-            if (theme === 'dark') {
-                icon.className = 'fas fa-sun';
-                toggleBtn.title = 'Switch to light mode';
-            } else {
-                icon.className = 'fas fa-moon';
-                toggleBtn.title = 'Switch to dark mode';
+        function setTheme(themeName) {
+            // Apply theme to HTML element
+            document.documentElement.setAttribute('data-theme', themeName);
+
+            // Save to localStorage
+            localStorage.setItem(THEME_STORAGE_KEY, themeName);
+
+            // Update button text
+            const themeNameDisplay = document.getElementById('current-theme-name');
+            if (themeNameDisplay) {
+                themeNameDisplay.textContent = THEME_NAMES[themeName] || 'RETRO';
+            }
+
+            // Close dropdown
+            const themeMenu = document.getElementById('theme-menu');
+            if (themeMenu) {
+                themeMenu.classList.add('hidden');
             }
         }
 
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            updateThemeIcon(newTheme);
+        function initTheme() {
+            // Load saved theme or default to retro-game
+            const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'retro-game';
+            setTheme(savedTheme);
         }
 
-        // Auto-hide alerts after 5 seconds
-        setTimeout(function() {
-            var alerts = document.querySelectorAll('.alert');
-            alerts.forEach(function(alert) {
-                var bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
+        // Initialize theme on page load
+        initTheme();
+
+        // Theme dropdown toggle
+        const themeBtn = document.getElementById('theme-btn');
+        const themeMenu = document.getElementById('theme-menu');
+
+        if (themeBtn && themeMenu) {
+            themeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                themeMenu.classList.toggle('hidden');
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!themeMenu.contains(e.target) && !themeBtn.contains(e.target)) {
+                    themeMenu.classList.add('hidden');
+                }
+            });
+        }
+
+        // Mobile menu toggle
+        const btn = document.getElementById('mobile-menu-btn');
+        const menu = document.getElementById('mobile-menu');
+
+        if (btn && menu) {
+            btn.addEventListener('click', () => {
+                menu.classList.toggle('hidden');
+            });
+        }
+
+        // Auto-hide alerts
+        setTimeout(function () {
+            var alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(function (alert) {
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
             });
         }, 5000);
-
-        // Search highlight function
-        function highlightSearchTerms(text, searchTerm) {
-            if (!searchTerm) return text;
-            const regex = new RegExp(`(${searchTerm})`, 'gi');
-            return text.replace(regex, '<span class="search-highlight">$1</span>');
-        }
-
-        // Initialize everything on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize theme
-            initTheme();
-
-            // Theme toggle event listener
-            document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
-
-            // Apply search highlighting
-            const searchTerm = new URLSearchParams(window.location.search).get('search');
-            if (searchTerm) {
-                const elements = document.querySelectorAll('.highlight-search');
-                elements.forEach(element => {
-                    element.innerHTML = highlightSearchTerms(element.innerHTML, searchTerm);
-                });
-            }
-        });
     </script>
 </body>
+
 </html>

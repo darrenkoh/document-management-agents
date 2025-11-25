@@ -1,296 +1,292 @@
 {% extends "base.html" %}
 
-{% block title %}{{ document.filename }} - Original File - Document Classification Agent{% endblock %}
+{% block title %}{{ document.filename }} - RAW_DATA - DOC AGENT{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">
-                    <span class="file-icon">{{ get_file_icon(document.metadata.file_extension) }}</span>
-                    {{ document.filename }} - Original File
-                </h4>
-                <div>
-                    <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}" class="btn btn-outline-primary" target="_blank">
-                        <i class="fas fa-download"></i> Download Original
-                    </a>
-                    <a href="{{ url_for('document_detail', doc_id=document.doc_id) }}" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Document Details
-                    </a>
+<div class="bg-retro-card border-2 border-retro-border rounded-lg overflow-hidden box-glow">
+    <div
+        class="bg-retro-bg border-b-2 border-retro-border p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+        <h4 class="font-arcade text-sm md:text-base text-retro-primary truncate max-w-[70%]">
+            <span class="mr-2 text-retro-secondary">{{ get_file_icon(document.metadata.file_extension) }}</span>
+            {{ document.filename }} <span class="text-retro-muted ml-2 text-xs">// RAW_DATA_VIEW</span>
+        </h4>
+        <div class="flex gap-2">
+            <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                class="btn-retro text-xs py-2 px-3 text-retro-primary border-retro-primary hover:bg-retro-primary/10"
+                target="_blank">
+                <i class="fas fa-download mr-2"></i>DOWNLOAD
+            </a>
+            <a href="{{ url_for('document_detail', doc_id=document.doc_id) }}"
+                class="btn-retro text-xs py-2 px-3 text-retro-secondary border-retro-secondary hover:bg-retro-secondary/10">
+                <i class="fas fa-arrow-left mr-2"></i>BACK
+            </a>
+        </div>
+    </div>
+    <div class="p-6">
+        <!-- File Information -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <div>
+                <h6 class="font-arcade text-xs text-retro-muted mb-4 border-b border-retro-border pb-2">FILE_INFO</h6>
+                <table class="w-full font-terminal text-lg text-retro-text">
+                    <tr>
+                        <td class="py-1 text-retro-muted">SOURCE_PATH:</td>
+                        <td class="py-1 pl-2 break-all text-retro-secondary">{{ document.file_path }}</td>
+                    </tr>
+                    <tr>
+                        <td class="py-1 text-retro-muted">SIZE:</td>
+                        <td class="py-1 pl-2">{{ "%.1f"|format(file_size / 1024) }} KB</td>
+                    </tr>
+                    <tr>
+                        <td class="py-1 text-retro-muted">TYPE:</td>
+                        <td class="py-1 pl-2">{{ file_extension | upper }}</td>
+                    </tr>
+                    <tr>
+                        <td class="py-1 text-retro-muted">MODIFIED:</td>
+                        <td class="py-1 pl-2">{{ document.metadata.file_modified | format_timestamp if
+                            document.metadata.file_modified else 'UNKNOWN' }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <h6 class="font-arcade text-xs text-retro-muted mb-4 border-b border-retro-border pb-2">
+                    CLASSIFICATION_DATA</h6>
+                <div class="mb-4">
+                    <strong class="font-terminal text-retro-muted block mb-2">CATEGORIES:</strong>
+                    <div class="flex flex-wrap gap-2">
+                        {% for category in document.categories.split('-') %}
+                        {% if category %}
+                        <span
+                            class="font-arcade text-xs px-2 py-1 bg-retro-primary/10 text-retro-primary border border-retro-primary/30 rounded">{{
+                            category | upper }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div
+                    class="bg-retro-secondary/10 border border-retro-secondary/30 p-3 rounded text-retro-secondary font-terminal text-sm flex items-center gap-2">
+                    <i class="fas fa-eye animate-pulse"></i> DIRECT_ACCESS_MODE_ENGAGED
                 </div>
             </div>
-            <div class="card-body">
-                <!-- File Information -->
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <h6 class="text-muted mb-2">File Information</h6>
-                        <table class="table table-sm">
-                            <tr>
-                                <td><strong>Source Path:</strong></td>
-                                <td><code>{{ document.file_path }}</code></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Size:</strong></td>
-                                <td>{{ "%.1f"|format(file_size / 1024) }} KB</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Type:</strong></td>
-                                <td>{{ file_extension | upper }}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Modified:</strong></td>
-                                <td>{{ document.metadata.file_modified | format_timestamp if document.metadata.file_modified else 'Unknown' }}</td>
-                            </tr>
-                        </table>
-                    </div>
-                    <div class="col-md-6">
-                        <h6 class="text-muted mb-2">Classification</h6>
-                        <div class="mb-3">
-                            <strong>Categories:</strong>
-                            <div class="mt-2">
-                                {% for category in document.categories.split('-') %}
-                                    {% if category %}
-                                    <span class="badge category-badge me-1 mb-1 fs-6">{{ category }}</span>
-                                    {% endif %}
-                                {% endfor %}
-                            </div>
-                        </div>
-                        <div class="alert alert-info">
-                            <i class="fas fa-eye"></i> Viewing the original file directly
-                        </div>
-                    </div>
+        </div>
+
+        <!-- File Viewer -->
+        <div>
+            <h6 class="font-arcade text-xs text-retro-muted mb-4 border-b border-retro-border pb-2">FILE_CONTENT_STREAM
+            </h6>
+            <div class="border-2 border-retro-border rounded bg-retro-bg relative overflow-hidden"
+                style="min-height: 600px;">
+                <!-- Scanline overlay -->
+                <div
+                    class="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-retro-primary/5 to-transparent opacity-20 animate-scanline z-10">
                 </div>
 
-                <!-- File Viewer -->
-                <div>
-                    <h6 class="text-muted mb-2">File Content</h6>
-                    <div class="border rounded bg-light" style="min-height: 600px;">
-
-                        <!-- PDF Viewer -->
-                        {% if file_extension == '.pdf' %}
-                        <div id="pdf-container" class="w-100" style="height: 600px; overflow-y: auto; background: #f8f9fa;">
-                            <div id="pdf-viewer-toolbar" class="d-flex justify-content-between align-items-center p-2 bg-white border-bottom" style="position: sticky; top: 0; z-index: 10;">
-                                <div>
-                                    <button id="prev-page" class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-chevron-left"></i> Previous
-                                    </button>
-                                    <button id="next-page" class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-chevron-right"></i> Next
-                                    </button>
-                                    <span class="ms-3">
-                                        Page: <span id="page-num">1</span> / <span id="page-count">1</span>
-                                    </span>
-                                </div>
-                                <div>
-                                    <button id="zoom-out" class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-search-minus"></i>
-                                    </button>
-                                    <span id="zoom-level" class="mx-2">100%</span>
-                                    <button id="zoom-in" class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-search-plus"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <canvas id="pdf-canvas" class="d-block mx-auto" style="max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"></canvas>
+                <!-- PDF Viewer -->
+                {% if file_extension == '.pdf' %}
+                <div id="pdf-container" class="w-full h-[600px] overflow-y-auto bg-retro-bg relative z-0">
+                    <div id="pdf-viewer-toolbar"
+                        class="sticky top-0 z-20 flex justify-between items-center p-2 bg-retro-card border-b border-retro-border">
+                        <div class="flex gap-2">
+                            <button id="prev-page"
+                                class="btn-retro text-xs py-1 px-2 text-retro-text border-retro-muted hover:text-retro-primary hover:border-retro-primary">
+                                <i class="fas fa-chevron-left"></i> PREV
+                            </button>
+                            <button id="next-page"
+                                class="btn-retro text-xs py-1 px-2 text-retro-text border-retro-muted hover:text-retro-primary hover:border-retro-primary">
+                                NEXT <i class="fas fa-chevron-right"></i>
+                            </button>
+                            <span class="font-terminal text-retro-text ml-2 flex items-center">
+                                PAGE: <span id="page-num" class="text-retro-primary mx-1">1</span> / <span
+                                    id="page-count" class="text-retro-muted mx-1">1</span>
+                            </span>
                         </div>
-                        <script>
-                            // PDF.js viewer
-                            let pdfDoc = null;
-                            let pageNum = 1;
-                            let pageRendering = false;
-                            let pageNumPending = null;
-                            let scale = 1.0;
-                            const canvas = document.getElementById('pdf-canvas');
-                            const ctx = canvas.getContext('2d');
+                        <div class="flex gap-2 items-center">
+                            <button id="zoom-out"
+                                class="btn-retro text-xs py-1 px-2 text-retro-text border-retro-muted hover:text-retro-primary hover:border-retro-primary">
+                                <i class="fas fa-search-minus"></i>
+                            </button>
+                            <span id="zoom-level"
+                                class="font-terminal text-retro-text mx-2 w-12 text-center">100%</span>
+                            <button id="zoom-in"
+                                class="btn-retro text-xs py-1 px-2 text-retro-text border-retro-muted hover:text-retro-primary hover:border-retro-primary">
+                                <i class="fas fa-search-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex justify-center p-4">
+                        <canvas id="pdf-canvas" class="max-w-full shadow-[0_0_15px_rgba(0,0,0,0.5)]"></canvas>
+                    </div>
+                </div>
+                <script>
+                    // PDF.js viewer
+                    let pdfDoc = null;
+                    let pageNum = 1;
+                    let pageRendering = false;
+                    let pageNumPending = null;
+                    let scale = 1.0;
+                    const canvas = document.getElementById('pdf-canvas');
+                    const ctx = canvas.getContext('2d');
 
-                            // Load PDF
-                            pdfjsLib.getDocument('{{ url_for("serve_original_file", doc_id=document.doc_id) }}').promise.then(function(pdf) {
-                                pdfDoc = pdf;
-                                document.getElementById('page-count').textContent = pdf.numPages;
+                    // Load PDF
+                    pdfjsLib.getDocument('{{ url_for("serve_original_file", doc_id=document.doc_id) }}').promise.then(function (pdf) {
+                        pdfDoc = pdf;
+                        document.getElementById('page-count').textContent = pdf.numPages;
+                        renderPage(pageNum);
+                    });
 
-                                // Initial page render
-                                renderPage(pageNum);
-                            });
+                    function renderPage(num) {
+                        pageRendering = true;
+                        pdfDoc.getPage(num).then(function (page) {
+                            const viewport = page.getViewport({ scale: scale });
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
 
-                            // Render page
-                            function renderPage(num) {
-                                pageRendering = true;
+                            const renderContext = {
+                                canvasContext: ctx,
+                                viewport: viewport
+                            };
+                            const renderTask = page.render(renderContext);
 
-                                pdfDoc.getPage(num).then(function(page) {
-                                    const viewport = page.getViewport({scale: scale});
-                                    canvas.height = viewport.height;
-                                    canvas.width = viewport.width;
-
-                                    const renderContext = {
-                                        canvasContext: ctx,
-                                        viewport: viewport
-                                    };
-
-                                    const renderTask = page.render(renderContext);
-
-                                    renderTask.promise.then(function() {
-                                        pageRendering = false;
-                                        if (pageNumPending !== null) {
-                                            renderPage(pageNumPending);
-                                            pageNumPending = null;
-                                        }
-                                    });
-                                });
-
-                                document.getElementById('page-num').textContent = num;
-                            }
-
-                            // Queue render page
-                            function queueRenderPage(num) {
-                                if (pageRendering) {
-                                    pageNumPending = num;
-                                } else {
-                                    renderPage(num);
+                            renderTask.promise.then(function () {
+                                pageRendering = false;
+                                if (pageNumPending !== null) {
+                                    renderPage(pageNumPending);
+                                    pageNumPending = null;
                                 }
-                            }
-
-                            // Show prev page
-                            document.getElementById('prev-page').addEventListener('click', function() {
-                                if (pageNum <= 1) return;
-                                pageNum--;
-                                queueRenderPage(pageNum);
                             });
+                        });
+                        document.getElementById('page-num').textContent = num;
+                    }
 
-                            // Show next page
-                            document.getElementById('next-page').addEventListener('click', function() {
-                                if (pageNum >= pdfDoc.numPages) return;
-                                pageNum++;
-                                queueRenderPage(pageNum);
-                            });
+                    function queueRenderPage(num) {
+                        if (pageRendering) {
+                            pageNumPending = num;
+                        } else {
+                            renderPage(num);
+                        }
+                    }
 
-                            // Zoom controls
-                            document.getElementById('zoom-in').addEventListener('click', function() {
-                                scale = Math.min(scale + 0.25, 3.0);
-                                document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
-                                queueRenderPage(pageNum);
-                            });
+                    document.getElementById('prev-page').addEventListener('click', function () {
+                        if (pageNum <= 1) return;
+                        pageNum--;
+                        queueRenderPage(pageNum);
+                    });
 
-                            document.getElementById('zoom-out').addEventListener('click', function() {
-                                scale = Math.max(scale - 0.25, 0.5);
-                                document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
-                                queueRenderPage(pageNum);
-                            });
-                        </script>
+                    document.getElementById('next-page').addEventListener('click', function () {
+                        if (pageNum >= pdfDoc.numPages) return;
+                        pageNum++;
+                        queueRenderPage(pageNum);
+                    });
 
-                        <!-- Text File Viewer -->
-                        {% elif file_extension in ['.txt', '.md', '.py', '.js', '.html', '.css', '.json', '.xml', '.yaml', '.yml'] %}
-                        <div class="p-3">
-                            <pre id="text-content" class="mb-0" style="white-space: pre-wrap; font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace; font-size: 0.85rem; line-height: 1.4; max-height: 550px; overflow-y: auto;"></pre>
-                        </div>
-                        <script>
-                            // Load text content via fetch
-                            fetch('{{ url_for("serve_original_file", doc_id=document.doc_id) }}')
-                                .then(response => response.text())
-                                .then(text => {
-                                    const textElement = document.getElementById('text-content');
-                                    textElement.textContent = text;
-                                    // Add syntax highlighting class if it's a code file
-                                    {% if file_extension in ['.py', '.js', '.html', '.css', '.json', '.xml'] %}
-                                    textElement.classList.add('language-' + '{{ file_extension[1:] }}'.replace('js', 'javascript'));
-                                    {% endif %}
-                                })
-                                .catch(error => {
-                                    document.getElementById('text-content').textContent = 'Error loading text content: ' + error.message;
-                                });
-                        </script>
+                    document.getElementById('zoom-in').addEventListener('click', function () {
+                        scale = Math.min(scale + 0.25, 3.0);
+                        document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
+                        queueRenderPage(pageNum);
+                    });
 
-                        <!-- Image Viewer -->
-                        {% elif file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'] %}
-                        <div class="text-center p-3">
-                            <img src="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
-                                 alt="{{ document.filename }}"
-                                 class="img-fluid rounded shadow"
-                                 style="max-height: 550px; max-width: 100%;">
-                        </div>
+                    document.getElementById('zoom-out').addEventListener('click', function () {
+                        scale = Math.max(scale - 0.25, 0.5);
+                        document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
+                        queueRenderPage(pageNum);
+                    });
+                </script>
 
-                        <!-- Word Document Viewer -->
-                        {% elif file_extension in ['.docx', '.doc'] %}
-                        <div class="text-center p-5">
-                            <div class="mb-4">
-                                <i class="fas fa-file-word fa-4x text-primary"></i>
-                            </div>
-                            <h5>Word Document</h5>
-                            <p class="text-muted">Word documents cannot be viewed directly in the browser.</p>
-                            <div class="mt-4">
-                                <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}" class="btn btn-primary" target="_blank">
-                                    <i class="fas fa-external-link-alt"></i> Open in Word Viewer
-                                </a>
-                                <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}" class="btn btn-outline-primary" download>
-                                    <i class="fas fa-download"></i> Download File
-                                </a>
-                            </div>
-                        </div>
+                <!-- Text File Viewer -->
+                {% elif file_extension in ['.txt', '.md', '.py', '.js', '.html', '.css', '.json', '.xml', '.yaml',
+                '.yml'] %}
+                <div class="p-4 bg-retro-bg h-full overflow-auto">
+                    <pre id="text-content"
+                        class="font-terminal text-retro-text text-sm whitespace-pre-wrap leading-relaxed"></pre>
+                </div>
+                <script>
+                    fetch('{{ url_for("serve_original_file", doc_id=document.doc_id) }}')
+                        .then(response => response.text())
+                        .then(text => {
+                            const textElement = document.getElementById('text-content');
+                            textElement.textContent = text;
+                            {% if file_extension in ['.py', '.js', '.html', '.css', '.json', '.xml'] %}
+                            textElement.classList.add('language-' + '{{ file_extension[1:] }}'.replace('js', 'javascript'));
+                            {% endif %}
+                        })
+                        .catch(error => {
+                            document.getElementById('text-content').textContent = 'ERROR_LOADING_DATA_STREAM: ' + error.message;
+                            document.getElementById('text-content').classList.add('text-retro-danger');
+                        });
+                </script>
 
-                        <!-- Unsupported File Type -->
-                        {% else %}
-                        <div class="text-center p-5">
-                            <div class="mb-4">
-                                <i class="fas fa-file fa-4x text-secondary"></i>
-                            </div>
-                            <h5>Unsupported File Type</h5>
-                            <p class="text-muted">This file type ({{ file_extension | upper }}) cannot be viewed directly in the browser.</p>
-                            <div class="mt-4">
-                                <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}" class="btn btn-primary" download>
-                                    <i class="fas fa-download"></i> Download File
-                                </a>
-                            </div>
-                        </div>
-                        {% endif %}
+                <!-- Image Viewer -->
+                {% elif file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'] %}
+                <div class="flex items-center justify-center p-4 bg-retro-bg h-full min-h-[600px]">
+                    <img src="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                        alt="{{ document.filename }}"
+                        class="max-w-full max-h-[550px] border-2 border-retro-border rounded shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                </div>
 
+                <!-- Word Document Viewer -->
+                {% elif file_extension in ['.docx', '.doc'] %}
+                <div
+                    class="flex flex-col items-center justify-center p-12 bg-retro-bg h-full min-h-[600px] text-center">
+                    <div class="mb-6 animate-bounce">
+                        <i class="fas fa-file-word text-6xl text-retro-primary"></i>
+                    </div>
+                    <h5 class="font-arcade text-xl text-retro-text mb-2">WORD_DOCUMENT_DETECTED</h5>
+                    <p class="font-terminal text-retro-muted mb-8">EXTERNAL_VIEWER_REQUIRED_FOR_THIS_FORMAT</p>
+                    <div class="flex gap-4">
+                        <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                            class="btn-retro text-retro-primary border-retro-primary hover:bg-retro-primary/10"
+                            target="_blank">
+                            <i class="fas fa-external-link-alt mr-2"></i>OPEN_VIEWER
+                        </a>
+                        <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                            class="btn-retro text-retro-secondary border-retro-secondary hover:bg-retro-secondary/10"
+                            download>
+                            <i class="fas fa-download mr-2"></i>DOWNLOAD
+                        </a>
                     </div>
                 </div>
+
+                <!-- Unsupported File Type -->
+                {% else %}
+                <div
+                    class="flex flex-col items-center justify-center p-12 bg-retro-bg h-full min-h-[600px] text-center">
+                    <div class="mb-6 animate-pulse">
+                        <i class="fas fa-file text-6xl text-retro-muted"></i>
+                    </div>
+                    <h5 class="font-arcade text-xl text-retro-text mb-2">UNSUPPORTED_FILE_TYPE</h5>
+                    <p class="font-terminal text-retro-muted mb-8">FORMAT ({{ file_extension | upper }})
+                        INCOMPATIBLE_WITH_BROWSER_VIEW</p>
+                    <div class="mt-4">
+                        <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                            class="btn-retro text-retro-primary border-retro-primary hover:bg-retro-primary/10"
+                            download>
+                            <i class="fas fa-download mr-2"></i>DOWNLOAD_FILE
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
             </div>
         </div>
     </div>
 </div>
 
-<!-- Copy Path Function -->
 <script>
-function copyPath(path) {
-    navigator.clipboard.writeText(path).then(function() {
-        // Show success feedback
-        const btns = document.querySelectorAll('button[onclick*="copyPath"]');
-        btns.forEach(btn => {
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            btn.classList.remove('btn-outline-secondary');
-            btn.classList.add('btn-success');
+    function copyPath(path) {
+        navigator.clipboard.writeText(path).then(function () {
+            const btns = document.querySelectorAll('button[onclick*="copyPath"]');
+            btns.forEach(btn => {
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> COPIED!';
+                btn.classList.add('text-retro-success', 'border-retro-success');
 
-            setTimeout(function() {
-                btn.innerHTML = originalText;
-                btn.classList.remove('btn-success');
-                btn.classList.add('btn-outline-secondary');
-            }, 2000);
+                setTimeout(function () {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('text-retro-success', 'border-retro-success');
+                }, 2000);
+            });
+        }).catch(function (err) {
+            console.error('Failed to copy path: ', err);
+            alert('Failed to copy path to clipboard');
         });
-    }).catch(function(err) {
-        console.error('Failed to copy path: ', err);
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = path;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-
-        const btns = document.querySelectorAll('button[onclick*="copyPath"]');
-        btns.forEach(btn => {
-            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            btn.classList.remove('btn-outline-secondary');
-            btn.classList.add('btn-success');
-            setTimeout(function() {
-                btn.innerHTML = originalText;
-                btn.classList.remove('btn-success');
-                btn.classList.add('btn-outline-secondary');
-            }, 2000);
-        });
-    });
-}
+    }
 </script>
-
 {% endblock %}

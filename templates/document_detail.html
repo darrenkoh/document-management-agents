@@ -1,80 +1,92 @@
 {% extends "base.html" %}
 
-{% block title %}{{ document.filename }} - Document Classification Agent{% endblock %}
+{% block title %}{{ document.filename }} - DOC AGENT{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">
-                    <span class="file-icon">{{ get_file_icon(document.metadata.file_extension) }}</span>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2 space-y-8">
+        <!-- Main Document Card -->
+        <div class="bg-retro-card border-2 border-retro-border rounded-lg overflow-hidden box-glow">
+            <div class="bg-retro-bg border-b-2 border-retro-border p-4 flex justify-between items-center">
+                <h4 class="font-arcade text-sm md:text-base text-retro-primary truncate max-w-[70%]">
+                    <span class="mr-2 text-retro-secondary">{{ get_file_icon(document.metadata.file_extension) }}</span>
                     {{ document.filename }}
                 </h4>
                 <div>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="copyPath('{{ document.file_path }}')">
-                        <i class="fas fa-copy"></i> Copy Path
+                    <button class="btn-retro text-xs py-2 px-3" onclick="copyPath('{{ document.file_path }}')">
+                        <i class="fas fa-copy"></i> PATH
                     </button>
                 </div>
             </div>
-            <div class="card-body">
+            <div class="p-6">
                 <!-- Document Info -->
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <h6 class="text-muted mb-2">File Information</h6>
-                        <table class="table table-sm">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                    <div>
+                        <h6 class="font-arcade text-xs text-retro-muted mb-4 border-b border-retro-border pb-2">
+                            FILE_INFO</h6>
+                        <table class="w-full font-terminal text-lg text-retro-text">
                             <tr>
-                                <td><strong>Path:</strong></td>
-                                <td><code>{{ document.file_path }}</code></td>
+                                <td class="py-1 text-retro-muted">PATH:</td>
+                                <td class="py-1 pl-2 break-all text-retro-secondary">{{ document.file_path }}</td>
                             </tr>
                             <tr>
-                                <td><strong>Size:</strong></td>
-                                <td>{{ "%.1f"|format(document.metadata.file_size / 1024) }} KB</td>
+                                <td class="py-1 text-retro-muted">SIZE:</td>
+                                <td class="py-1 pl-2">{{ "%.1f"|format(document.metadata.file_size / 1024) }} KB</td>
                             </tr>
                             <tr>
-                                <td><strong>Type:</strong></td>
-                                <td>{{ document.metadata.file_extension | upper }}</td>
+                                <td class="py-1 text-retro-muted">TYPE:</td>
+                                <td class="py-1 pl-2">{{ document.metadata.file_extension | upper }}</td>
                             </tr>
                             <tr>
-                                <td><strong>Modified:</strong></td>
-                                <td>{{ document.metadata.file_modified | format_timestamp if document.metadata.file_modified else 'Unknown' }}</td>
+                                <td class="py-1 text-retro-muted">MODIFIED:</td>
+                                <td class="py-1 pl-2">{{ document.metadata.file_modified | format_timestamp if
+                                    document.metadata.file_modified else 'UNKNOWN' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>Classified:</strong></td>
-                                <td>{{ document.classification_date | format_date }}</td>
+                                <td class="py-1 text-retro-muted">CLASSIFIED:</td>
+                                <td class="py-1 pl-2">{{ document.classification_date | format_date }}</td>
                             </tr>
                             {% if document.file_hash %}
                             <tr>
-                                <td><strong>SHA-256 Hash:</strong></td>
-                                <td>
-                                    <code class="text-break">{{ document.file_hash }}</code>
-                                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyHash('{{ document.file_hash }}')" title="Copy Hash">
-                                        <i class="fas fa-copy"></i>
-                                    </button>
+                                <td class="py-1 text-retro-muted">HASH:</td>
+                                <td class="py-1 pl-2">
+                                    <div class="flex items-center gap-2">
+                                        <code
+                                            class="text-xs bg-retro-bg p-1 border border-retro-border truncate max-w-[150px]">{{ document.file_hash }}</code>
+                                        <button class="text-retro-secondary hover:text-retro-primary"
+                                            onclick="copyHash('{{ document.file_hash }}')" title="COPY HASH">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                             {% endif %}
                         </table>
                     </div>
-                    <div class="col-md-6">
-                        <h6 class="text-muted mb-2">Classification</h6>
-                        <div class="mb-3">
-                            <strong>Categories:</strong>
-                            <div class="mt-2">
+                    <div>
+                        <h6 class="font-arcade text-xs text-retro-muted mb-4 border-b border-retro-border pb-2">
+                            CLASSIFICATION_DATA</h6>
+                        <div class="mb-4">
+                            <strong class="font-terminal text-retro-muted block mb-2">CATEGORIES:</strong>
+                            <div class="flex flex-wrap gap-2">
                                 {% for category in document.categories.split('-') %}
-                                    {% if category %}
-                                    <span class="badge category-badge me-1 mb-1 fs-6">{{ category }}</span>
-                                    {% endif %}
+                                {% if category %}
+                                <span
+                                    class="font-arcade text-xs px-2 py-1 bg-retro-primary/10 text-retro-primary border border-retro-primary/30 rounded">{{
+                                    category | upper }}</span>
+                                {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
                         {% if document.embedding_stored %}
-                        <div class="alert alert-success">
-                            <i class="fas fa-brain"></i> This document has AI embeddings for semantic search
+                        <div
+                            class="bg-retro-success/10 border border-retro-success/30 p-3 rounded text-retro-success font-terminal text-sm flex items-center gap-2">
+                            <i class="fas fa-brain animate-pulse"></i> EMBEDDINGS_ACTIVE
                         </div>
                         {% else %}
-                        <div class="alert alert-warning">
-                            <i class="fas fa-exclamation-triangle"></i> No embeddings available for this document
+                        <div
+                            class="bg-retro-accent/10 border border-retro-accent/30 p-3 rounded text-retro-accent font-terminal text-sm flex items-center gap-2">
+                            <i class="fas fa-exclamation-triangle"></i> NO_EMBEDDINGS
                         </div>
                         {% endif %}
                     </div>
@@ -82,9 +94,16 @@
 
                 <!-- Content Preview -->
                 <div>
-                    <h6 class="text-muted mb-2">Content Preview</h6>
-                    <div class="border rounded p-3 bg-light">
-                        <div id="content-preview" class="mb-0" style="font-family: inherit; font-size: 0.9rem;"></div>
+                    <h6 class="font-arcade text-xs text-retro-muted mb-4 border-b border-retro-border pb-2">
+                        CONTENT_PREVIEW</h6>
+                    <div class="border-2 border-retro-border rounded bg-retro-bg p-4 relative overflow-hidden">
+                        <!-- Scanline overlay for content -->
+                        <div
+                            class="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-retro-primary/5 to-transparent opacity-20 animate-scanline">
+                        </div>
+
+                        <div id="content-preview" class="markdown-content font-terminal text-lg text-retro-text"
+                            style="min-height: 200px;"></div>
                     </div>
                 </div>
 
@@ -92,15 +111,13 @@
                 <script>
                     function cleanAndRenderMarkdown(content) {
                         // Remove DeepSeek-OCR reference tags and bounding box data
-                        // These are metadata tags like <|ref|>text<|/ref|> and <|det|>[[x,y,w,h]]<|/det|>
                         const cleaned = content
-                            .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')  // Remove reference tags
-                            .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')  // Remove bounding box data
-                            .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')  // Remove image tags
-                            .replace(/\n{3,}/g, '\n\n')  // Clean up excessive newlines
+                            .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')
+                            .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')
+                            .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')
+                            .replace(/\n{3,}/g, '\n\n')
                             .trim();
 
-                        // Render markdown using marked
                         const rendered = marked.parse(cleaned, {
                             breaks: true,
                             gfm: true
@@ -109,62 +126,63 @@
                         return rendered;
                     }
 
-                    // Render content on page load
-                    document.addEventListener('DOMContentLoaded', function() {
+                    document.addEventListener('DOMContentLoaded', function () {
                         const contentElement = document.getElementById('content-preview');
-                        const rawContent = {{ document.content | tojson }};
+                        const rawContent = {{ document.content | tojson
+                    }};
 
-                        contentElement.innerHTML = cleanAndRenderMarkdown(rawContent);
+                    contentElement.innerHTML = cleanAndRenderMarkdown(rawContent);
                     });
                 </script>
             </div>
         </div>
     </div>
 
-    <div class="col-lg-4">
+    <div class="lg:col-span-1 space-y-8">
         <!-- Quick Actions -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="mb-0">
-                    <i class="fas fa-bolt"></i> Actions
+        <div class="bg-retro-card border-2 border-retro-border rounded-lg overflow-hidden">
+            <div class="bg-retro-bg border-b-2 border-retro-border p-4">
+                <h6 class="font-arcade text-sm text-retro-text">
+                    <i class="fas fa-bolt text-retro-accent mr-2"></i>ACTIONS
                 </h6>
             </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('view_original_content', doc_id=document.doc_id) }}" class="btn btn-outline-info">
-                        <i class="fas fa-file-alt"></i> View Original Content
-                    </a>
-                    <button class="btn btn-outline-primary" onclick="window.print()">
-                        <i class="fas fa-print"></i> Print Document
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="copyPath('{{ document.file_path }}')">
-                        <i class="fas fa-copy"></i> Copy File Path
-                    </button>
-                    <a href="{{ url_for('documents') }}" class="btn btn-outline-success">
-                        <i class="fas fa-arrow-left"></i> Back to Documents
-                    </a>
-                </div>
+            <div class="p-4 flex flex-col gap-3">
+                <a href="{{ url_for('view_original_content', doc_id=document.doc_id) }}"
+                    class="btn-retro text-center text-retro-secondary border-retro-secondary hover:bg-retro-secondary/10">
+                    <i class="fas fa-file-alt mr-2"></i>RAW CONTENT
+                </a>
+                <button class="btn-retro text-center text-retro-primary border-retro-primary hover:bg-retro-primary/10"
+                    onclick="window.print()">
+                    <i class="fas fa-print mr-2"></i>PRINT LOG
+                </button>
+                <button class="btn-retro text-center text-retro-muted border-retro-muted hover:bg-retro-muted/10"
+                    onclick="copyPath('{{ document.file_path }}')">
+                    <i class="fas fa-copy mr-2"></i>COPY PATH
+                </button>
+                <a href="{{ url_for('documents') }}"
+                    class="btn-retro text-center text-retro-success border-retro-success hover:bg-retro-success/10">
+                    <i class="fas fa-arrow-left mr-2"></i>RETURN
+                </a>
             </div>
         </div>
 
         <!-- Metadata -->
         {% if document.metadata %}
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">
-                    <i class="fas fa-info-circle"></i> Additional Metadata
+        <div class="bg-retro-card border-2 border-retro-border rounded-lg overflow-hidden">
+            <div class="bg-retro-bg border-b-2 border-retro-border p-4">
+                <h6 class="font-arcade text-sm text-retro-text">
+                    <i class="fas fa-info-circle text-retro-secondary mr-2"></i>METADATA
                 </h6>
             </div>
-            <div class="card-body">
-                <div class="row">
+            <div class="p-4">
+                <div class="space-y-3 font-terminal text-lg">
                     {% for key, value in document.metadata.items() %}
-                        {% if key not in ['file_size', 'file_extension', 'file_modified'] %}
-                        <div class="col-12 mb-2">
-                            <small class="text-muted">{{ key | replace('_', ' ') | title }}:</small>
-                            <br>
-                            <span class="fw-bold">{{ value }}</span>
-                        </div>
-                        {% endif %}
+                    {% if key not in ['file_size', 'file_extension', 'file_modified'] %}
+                    <div class="border-b border-retro-border/50 pb-2 last:border-0">
+                        <small class="text-retro-muted block">{{ key | replace('_', ' ') | upper }}:</small>
+                        <span class="text-retro-text break-words">{{ value }}</span>
+                    </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </div>
@@ -174,82 +192,39 @@
 </div>
 
 <script>
-function copyPath(path) {
-    navigator.clipboard.writeText(path).then(function() {
-        // Show success feedback
-        const btns = document.querySelectorAll('button[onclick*="copyPath"]');
-        btns.forEach(btn => {
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            btn.classList.remove('btn-outline-secondary');
-            btn.classList.add('btn-success');
+    function copyPath(path) {
+        navigator.clipboard.writeText(path).then(function () {
+            const btns = document.querySelectorAll('button[onclick*="copyPath"]');
+            btns.forEach(btn => {
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> COPIED!';
+                btn.classList.add('text-retro-success', 'border-retro-success');
 
-            setTimeout(function() {
-                btn.innerHTML = originalText;
-                btn.classList.remove('btn-success');
-                btn.classList.add('btn-outline-secondary');
-            }, 2000);
+                setTimeout(function () {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('text-retro-success', 'border-retro-success');
+                }, 2000);
+            });
+        }).catch(function (err) {
+            console.error('Failed to copy path: ', err);
+            alert('Failed to copy path to clipboard');
         });
-    }).catch(function(err) {
-        console.error('Failed to copy path: ', err);
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = path;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
+    }
 
-        const btns = document.querySelectorAll('button[onclick*="copyPath"]');
-        btns.forEach(btn => {
-            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            btn.classList.remove('btn-outline-secondary');
-            btn.classList.add('btn-success');
-            setTimeout(function() {
-                btn.innerHTML = originalText;
-                btn.classList.remove('btn-success');
-                btn.classList.add('btn-outline-secondary');
+    function copyHash(hash) {
+        navigator.clipboard.writeText(hash).then(function () {
+            const btn = event.target.closest('button');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            btn.classList.add('text-retro-success');
+
+            setTimeout(function () {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('text-retro-success');
             }, 2000);
+        }).catch(function (err) {
+            console.error('Failed to copy hash: ', err);
         });
-    });
-}
-
-function copyHash(hash) {
-    navigator.clipboard.writeText(hash).then(function() {
-        // Show success feedback
-        const btn = event.target.closest('button');
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i>';
-        btn.classList.remove('btn-outline-secondary');
-        btn.classList.add('btn-success');
-
-        setTimeout(function() {
-            btn.innerHTML = originalHTML;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-secondary');
-        }, 2000);
-    }).catch(function(err) {
-        console.error('Failed to copy hash: ', err);
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = hash;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-
-        const btn = event.target.closest('button');
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i>';
-        btn.classList.remove('btn-outline-secondary');
-        btn.classList.add('btn-success');
-        setTimeout(function() {
-            btn.innerHTML = originalHTML;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-secondary');
-        }, 2000);
-    });
-}
+    }
 </script>
-
 {% endblock %}

@@ -1,200 +1,201 @@
 {% extends "base.html" %}
 
-{% block title %}Search Results - Document Classification Agent{% endblock %}
+{% block title %}SEARCH_RESULTS - DOC AGENT{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h2>
-                    <i class="fas fa-search"></i> Search Results
-                </h2>
-                <p class="text-muted mb-0">
-                    <i class="fas fa-quote-left"></i>
-                    <strong>{{ query }}</strong>
-                    <i class="fas fa-quote-right"></i>
-                </p>
-            </div>
-            <div>
-                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> New Search
-                </a>
-            </div>
+<div class="mb-8">
+    <div
+        class="flex flex-col md:flex-row justify-between items-center gap-4 bg-retro-card border-2 border-retro-border p-4 rounded-lg box-glow">
+        <div>
+            <h2 class="font-arcade text-xl text-retro-primary text-glow-primary mb-2">
+                <i class="fas fa-search mr-2"></i>SEARCH_RESULTS
+            </h2>
+            <p class="font-terminal text-retro-muted text-sm flex items-center gap-2">
+                <i class="fas fa-quote-left text-xs"></i>
+                <strong class="text-retro-text">{{ query }}</strong>
+                <i class="fas fa-quote-right text-xs"></i>
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('index') }}"
+                class="btn-retro text-retro-secondary border-retro-secondary hover:bg-retro-secondary/10">
+                <i class="fas fa-arrow-left mr-2"></i>NEW_SEARCH
+            </a>
         </div>
     </div>
 </div>
 
 <!-- Results Summary -->
-<div class="alert alert-success">
+<div
+    class="mb-6 bg-retro-success/10 border border-retro-success/30 p-3 rounded text-retro-success font-terminal flex items-center gap-2">
     <i class="fas fa-check-circle"></i>
-    Found {{ results | length }} relevant document{{ 's' if results | length != 1 else '' }}
+    <span>FOUND {{ results | length }} RELEVANT FILE{{ 'S' if results | length != 1 else '' }}</span>
 </div>
 
 <!-- Search Results -->
 {% if results %}
-<div class="row">
+<div class="space-y-6">
     {% for result in results %}
-    <div class="col-12 mb-4">
-        <div class="card document-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center">
-                    <div class="file-icon">
-                        {{ get_file_icon(result.metadata.file_extension) }}
-                    </div>
-                    <h6 class="mb-0">
-                        <a href="{{ url_for('document_detail', doc_id=result['doc_id']) }}" class="text-decoration-none">
-                            {{ result.filename }}
-                        </a>
-                    </h6>
+    <div
+        class="bg-retro-bg border-2 border-retro-border rounded-lg overflow-hidden hover:border-retro-primary transition-all duration-300 group">
+        <div
+            class="bg-retro-bg border-b-2 border-retro-border p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="text-2xl text-retro-secondary group-hover:text-retro-primary transition-colors">
+                    {{ get_file_icon(result.metadata.file_extension) }}
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    {% if result.similarity is not none %}
-                    {% set score_percent = result.similarity * 100 %}
-                    {% set score_class = 'similarity-score-high' if score_percent >= 85 else 'similarity-score-medium' if score_percent >= 51 else 'similarity-score-low' %}
-                    <span class="similarity-score {{ score_class }}">
-                        <i class="fas fa-star"></i> {{ "%.1f"|format(score_percent) }}%
-                    </span>
-                    {% endif %}
-                    {% for category in result.categories.split('-') %}
-                        {% if category %}
-                        <span class="badge category-badge">{{ category }}</span>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-8">
-                        <h6 class="text-muted mb-2">
-                            <i class="fas fa-folder"></i> Location: {{ result.file_path }}
-                        </h6>
-                        <div class="content-preview">
-                            <strong>Content Preview:</strong>
-                            <div class="mt-2 highlight-search markdown-preview" data-content="{{ result.content_preview | truncate_content(300) }}"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <small class="text-muted d-block">File Size</small>
-                                <span class="fw-bold">{{ "%.1f"|format(result.metadata.file_size / 1024) }} KB</span>
-                            </div>
-                            <div class="col-6">
-                                <small class="text-muted d-block">Type</small>
-                                <span class="fw-bold">{{ result.metadata.file_extension | upper }}</span>
-                            </div>
-                            <div class="col-12 mt-2">
-                                <small class="text-muted d-block">Classified</small>
-                                <span class="fw-bold">{{ result.classification_date | format_date }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="card-footer bg-transparent">
-                <div class="d-flex gap-2">
-                    <a href="{{ url_for('document_detail', doc_id=result['doc_id']) }}" class="btn btn-primary btn-sm">
-                        <i class="fas fa-eye"></i> View Full Details
+                <h6 class="font-arcade text-sm md:text-base">
+                    <a href="{{ url_for('document_detail', doc_id=result['doc_id']) }}"
+                        class="text-retro-text hover:text-retro-primary transition-colors">
+                        {{ result.filename }}
                     </a>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="copyPath('{{ result.file_path }}')">
-                        <i class="fas fa-copy"></i> Copy Path
-                    </button>
+                </h6>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                {% if result.similarity is not none %}
+                {% set score_percent = result.similarity * 100 %}
+                {% set score_color = 'text-retro-success border-retro-success' if score_percent >= 85 else
+                'text-retro-secondary border-retro-secondary' if score_percent >= 51 else 'text-retro-accent
+                border-retro-accent' %}
+                <span class="font-arcade text-xs px-2 py-1 border {{ score_color }} rounded bg-retro-bg">
+                    <i class="fas fa-star mr-1"></i>{{ "%.1f"|format(score_percent) }}%
+                </span>
+                {% endif %}
+                {% for category in result.categories.split('-') %}
+                {% if category %}
+                <span
+                    class="font-arcade text-xs px-2 py-1 bg-retro-primary/10 text-retro-primary border border-retro-primary/30 rounded">{{
+                    category | upper }}</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <div class="p-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="md:col-span-2">
+                    <h6 class="font-arcade text-xs text-retro-muted mb-2">
+                        <i class="fas fa-folder mr-1"></i>LOCATION: <span class="font-terminal text-retro-text">{{
+                            result.file_path }}</span>
+                    </h6>
+                    <div class="content-preview">
+                        <strong class="font-terminal text-retro-muted text-xs block mb-2">CONTENT_PREVIEW:</strong>
+                        <div class="font-terminal text-sm text-retro-muted p-3 border border-retro-border rounded bg-retro-bg/50 markdown-preview"
+                            data-content="{{ result.content_preview | truncate_content(300) }}"></div>
+                    </div>
+                </div>
+                <div class="md:col-span-1 border-t md:border-t-0 md:border-l border-retro-border pt-4 md:pt-0 md:pl-4">
+                    <div class="grid grid-cols-2 md:grid-cols-1 gap-4 text-center md:text-left">
+                        <div>
+                            <small class="font-terminal text-retro-muted text-xs block">FILE_SIZE</small>
+                            <span class="font-arcade text-sm text-retro-text">{{ "%.1f"|format(result.metadata.file_size
+                                / 1024) }} KB</span>
+                        </div>
+                        <div>
+                            <small class="font-terminal text-retro-muted text-xs block">TYPE</small>
+                            <span class="font-arcade text-sm text-retro-text">{{ result.metadata.file_extension | upper
+                                }}</span>
+                        </div>
+                        <div class="col-span-2 md:col-span-1">
+                            <small class="font-terminal text-retro-muted text-xs block">CLASSIFIED</small>
+                            <span class="font-arcade text-sm text-retro-text">{{ result.classification_date |
+                                format_date }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </div>
+        <div class="bg-retro-card border-t-2 border-retro-border p-3 flex justify-end gap-3">
+            <a href="{{ url_for('document_detail', doc_id=result['doc_id']) }}"
+                class="btn-retro text-xs py-1 px-3 text-retro-primary border-retro-primary hover:bg-retro-primary/10">
+                <i class="fas fa-eye mr-2"></i>VIEW_DETAILS
+            </a>
+            <button class="btn-retro text-xs py-1 px-3 text-retro-muted border-retro-muted hover:bg-retro-muted/10"
+                onclick="copyPath('{{ result.file_path }}')">
+                <i class="fas fa-copy mr-2"></i>COPY_PATH
+            </button>
         </div>
     </div>
     {% endfor %}
 </div>
 
 {% else %}
-<div class="text-center py-5">
-    <i class="fas fa-search fa-3x text-muted mb-3"></i>
-    <h4 class="text-muted">No results found</h4>
-    <p class="text-muted">Try different search terms or check if documents have been processed with embeddings.</p>
-    <a href="{{ url_for('index') }}" class="btn btn-primary">
-        <i class="fas fa-search"></i> Try Another Search
+<div class="text-center py-16 border-2 border-dashed border-retro-border rounded-lg opacity-50">
+    <i class="fas fa-search text-4xl text-retro-muted mb-4"></i>
+    <h4 class="font-arcade text-retro-muted mb-2">NO_RESULTS_FOUND</h4>
+    <p class="font-terminal text-retro-muted mb-6">TRY DIFFERENT QUERY OR CHECK EMBEDDINGS STATUS.</p>
+    <a href="{{ url_for('index') }}"
+        class="btn-retro text-retro-primary border-retro-primary hover:bg-retro-primary/10 inline-block">
+        <i class="fas fa-search mr-2"></i>NEW_SEARCH
     </a>
 </div>
 {% endif %}
 
 <script>
-function cleanAndRenderMarkdown(content) {
-    // Remove DeepSeek-OCR reference tags and bounding box data
-    // These are metadata tags like <|ref|>text<|/ref|> and <|det|>[[x,y,w,h]]<|/det|>
-    const cleaned = content
-        .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')  // Remove reference tags
-        .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')  // Remove bounding box data
-        .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')  // Remove image tags
-        .replace(/\n{3,}/g, '\n\n')  // Clean up excessive newlines
-        .trim();
+    function cleanAndRenderMarkdown(content) {
+        const cleaned = content
+            .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')
+            .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')
+            .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
 
-    // Render markdown using marked
-    const rendered = marked.parse(cleaned, {
-        breaks: true,
-        gfm: true
+        const rendered = marked.parse(cleaned, {
+            breaks: true,
+            gfm: true
+        });
+
+        return rendered;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const previewElements = document.querySelectorAll('.markdown-preview');
+        previewElements.forEach(element => {
+            const rawContent = element.getAttribute('data-content');
+            if (rawContent) {
+                element.innerHTML = cleanAndRenderMarkdown(rawContent);
+                element.classList.add('markdown-content');
+            }
+        });
     });
 
-    return rendered;
-}
+    function copyPath(path) {
+        navigator.clipboard.writeText(path).then(function () {
+            const btn = event.target.closest('button');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> COPIED!';
+            btn.classList.add('text-retro-success', 'border-retro-success');
 
-// Render markdown content in search results
-document.addEventListener('DOMContentLoaded', function() {
-    const previewElements = document.querySelectorAll('.markdown-preview');
-    previewElements.forEach(element => {
-        const rawContent = element.getAttribute('data-content');
-        if (rawContent) {
-            element.innerHTML = cleanAndRenderMarkdown(rawContent);
-        }
-    });
-});
-
-function copyPath(path) {
-    navigator.clipboard.writeText(path).then(function() {
-        // Show temporary success message
-        const btn = event.target.closest('button');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-        btn.classList.remove('btn-outline-secondary');
-        btn.classList.add('btn-success');
-
-        setTimeout(function() {
-            btn.innerHTML = originalText;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-secondary');
-        }, 2000);
-    }).catch(function(err) {
-        console.error('Failed to copy path: ', err);
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = path;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-
-        const btn = event.target.closest('button');
-        btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-        btn.classList.remove('btn-outline-secondary');
-        btn.classList.add('btn-success');
-        setTimeout(function() {
-            btn.innerHTML = originalText;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-secondary');
-        }, 2000);
-    });
-}
+            setTimeout(function () {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('text-retro-success', 'border-retro-success');
+            }, 2000);
+        }).catch(function (err) {
+            console.error('Failed to copy path: ', err);
+            alert('Failed to copy path to clipboard');
+        });
+    }
 </script>
 
 <!-- Flash Messages -->
 {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mt-3">
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            {{ message }}
+{% if messages %}
+<div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    {% for category, message in messages %}
+    {% set border_color = 'border-retro-danger' if category == 'error' else 'border-retro-success' %}
+    {% set text_color = 'text-retro-danger' if category == 'error' else 'text-retro-success' %}
+    <div
+        class="alert-dismissible bg-retro-card border-2 {{ border_color }} p-4 shadow-lg max-w-md animate-slide-in-right">
+        <div class="flex items-start gap-3">
+            <i class="fas fa-info-circle {{ text_color }} mt-1"></i>
+            <div class="font-terminal {{ text_color }}">{{ message }}</div>
+            <button type="button" class="text-retro-muted hover:text-retro-text ml-auto"
+                onclick="this.parentElement.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
-        {% endfor %}
-    {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endwith %}
 {% endblock %}
