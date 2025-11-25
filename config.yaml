@@ -1,7 +1,7 @@
 # Document Classification Agent Configuration
 
 # Source directory to monitor for files
-source_path: "/Volumes/1TB/Private/401K"
+source_path: "./input"
 
 # Database configuration
 database:

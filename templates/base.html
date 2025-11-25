@@ -8,6 +8,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- PDF.js for PDF viewing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/lib/marked.umd.js"></script>
     <style>
         /* CSS Variables for theming */
         :root {
@@ -523,6 +525,129 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        /* Markdown rendering styles */
+        #content-preview {
+            line-height: 1.6;
+        }
+
+        #content-preview h1,
+        #content-preview h2,
+        #content-preview h3,
+        #content-preview h4,
+        #content-preview h5,
+        #content-preview h6 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        #content-preview h1 { font-size: 1.75rem; border-bottom: 2px solid var(--border-subtle); padding-bottom: 0.5rem; }
+        #content-preview h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.25rem; }
+        #content-preview h3 { font-size: 1.25rem; }
+        #content-preview h4 { font-size: 1.125rem; }
+        #content-preview h5 { font-size: 1rem; }
+        #content-preview h6 { font-size: 0.875rem; }
+
+        #content-preview p {
+            margin-bottom: 1rem;
+        }
+
+        #content-preview table {
+            width: 100%;
+            margin-bottom: 1rem;
+            border-collapse: collapse;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+        }
+
+        #content-preview th,
+        #content-preview td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        #content-preview th {
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-primary));
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        #content-preview tr:nth-child(even) {
+            background-color: var(--bg-secondary);
+        }
+
+        #content-preview tr:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        #content-preview ul,
+        #content-preview ol {
+            margin-bottom: 1rem;
+            padding-left: 2rem;
+        }
+
+        #content-preview li {
+            margin-bottom: 0.25rem;
+        }
+
+        #content-preview blockquote {
+            border-left: 4px solid var(--accent-color);
+            padding-left: 1rem;
+            margin: 1rem 0;
+            color: var(--text-secondary);
+            background-color: var(--bg-secondary);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+        }
+
+        #content-preview code {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 0.125rem 0.25rem;
+            border-radius: 3px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 0.875em;
+        }
+
+        #content-preview pre {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+
+        #content-preview pre code {
+            background-color: transparent;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        #content-preview strong {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        #content-preview em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+
+        #content-preview a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        #content-preview a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>

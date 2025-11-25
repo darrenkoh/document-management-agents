@@ -265,15 +265,15 @@ class FileHandler:
             image.save(buffer, format='PNG')
             image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-            # Call DeepSeek-OCR with the documented prompt format
+            # Call DeepSeek-OCR with markdown conversion for structured output
             # Based on https://ollama.com/library/deepseek-ocr examples
             response = self.ocr_client.generate(
                 model=self.ocr_model,
-                prompt="Extract the text in the image.",
+                prompt="<|grounding|>Convert the document to markdown.",
                 images=[image_data],  # Base64 image data
                 options={
                     'temperature': 0.0,  # Deterministic output for OCR
-                    'num_predict': 1000,  # Sufficient for most documents
+                    'num_predict': 2000,  # Increased for structured markdown output
                 }
             )
 

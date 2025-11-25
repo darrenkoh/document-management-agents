@@ -84,9 +84,39 @@
                 <div>
                     <h6 class="text-muted mb-2">Content Preview</h6>
                     <div class="border rounded p-3 bg-light">
-                        <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9rem;">{{ document.content }}</pre>
+                        <div id="content-preview" class="mb-0" style="font-family: inherit; font-size: 0.9rem;"></div>
                     </div>
                 </div>
+
+                <!-- Markdown rendering script -->
+                <script>
+                    function cleanAndRenderMarkdown(content) {
+                        // Remove DeepSeek-OCR reference tags and bounding box data
+                        // These are metadata tags like <|ref|>text<|/ref|> and <|det|>[[x,y,w,h]]<|/det|>
+                        const cleaned = content
+                            .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')  // Remove reference tags
+                            .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')  // Remove bounding box data
+                            .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')  // Remove image tags
+                            .replace(/\n{3,}/g, '\n\n')  // Clean up excessive newlines
+                            .trim();
+
+                        // Render markdown using marked
+                        const rendered = marked.parse(cleaned, {
+                            breaks: true,
+                            gfm: true
+                        });
+
+                        return rendered;
+                    }
+
+                    // Render content on page load
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const contentElement = document.getElementById('content-preview');
+                        const rawContent = {{ document.content | tojson }};
+
+                        contentElement.innerHTML = cleanAndRenderMarkdown(rawContent);
+                    });
+                </script>
             </div>
         </div>
     </div>
