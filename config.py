@@ -165,3 +165,31 @@ class Config:
         ollama_config = self._config.get('ollama', {})
         return ollama_config.get('ocr_timeout', 60)
 
+    @property
+    def vector_store_type(self) -> str:
+        """Get the vector store type."""
+        db_config = self._config.get('database', {})
+        vector_config = db_config.get('vector_store', {})
+        return vector_config.get('type', 'chromadb')
+
+    @property
+    def vector_store_directory(self) -> str:
+        """Get the vector store persistence directory."""
+        db_config = self._config.get('database', {})
+        vector_config = db_config.get('vector_store', {})
+        return vector_config.get('persist_directory', 'vector_store')
+
+    @property
+    def vector_store_collection(self) -> str:
+        """Get the vector store collection name."""
+        db_config = self._config.get('database', {})
+        vector_config = db_config.get('vector_store', {})
+        return vector_config.get('collection_name', 'documents')
+
+    @property
+    def embedding_dimension(self) -> int:
+        """Get the embedding dimension."""
+        db_config = self._config.get('database', {})
+        vector_config = db_config.get('vector_store', {})
+        return vector_config.get('dimension', 768)
+

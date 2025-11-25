@@ -259,9 +259,11 @@ def semantic_search_logic(query):
 
         # Debug: Log details about results
         if results:
-            app.logger.debug(f"First result: {results[0].get('filename', 'N/A')} - similarity: {results[0].get('similarity', 'N/A')}")
+            app.logger.info(f"First result: {results[0].get('filename', 'N/A')} - similarity: {results[0].get('similarity', 'N/A')}")
             for i, result in enumerate(results[:3]):
-                app.logger.debug(f"Result {i+1}: {result.get('filename', 'N/A')} - similarity: {result.get('similarity', 'N/A')}")
+                app.logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} - similarity: {result.get('similarity', 'N/A')}")
+                app.logger.info(f"  Has similarity key: {'similarity' in result}")
+                app.logger.info(f"  Similarity type: {type(result.get('similarity'))}")
         else:
             app.logger.warning("No results found for semantic search")
             flash('No results found. Try different search terms or check if documents have embeddings.', 'warning')

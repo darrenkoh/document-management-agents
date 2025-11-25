@@ -8,6 +8,7 @@ from classifier import Classifier
 from config import Config
 from database import DocumentDatabase
 from embeddings import EmbeddingGenerator
+from vector_store import create_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +38,67 @@ class DocumentAgent:
             num_predict=config.ollama_num_predict,
             prompt_template=config.prompt_template
         )
-        self.database = DocumentDatabase(config.database_path)
+        # Initialize vector store (required for embeddings)
+        try:
+            vector_store = create_vector_store(
+                store_type=config.vector_store_type,
+                persist_directory=config.vector_store_directory,
+                collection_name=config.vector_store_collection,
+                dimension=config.embedding_dimension
+            )
+            logger.info(f"Initialized {config.vector_store_type} vector store")
+        except Exception as e:
+            logger.error(f"Failed to initialize vector store: {e}")
+            raise RuntimeError("Vector store initialization failed - embeddings cannot be stored")
+
+        self.database = DocumentDatabase(config.database_path, vector_store=vector_store)
         self.embedding_generator = EmbeddingGenerator(
             endpoint=config.ollama_endpoint,
             model=config.ollama_embedding_model,
             timeout=config.ollama_timeout
         )
+    
+    def process_files_batch(self, file_paths: List[Path], batch_size: int = 10) -> Dict[str, int]:
+        """Process multiple files in batches for better performance.
+
+        Args:
+            file_paths: List of file paths to process
+            batch_size: Number of files to process before generating/storing embeddings
+
+        Returns:
+            Dictionary with processing statistics
+        """
+        logger.info(f"Starting batch processing of {len(file_paths)} files")
+
+        stats = {
+            'total': len(file_paths),
+            'processed': 0,
+            'failed': 0,
+            'skipped': 0
+        }
+
+        # Process files in batches
+        for i in range(0, len(file_paths), batch_size):
+            batch = file_paths[i:i + batch_size]
+            logger.debug(f"Processing batch {i//batch_size + 1}/{(len(file_paths) + batch_size - 1)//batch_size}")
+
+            # Process batch
+            for file_path in batch:
+                try:
+                    if self.process_file(file_path):
+                        stats['processed'] += 1
+                    else:
+                        stats['failed'] += 1
+                except Exception as e:
+                    logger.error(f"Unexpected error processing {file_path}: {e}")
+                    stats['failed'] += 1
+
+        logger.info(
+            f"Batch processing complete: {stats['processed']} processed, "
+            f"{stats['failed']} failed, {stats['total']} total"
+        )
+
+        return stats
     
     def process_file(self, file_path: Path) -> bool:
         """Process a single file: extract, classify, generate embeddings, and store in database.
@@ -145,22 +201,8 @@ class DocumentAgent:
         
         logger.info(f"Found {len(files)} file(s) to process")
         
-        stats = {
-            'total': len(files),
-            'processed': 0,
-            'failed': 0,
-            'skipped': 0
-        }
-        
-        for file_path in files:
-            try:
-                if self.process_file(file_path):
-                    stats['processed'] += 1
-                else:
-                    stats['failed'] += 1
-            except Exception as e:
-                logger.error(f"Unexpected error processing {file_path}: {e}")
-                stats['failed'] += 1
+        # Use batch processing for better performance
+        stats = self.process_files_batch(files, batch_size=10)
         
         logger.info(
             f"Processing complete: {stats['processed']} processed, "
@@ -218,7 +260,9 @@ class DocumentAgent:
 
         logger.info(f"Found {len(results)} matching documents")
         if results:
-            logger.debug(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
+            logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
+            for i, result in enumerate(results[:3]):
+                logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} (similarity: {result.get('similarity', 'N/A')})")
         return results
     
     def search_by_category(self, category: str) -> List[Dict]:

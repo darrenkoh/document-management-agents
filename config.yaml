@@ -1,7 +1,7 @@
 # Document Classification Agent Configuration
 
 # Source directory to monitor for files
-source_path: "./input"
+source_path: "/Volumes/1TB/Private/401K"
 
 # Database configuration
 database:
@@ -9,6 +9,16 @@ database:
   path: "documents.json"
   # Path to export JSON output file
   json_export_path: "classifications.json"
+  # Vector database configuration
+  vector_store:
+    # Type of vector store: 'chromadb' or 'faiss'
+    type: "chromadb"
+    # Directory to persist vector data
+    persist_directory: "vector_store"
+    # Collection name for ChromaDB
+    collection_name: "documents"
+    # Embedding dimension (should match your embedding model)
+    dimension: 768
 
 # Ollama configuration
 ollama:
@@ -17,7 +27,7 @@ ollama:
   # Model name to use for classification
   model: "deepseek-r1:8b"
   # Timeout in seconds for API calls
-  timeout: 30
+  timeout: 120
   # Maximum number of tokens to predict (higher for reasoning models)
   num_predict: 2000
   # Embedding model for semantic search (default: nomic-embed-text)
@@ -25,7 +35,7 @@ ollama:
   # OCR model for fallback text extraction from images/PDFs
   ocr_model: "deepseek-ocr:3b"
   # Timeout for OCR operations (can be longer than regular models)
-  ocr_timeout: 60
+  ocr_timeout: 300
 
 # File extensions to process (empty list means process all files)
 file_extensions:

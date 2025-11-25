@@ -11,3 +11,7 @@ flask>=3.0.0
 bootstrap-flask>=1.8.0
 pdf2image>=1.17.0
 
+# Vector databases for semantic search
+chromadb>=0.4.0
+faiss-cpu>=1.7.0
+
