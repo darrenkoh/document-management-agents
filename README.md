@@ -23,7 +23,7 @@ An intelligent Python agent that automatically classifies documents by content u
 - Python 3.8+
 - Ollama installed and running locally
 - Classification model (e.g., `deepseek-r1:8b`, `llama3.2`)
-- Embedding model (e.g., `nomic-embed-text`)
+- Embedding model (e.g., `qwen3-embedding:8b`)
 - OCR model (e.g., `deepseek-ocr:3b`) for advanced PDF processing
 - Poppler (system library for PDF-to-image conversion)
 
@@ -61,7 +61,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 5. Install and start Ollama:
    - Visit [ollama.ai](https://ollama.ai) for installation instructions
    - Pull a classification model: `ollama pull deepseek-r1:8b` (or `llama3.2`)
-   - Pull an embedding model: `ollama pull nomic-embed-text`
+   - Pull an embedding model: `ollama pull qwen3-embedding:8b`
    - Pull the OCR model: `ollama pull deepseek-ocr:3b` (for advanced PDF processing)
 
 5. Configure the agent by editing `config.yaml`:
@@ -73,7 +73,7 @@ database:
 ollama:
   endpoint: "http://localhost:11434"
   model: "deepseek-r1:8b"       # Classification model
-  embedding_model: "nomic-embed-text"  # Embedding model
+  embedding_model: "qwen3-embedding:8b"  # Embedding model
 ```
 
 ## Usage
@@ -202,7 +202,7 @@ Edit `config.yaml` to customize:
 - **ollama**: Ollama API settings
   - **endpoint**: Ollama API endpoint URL
   - **model**: Model name for classification
-  - **embedding_model**: Model name for embeddings (default: nomic-embed-text)
+  - **embedding_model**: Model name for embeddings (default: qwen3-embedding:8b)
   - **ocr_model**: Model name for OCR processing (default: deepseek-ocr:3b)
   - **ocr_timeout**: Timeout for OCR operations in seconds (default: 60)
   - **timeout**: API timeout in seconds
@@ -308,7 +308,7 @@ Thanks to advanced OCR and structured markdown output, the system can better cla
 ```bash
 # 1. Ensure all models are available
 ollama pull deepseek-r1:8b              # Classification model
-ollama pull nomic-embed-text            # Embedding model
+ollama pull qwen3-embedding:8b          # Embedding model
 ollama pull deepseek-ocr:3b             # OCR model for PDFs
 
 # 2. Classify documents (now with advanced OCR fallback)
@@ -335,7 +335,7 @@ Open your browser to the configured URL (default: `http://localhost:5000`) to ac
 - Verify the models are installed: `ollama list`
 
 ### Embedding Model Not Found
-- Pull the embedding model: `ollama pull nomic-embed-text`
+- Pull the embedding model: `ollama pull qwen3-embedding:8b`
 - Check the model name in `config.yaml` matches an installed model
 
 ### OCR Not Working
