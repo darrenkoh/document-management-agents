@@ -1,7 +1,7 @@
 # Document Classification Agent Configuration
 
 # Source directory to monitor for files
-source_path: "./input"
+source_path: "/Volumes/1TB/Private/401K"
 
 # Database configuration
 database:
@@ -22,6 +22,10 @@ ollama:
   num_predict: 2000
   # Embedding model for semantic search (default: nomic-embed-text)
   embedding_model: "nomic-embed-text"
+  # OCR model for fallback text extraction from images/PDFs
+  ocr_model: "deepseek-ocr:3b"
+  # Timeout for OCR operations (can be longer than regular models)
+  ocr_timeout: 60
 
 # File extensions to process (empty list means process all files)
 file_extensions:

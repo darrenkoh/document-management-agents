@@ -24,7 +24,12 @@ class DocumentAgent:
         """
         self.config = config
         self.verbose = verbose
-        self.file_handler = FileHandler(config.source_path)
+        self.file_handler = FileHandler(
+            config.source_path,
+            ollama_endpoint=config.ollama_endpoint,
+            ocr_model=config.ollama_ocr_model,
+            ocr_timeout=config.ollama_ocr_timeout
+        )
         self.classifier = Classifier(
             endpoint=config.ollama_endpoint,
             model=config.ollama_model,

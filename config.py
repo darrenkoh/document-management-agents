@@ -153,3 +153,15 @@ class Config:
         ollama_config = self._config.get('ollama', {})
         return ollama_config.get('embedding_model', 'nomic-embed-text')
 
+    @property
+    def ollama_ocr_model(self) -> str:
+        """Get the OCR model name."""
+        ollama_config = self._config.get('ollama', {})
+        return ollama_config.get('ocr_model', 'deepseek-ocr:3b')
+
+    @property
+    def ollama_ocr_timeout(self) -> int:
+        """Get the OCR timeout in seconds."""
+        ollama_config = self._config.get('ollama', {})
+        return ollama_config.get('ocr_timeout', 60)
+

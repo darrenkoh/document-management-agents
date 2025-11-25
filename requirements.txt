@@ -9,4 +9,5 @@ tinydb>=4.8.0
 numpy>=1.24.0
 flask>=3.0.0
 bootstrap-flask>=1.8.0
+pdf2image>=1.17.0
 
