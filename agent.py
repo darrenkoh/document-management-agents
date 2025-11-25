@@ -51,7 +51,7 @@ class DocumentAgent:
             logger.error(f"Failed to initialize vector store: {e}")
             raise RuntimeError("Vector store initialization failed - embeddings cannot be stored")
 
-        self.database = DocumentDatabase(config.database_path, vector_store=vector_store)
+        self.database = DocumentDatabase(config.database_path, vector_store=vector_store, config=config)
         self.embedding_generator = EmbeddingGenerator(
             endpoint=config.ollama_endpoint,
             model=config.ollama_embedding_model,
@@ -215,17 +215,24 @@ class DocumentAgent:
         
         return stats
     
-    def search(self, query: str, top_k: int = 10) -> List[Dict]:
+    def search(self, query: str, top_k: int = None) -> List[Dict]:
         """Perform semantic search on documents.
 
         Args:
             query: Search query text
-            top_k: Number of results to return
+            top_k: Number of results to return (uses config default if None)
 
         Returns:
             List of matching documents with similarity scores
         """
-        logger.info(f"Performing semantic search for: '{query}'")
+        # Use config values if not specified
+        if top_k is None:
+            top_k = self.config.semantic_search_top_k
+
+        threshold = self.config.semantic_search_min_threshold
+        debug_enabled = self.config.semantic_search_debug or logger.isEnabledFor(logging.DEBUG)
+
+        logger.info(f"Performing semantic search for: '{query}' (top_k={top_k}, threshold={threshold}, debug={debug_enabled})")
 
         # Check if embedding generator is available
         if not hasattr(self, 'embedding_generator') or self.embedding_generator is None:
@@ -233,7 +240,8 @@ class DocumentAgent:
             return []
 
         # Generate query embedding
-        logger.debug("Generating query embedding...")
+        if debug_enabled:
+            logger.debug("Generating query embedding...")
         try:
             query_embedding = self.embedding_generator.generate_query_embedding(query)
         except Exception as e:
@@ -248,21 +256,26 @@ class DocumentAgent:
             logger.error(f"Invalid query embedding: {type(query_embedding)}, length: {len(query_embedding) if isinstance(query_embedding, list) else 'N/A'}")
             return []
 
-        logger.debug(f"Generated query embedding with {len(query_embedding)} dimensions")
+        if debug_enabled:
+            logger.debug(f"Generated query embedding with {len(query_embedding)} dimensions")
 
         # Search database
-        logger.debug("Searching database for semantic matches...")
+        if debug_enabled:
+            logger.debug("Searching database for semantic matches...")
         try:
-            results = self.database.search_semantic(query_embedding, top_k=top_k)
+            results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold)
         except Exception as e:
             logger.error(f"Exception during database search: {e}")
             return []
 
         logger.info(f"Found {len(results)} matching documents")
         if results:
-            logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
-            for i, result in enumerate(results[:3]):
-                logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} (similarity: {result.get('similarity', 'N/A')})")
+            if debug_enabled:
+                logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
+                for i, result in enumerate(results[:3]):
+                    logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} (similarity: {result.get('similarity', 'N/A')})")
+            else:
+                logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
         return results
     
     def search_by_category(self, category: str) -> List[Dict]:

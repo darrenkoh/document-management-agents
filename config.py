@@ -193,3 +193,27 @@ class Config:
         vector_config = db_config.get('vector_store', {})
         return vector_config.get('dimension', 768)
 
+    @property
+    def semantic_search_top_k(self) -> int:
+        """Get the default number of semantic search results."""
+        search_config = self._config.get('semantic_search', {})
+        return search_config.get('top_k', 10)
+
+    @property
+    def semantic_search_min_threshold(self) -> float:
+        """Get the minimum similarity threshold for semantic search."""
+        search_config = self._config.get('semantic_search', {})
+        return search_config.get('min_similarity_threshold', 0.0)
+
+    @property
+    def semantic_search_max_candidates(self) -> int:
+        """Get the maximum number of candidates to retrieve before filtering."""
+        search_config = self._config.get('semantic_search', {})
+        return search_config.get('max_candidates', 50)
+
+    @property
+    def semantic_search_debug(self) -> bool:
+        """Get whether to enable debug logging for similarity calculations."""
+        search_config = self._config.get('semantic_search', {})
+        return search_config.get('debug_similarity', False)
+

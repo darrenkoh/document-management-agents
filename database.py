@@ -14,19 +14,21 @@ logger = logging.getLogger(__name__)
 
 class DocumentDatabase:
     """Manages document classification storage and semantic search."""
-    
-    def __init__(self, db_path: str = "documents.json", vector_store: Optional[VectorStore] = None):
+
+    def __init__(self, db_path: str = "documents.json", vector_store: Optional[VectorStore] = None, config=None):
         """Initialize the document database.
-        
+
         Args:
             db_path: Path to the TinyDB JSON database file
             vector_store: Optional vector store instance for embeddings
+            config: Configuration object for semantic search settings
         """
         self.db_path = Path(db_path)
         self.db = TinyDB(str(self.db_path))
         self.documents = self.db.table('documents')
         self.query = Query()
         self.vector_store = vector_store
+        self.config = config
     
     def store_classification(self, file_path: str, content: str, categories: str,
                            metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None) -> int:
@@ -142,13 +144,13 @@ class DocumentDatabase:
         return results[0] if results else None
     
     def search_semantic(self, query_embedding: List[float], top_k: int = 10,
-                      threshold: float = -1.0) -> List[Dict]:
+                      threshold: float = None) -> List[Dict]:
         """Perform semantic search using vector database.
 
         Args:
             query_embedding: Query embedding vector
             top_k: Number of top results to return
-            threshold: Minimum similarity threshold
+            threshold: Minimum similarity threshold (uses config if None)
 
         Returns:
             List of documents sorted by similarity (highest first)
@@ -157,9 +159,22 @@ class DocumentDatabase:
             logger.error("Vector store not available for semantic search")
             return []
 
-        logger.debug("Using vector store for semantic search")
+        # Use config values if available
+        if self.config:
+            if threshold is None:
+                threshold = self.config.semantic_search_min_threshold
+            max_candidates = self.config.semantic_search_max_candidates
+            debug_enabled = self.config.semantic_search_debug or logger.isEnabledFor(logging.DEBUG)
+        else:
+            if threshold is None:
+                threshold = -1.0
+            max_candidates = 50
+            debug_enabled = logger.isEnabledFor(logging.DEBUG)
+
+        logger.debug(f"Using vector store for semantic search (top_k={top_k}, threshold={threshold}, max_candidates={max_candidates}, debug={debug_enabled})")
+
         # Request more results from vector store to ensure we get good matches
-        vector_results = self.vector_store.search_similar(query_embedding, top_k=max(top_k * 2, 20), threshold=-1.0)
+        vector_results = self.vector_store.search_similar(query_embedding, top_k=max_candidates, threshold=threshold)
 
         results = []
         for doc_id_str, similarity, metadata in vector_results:

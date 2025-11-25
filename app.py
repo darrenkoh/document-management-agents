@@ -51,8 +51,12 @@ if args.no_verbose:
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
+# Setup logging
+from main import setup_logging
+setup_logging(config, verbose=(config.log_level.upper() == 'DEBUG'))
+
 # Initialize components
-database = DocumentDatabase(config.database_path)
+database = DocumentDatabase(config.database_path, config=config)
 agent = DocumentAgent(config)
 
 # Debug: Check if agent has embedding generator
@@ -249,8 +253,9 @@ def semantic_search_logic(query):
             flash('Semantic search is not available - embedding service not configured', 'error')
             return redirect(url_for('index'))
 
-        # Perform semantic search
-        results = agent.search(query, top_k=50)
+        # Perform semantic search with config settings
+        top_k = agent.config.semantic_search_top_k
+        results = agent.search(query, top_k=top_k)
 
         app.logger.info(f"Semantic search completed. Found {len(results)} results")
 
