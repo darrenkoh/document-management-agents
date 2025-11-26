@@ -59,7 +59,7 @@ class DocumentAgent:
             timeout=config.ollama_timeout
         )
     
-    def process_files_batch(self, file_paths: List[Path], batch_size: int = 10) -> Dict[str, int]:
+    def process_files_batch(self, file_paths: List[Path], batch_size: int = 10) -> Dict[str, any]:
         """Process multiple files in batches for better performance.
 
         Args:
@@ -67,7 +67,7 @@ class DocumentAgent:
             batch_size: Number of files to process before generating/storing embeddings
 
         Returns:
-            Dictionary with processing statistics
+            Dictionary with processing statistics and performance metrics
         """
         logger.info(f"Starting batch processing of {len(file_paths)} files")
 
@@ -75,8 +75,22 @@ class DocumentAgent:
             'total': len(file_paths),
             'processed': 0,
             'failed': 0,
-            'skipped': 0
+            'skipped': 0,
+            'performance': {
+                'total_hash_duration': 0.0,
+                'total_ocr_duration': 0.0,
+                'total_classification_duration': 0.0,
+                'total_db_lookup_duration': 0.0,
+                'total_db_insert_duration': 0.0,
+                'avg_hash_duration': 0.0,
+                'avg_ocr_duration': 0.0,
+                'avg_classification_duration': 0.0,
+                'avg_db_lookup_duration': 0.0,
+                'avg_db_insert_duration': 0.0
+            }
         }
+
+        processed_files_count = 0
 
         # Process files in batches
         for i in range(0, len(file_paths), batch_size):
@@ -86,13 +100,31 @@ class DocumentAgent:
             # Process batch
             for file_path in batch:
                 try:
-                    if self.process_file(file_path):
+                    success, perf_metrics = self.process_file(file_path)
+                    if success:
                         stats['processed'] += 1
+                        processed_files_count += 1
                     else:
                         stats['failed'] += 1
+
+                    # Accumulate performance metrics
+                    stats['performance']['total_hash_duration'] += perf_metrics['hash_duration']
+                    stats['performance']['total_ocr_duration'] += perf_metrics['ocr_duration']
+                    stats['performance']['total_classification_duration'] += perf_metrics['classification_duration']
+                    stats['performance']['total_db_lookup_duration'] += perf_metrics['db_lookup_duration']
+                    stats['performance']['total_db_insert_duration'] += perf_metrics['db_insert_duration']
+
                 except Exception as e:
                     logger.error(f"Unexpected error processing {file_path}: {e}")
                     stats['failed'] += 1
+
+        # Calculate averages
+        if processed_files_count > 0:
+            stats['performance']['avg_hash_duration'] = stats['performance']['total_hash_duration'] / processed_files_count
+            stats['performance']['avg_ocr_duration'] = stats['performance']['total_ocr_duration'] / processed_files_count
+            stats['performance']['avg_classification_duration'] = stats['performance']['total_classification_duration'] / processed_files_count
+            stats['performance']['avg_db_lookup_duration'] = stats['performance']['total_db_lookup_duration'] / processed_files_count
+            stats['performance']['avg_db_insert_duration'] = stats['performance']['total_db_insert_duration'] / processed_files_count
 
         logger.info(
             f"Batch processing complete: {stats['processed']} processed, "
@@ -101,44 +133,77 @@ class DocumentAgent:
 
         return stats
     
-    def process_file(self, file_path: Path) -> bool:
+    def process_file(self, file_path: Path) -> tuple[bool, dict]:
         """Process a single file: extract, classify, generate embeddings, and store in database.
 
         Args:
             file_path: Path to the file to process
 
         Returns:
-            True if successful, False otherwise
+            Tuple of (success boolean, performance metrics dictionary)
         """
         try:
+            # Initialize performance metrics
+            perf_metrics = {
+                'hash_duration': 0.0,
+                'ocr_duration': 0.0,
+                'classification_duration': 0.0,
+                'db_lookup_duration': 0.0,
+                'db_insert_duration': 0.0
+            }
+
             # Generate file hash first
-            file_hash = self.file_handler.generate_file_hash(file_path)
-            if not file_hash:
+            hash_result = self.file_handler.generate_file_hash(file_path)
+            if not hash_result:
                 logger.error(f"Failed to generate hash for {file_path.name}, skipping")
-                return False
+                return (False, {'hash_duration': 0.0, 'ocr_duration': 0.0, 'classification_duration': 0.0,
+                               'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
+
+            file_hash, perf_metrics['hash_duration'] = hash_result
 
             # Check if already processed by hash (content-based duplicate detection)
+            db_lookup_start = time.time()
             existing = self.database.get_document_by_hash(file_hash)
+            perf_metrics['db_lookup_duration'] = time.time() - db_lookup_start
+
             if existing:
                 logger.debug(f"Skipping already processed file (duplicate content): {file_path.name}")
                 logger.debug(f"Original file: {existing.get('filename', 'Unknown')}")
-                return True
+
+                # Log performance metrics for skipped files in verbose mode
+                if self.verbose:
+                    total_duration = perf_metrics['hash_duration'] + perf_metrics['db_lookup_duration']
+                    logger.info(f"Performance for {file_path.name} (skipped - duplicate): "
+                               f"hash={perf_metrics['hash_duration']:.3f}s, "
+                               f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
+                               f"total={total_duration:.3f}s")
+
+                return (True, {**perf_metrics, 'ocr_duration': 0.0, 'classification_duration': 0.0, 'db_insert_duration': 0.0})
 
             logger.info(f"Processing file: {file_path.name} (hash: {file_hash[:16]}...)")
 
             # Extract text content
-            content = self.file_handler.extract_text(file_path)
+            content, ocr_duration = self.file_handler.extract_text(file_path)
+            perf_metrics['ocr_duration'] = ocr_duration
 
             if not content or not content.strip():
                 logger.warning(f"No content extracted from {file_path.name}, skipping")
-                return False
+                # Add missing metrics for early returns
+                perf_metrics.update({'db_lookup_duration': perf_metrics.get('db_lookup_duration', 0.0),
+                                   'db_insert_duration': 0.0})
+                return (False, perf_metrics)
             
             # Classify content
-            categories = self.classifier.classify(content, file_path.name, verbose=self.verbose)
-            
-            if not categories:
+            classification_result = self.classifier.classify(content, file_path.name, verbose=self.verbose)
+
+            if not classification_result:
                 logger.error(f"Failed to classify {file_path.name}")
-                return False
+                # Add missing metrics for early returns
+                perf_metrics.update({'db_lookup_duration': perf_metrics.get('db_lookup_duration', 0.0),
+                                   'db_insert_duration': 0.0})
+                return (False, perf_metrics)
+
+            categories, perf_metrics['classification_duration'] = classification_result
             
             # Generate embedding for semantic search
             logger.info(f"Generating embedding for {file_path.name}...")
@@ -146,7 +211,10 @@ class DocumentAgent:
 
             if not embedding:
                 logger.error(f"Failed to generate embedding for {file_path.name}")
-                return False
+                # Add missing metrics for early returns
+                perf_metrics.update({'db_lookup_duration': perf_metrics.get('db_lookup_duration', 0.0),
+                                   'db_insert_duration': 0.0})
+                return (False, perf_metrics)
 
             # Prepare metadata
             metadata = {
@@ -156,6 +224,7 @@ class DocumentAgent:
             }
 
             # Store in database
+            db_insert_start = time.time()
             doc_id = self.database.store_classification(
                 file_path=str(file_path),
                 content=content,
@@ -166,16 +235,31 @@ class DocumentAgent:
 
             # Store embedding
             self.database.store_embedding(str(file_path), embedding)
+            perf_metrics['db_insert_duration'] = time.time() - db_insert_start
             
             # Export to JSON file
             self.database.export_to_json(self.config.json_export_path)
             
             logger.info(f"Successfully processed {file_path.name} -> {categories} (DB ID: {doc_id})")
-            return True
-        
+
+            # Log performance metrics for this file in verbose mode
+            if self.verbose:
+                total_duration = (perf_metrics['hash_duration'] + perf_metrics['ocr_duration'] +
+                                perf_metrics['classification_duration'] + perf_metrics['db_lookup_duration'] +
+                                perf_metrics['db_insert_duration'])
+                logger.info(f"Performance for {file_path.name}: hash={perf_metrics['hash_duration']:.3f}s, "
+                           f"ocr={perf_metrics['ocr_duration']:.3f}s, "
+                           f"classify={perf_metrics['classification_duration']:.3f}s, "
+                           f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
+                           f"db_insert={perf_metrics['db_insert_duration']:.3f}s, "
+                           f"total={total_duration:.3f}s")
+
+            return (True, perf_metrics)
+
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {e}")
-            return False
+            return (False, {'hash_duration': 0.0, 'ocr_duration': 0.0, 'classification_duration': 0.0,
+                           'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
     
     def process_all(self) -> dict:
         """Process all files in the source directory.

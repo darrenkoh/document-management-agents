@@ -1,9 +1,13 @@
 """Vector database abstraction layer for semantic search."""
 import logging
 import numpy as np
+import os
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
+
+# Disable ChromaDB telemetry by default
+os.environ.setdefault('ANONYMIZED_TELEMETRY', 'False')
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +107,11 @@ class ChromaVectorStore(VectorStore):
             collection_name: Name of the ChromaDB collection
             **kwargs: Additional ChromaDB configuration
         """
+        # Disable ChromaDB telemetry by setting environment variable
+        import os
+        if 'ANONYMIZED_TELEMETRY' not in os.environ:
+            os.environ['ANONYMIZED_TELEMETRY'] = 'False'
+            logger.info("Disabled ChromaDB telemetry")
         try:
             import chromadb
             from chromadb.config import Settings

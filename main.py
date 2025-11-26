@@ -9,6 +9,21 @@ from config import Config
 from agent import DocumentAgent
 
 
+def format_duration(seconds: float) -> str:
+    """Format duration in seconds to a nice millisecond string."""
+    if seconds == 0.0:
+        return "0ms"
+    ms = seconds * 1000
+    if ms < 1.0:
+        return "<1ms"
+    elif ms < 10.0:
+        return f"{ms:.1f}ms"
+    elif ms < 100.0:
+        return f"{ms:.1f}ms"
+    else:
+        return f"{ms:.0f}ms"
+
+
 def setup_logging(config: Config, verbose: bool = False):
     """Configure logging based on config.
     
@@ -150,7 +165,21 @@ def main():
                 print(f"  Processed: {stats['processed']}")
                 print(f"  Failed: {stats['failed']}")
                 print(f"  JSON export: {config.json_export_path}")
-                
+
+                # Display performance metrics
+                if 'performance' in stats and stats['processed'] > 0:
+                    perf = stats['performance']
+                    print(f"\nPerformance metrics (per file averages):")
+                    print(f"  SHA256 hash: {format_duration(perf['avg_hash_duration'])}")
+                    print(f"  OCR: {format_duration(perf['avg_ocr_duration'])}")
+                    print(f"  Classification: {format_duration(perf['avg_classification_duration'])}")
+                    print(f"  DB lookup: {format_duration(perf['avg_db_lookup_duration'])}")
+                    print(f"  DB insert: {format_duration(perf['avg_db_insert_duration'])}")
+                    total_avg = (perf['avg_hash_duration'] + perf['avg_ocr_duration'] +
+                               perf['avg_classification_duration'] + perf['avg_db_lookup_duration'] +
+                               perf['avg_db_insert_duration'])
+                    print(f"  Total per file: {format_duration(total_avg)}")
+
                 if stats['failed'] > 0:
                     sys.exit(1)
             

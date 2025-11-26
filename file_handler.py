@@ -4,6 +4,7 @@ import hashlib
 import base64
 import io
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional, List
 from pypdf import PdfReader
@@ -92,14 +93,14 @@ class FileHandler:
         
         return files
     
-    def extract_text(self, file_path: Path) -> Optional[str]:
+    def extract_text(self, file_path: Path) -> tuple[Optional[str], float]:
         """Extract text content from a file.
 
         Args:
             file_path: Path to the file
 
         Returns:
-            Extracted text content or None if extraction fails
+            Tuple of (extracted text content or None if extraction fails, OCR duration in seconds)
         """
         # Ensure file_path is a Path object
         if isinstance(file_path, str):
@@ -121,38 +122,42 @@ class FileHandler:
                 if not text or len(text.strip()) < 50:  # Threshold for "empty" content
                     if self.ocr_available:
                         logger.info(f"PDF text extraction returned minimal content, trying DeepSeek-OCR for {file_path}")
-                        ocr_text = self._extract_text_with_deepseek_ocr(file_path)
-                        if ocr_text:
+                        ocr_result = self._extract_text_with_deepseek_ocr(file_path)
+                        if ocr_result:
+                            ocr_text, ocr_duration = ocr_result
                             logger.info(f"DeepSeek-OCR successfully extracted text from {file_path}")
-                            return ocr_text
+                            return (ocr_text, ocr_duration)
+                        else:
+                            return (text, 0.0)
                     else:
                         logger.warning(f"DeepSeek-OCR not available, skipping OCR for {file_path}")
-                return text
+                        return (text, 0.0)
+                return (text, 0.0)
             elif suffix == '.docx':
-                return self._extract_from_docx(file_path)
+                return (self._extract_from_docx(file_path), 0.0)
             elif suffix == '.doc':
-                return self._extract_from_doc(file_path)
+                return (self._extract_from_doc(file_path), 0.0)
             elif suffix == '.txt':
-                return self._extract_from_txt(file_path)
+                return (self._extract_from_txt(file_path), 0.0)
             elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
                 if self.ocr_available:
-                    text = self._extract_from_image(file_path)
+                    text, ocr_duration = self._extract_from_image(file_path)
                     if text:
                         logger.info(f"DeepSeek-OCR successfully extracted text from {file_path}")
-                        return text
+                        return (text, ocr_duration)
                     else:
                         logger.warning(f"DeepSeek-OCR failed to extract text from {file_path}")
-                        return None
+                        return (None, 0.0)
                 else:
                     logger.warning(f"DeepSeek-OCR not available, cannot process image {file_path}")
-                    return None
+                    return (None, 0.0)
             else:
                 logger.warning(f"Unsupported file type: {suffix}")
-                return None
+                return (None, 0.0)
 
         except Exception as e:
             logger.error(f"Error extracting text from {file_path}: {e}")
-            return None
+            return (None, 0.0)
     
     def _extract_from_pdf(self, file_path: Path) -> str:
         """Extract text from PDF file."""
@@ -201,15 +206,19 @@ class FileHandler:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             return f.read()
     
-    def _extract_from_image(self, file_path: Path) -> str:
+    def _extract_from_image(self, file_path: Path) -> tuple[str, float]:
         """Extract text from image using DeepSeek OCR."""
         try:
             image = Image.open(file_path)
-            text = self._ocr_image_with_deepseek(image)
-            return text or ""
+            ocr_result = self._ocr_image_with_deepseek(image)
+            if ocr_result:
+                text, duration = ocr_result
+                return (text, duration)
+            else:
+                return ("", 0.0)
         except Exception as e:
             logger.error(f"OCR failed for {file_path}: {e}")
-            return ""
+            return ("", 0.0)
 
     def _pdf_to_images(self, file_path: Path) -> List[Image.Image]:
         """Convert PDF pages to PIL Images for OCR processing.
@@ -256,20 +265,27 @@ class FileHandler:
 
                 # Process each image with DeepSeek-OCR
                 all_text = []
+                total_ocr_duration = 0.0
                 for i, image in enumerate(images):
                     logger.info(f"Processing page {i+1}/{len(images)} with DeepSeek-OCR")
-                    text = self._ocr_image_with_deepseek(image)
-                    if text:
+                    ocr_result = self._ocr_image_with_deepseek(image)
+                    if ocr_result:
+                        text, duration = ocr_result
                         all_text.append(text)
+                        total_ocr_duration += duration
                     else:
                         logger.warning(f"Failed to extract text from page {i+1}")
 
-                return '\n'.join(all_text) if all_text else None
+                if all_text:
+                    return ('\n'.join(all_text), total_ocr_duration)
+                else:
+                    return None
 
             elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
                 # Direct image OCR
                 image = Image.open(file_path)
-                return self._ocr_image_with_deepseek(image)
+                ocr_result = self._ocr_image_with_deepseek(image)
+                return ocr_result  # Already returns (text, duration) or None
             else:
                 return None
 
@@ -277,14 +293,14 @@ class FileHandler:
             logger.error(f"DeepSeek OCR failed for {file_path}: {e}")
             return None
 
-    def _ocr_image_with_deepseek(self, image: Image.Image) -> Optional[str]:
+    def _ocr_image_with_deepseek(self, image: Image.Image) -> Optional[tuple[str, float]]:
         """Perform OCR on a single image using DeepSeek-OCR.
 
         Args:
             image: PIL Image object
 
         Returns:
-            Extracted text or None if failed
+            Tuple of (extracted text, duration in seconds) or None if failed
         """
         try:
             # Convert image to base64 string (not data URL)
@@ -293,8 +309,9 @@ class FileHandler:
             image.save(buffer, format='PNG')
             image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-            # Call DeepSeek-OCR with markdown conversion for structured output
+            # Call DeepSeek-OCR with timing
             # Based on https://ollama.com/library/deepseek-ocr examples
+            start_time = time.time()
             response = self.ocr_client.generate(
                 model=self.ocr_model,
                 prompt="<|grounding|>Convert the document to markdown.",
@@ -304,11 +321,12 @@ class FileHandler:
                     'num_predict': 2000,  # Increased for structured markdown output
                 }
             )
+            ocr_duration = time.time() - start_time
 
             extracted_text = response.get('response', '').strip()
             if extracted_text:
                 logger.info(f"DeepSeek-OCR extracted text: {extracted_text[:100]}...")
-                return extracted_text
+                return (extracted_text, ocr_duration)
             else:
                 logger.info(f"DeepSeek-OCR returned empty response. Full response: {response}")
                 return None
@@ -321,23 +339,29 @@ class FileHandler:
                 logger.error(f"DeepSeek OCR failed: {e}")
             return None
 
-    def generate_file_hash(self, file_path: Path) -> Optional[str]:
+    def generate_file_hash(self, file_path: Path) -> Optional[tuple[str, float]]:
         """Generate SHA-256 hash of the file content.
 
         Args:
             file_path: Path to the file
 
         Returns:
-            SHA-256 hash as hexadecimal string or None if failed
+            Tuple of (SHA-256 hash as hexadecimal string, duration in seconds) or None if failed
         """
+        import time
         try:
+            start_time = time.time()
+
             # Read the entire file in binary mode
             with open(file_path, 'rb') as f:
                 file_content = f.read()
 
             # Generate SHA-256 hash
             hash_obj = hashlib.sha256(file_content)
-            return hash_obj.hexdigest()
+            hash_value = hash_obj.hexdigest()
+
+            duration = time.time() - start_time
+            return (hash_value, duration)
 
         except Exception as e:
             logger.error(f"Error generating hash for {file_path}: {e}")

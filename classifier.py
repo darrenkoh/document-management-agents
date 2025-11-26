@@ -3,6 +3,7 @@ import logging
 import ollama
 from typing import Optional, Dict
 import re
+import time
 
 # Try to import httpx exceptions in case ollama uses httpx
 try:
@@ -36,22 +37,22 @@ class Classifier:
         self.client = ollama.Client(host=endpoint, timeout=timeout)
         self._cache: Dict[str, str] = {}
     
-    def classify(self, content: str, filename: Optional[str] = None, verbose: bool = False) -> Optional[str]:
+    def classify(self, content: str, filename: Optional[str] = None, verbose: bool = False) -> Optional[tuple[str, float]]:
         """Classify file content into a category.
-        
+
         Args:
             content: Text content of the file
             filename: Optional filename for context
             verbose: If True, log detailed LLM request and response
-        
+
         Returns:
-            Category name or None if classification fails
+            Tuple of (category name, duration in seconds) or None if classification fails
         """
         # Check cache
         cache_key = f"{filename}:{hash(content[:1000])}" if filename else str(hash(content[:1000]))
         if cache_key in self._cache:
             logger.debug(f"Using cached classification for {filename}")
-            return self._cache[cache_key]
+            return (self._cache[cache_key], 0.0)  # Cached result, no timing
         
         try:
             # Build prompt
@@ -66,10 +67,11 @@ class Classifier:
                 logger.info("-" * 80)
                 logger.info(prompt)
                 logger.info("-" * 80)
-            
-            # Call Ollama
+
+            # Call Ollama with timing
             # Note: For reasoning models (like deepseek-r1), we need higher num_predict
             # to allow for thinking tokens and actual response
+            start_time = time.time()
             response = self.client.generate(
                 model=self.model,
                 prompt=prompt,
@@ -78,6 +80,7 @@ class Classifier:
                     'num_predict': self.num_predict,  # Configurable limit
                 }
             )
+            classification_duration = time.time() - start_time
             
             # Get raw response - check both 'response' and 'thinking' fields
             # Reasoning models (like deepseek-r1) may put output in 'thinking' field
@@ -175,10 +178,10 @@ class Classifier:
                 # Cache the result
                 self._cache[cache_key] = category
                 logger.info(f"Classified as: {category}")
-                return category
+                return (category, classification_duration)
             else:
                 logger.warning(f"Could not extract category from LLM response. Raw response: '{raw_response}'")
-                return "uncategorized"
+                return ("uncategorized", classification_duration)
         
         except CONNECTION_EXCEPTIONS as e:
             # Connection/timeout errors should be treated as failures
@@ -193,7 +196,7 @@ class Classifier:
             if verbose:
                 import traceback
                 logger.error(f"Full traceback:\n{traceback.format_exc()}")
-            return "uncategorized"
+            return ("uncategorized", 0.0)  # Return tuple with 0 duration for errors
     
     def _build_prompt(self, content: str, filename: Optional[str] = None) -> str:
         """Build classification prompt for LLM.
