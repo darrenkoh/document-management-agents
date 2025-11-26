@@ -11,8 +11,8 @@ source_paths:
 
 # Database configuration
 database:
-  # Path to the NoSQL database file (TinyDB JSON format)
-  path: "documents.json"
+  # Path to the SQLite database file (high-performance DocumentDB)
+  path: "documents.db"
   # Path to export JSON output file
   json_export_path: "classifications.json"
   # Vector database configuration
@@ -103,7 +103,7 @@ semantic_search:
   # Lower values return more results, higher values return more precise results
   min_similarity_threshold: 0.1
   # Maximum number of results to retrieve before filtering (for better ranking)
-  max_candidates: 50
+  max_candidates: 100
   # Enable debug logging for similarity calculations
   debug_similarity: true
 

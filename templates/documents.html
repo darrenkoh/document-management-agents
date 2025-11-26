@@ -66,7 +66,7 @@
                 </div>
                 <div class="flex-grow min-w-0">
                     <h6 class="font-arcade text-xs mb-1 truncate">
-                        <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}"
+                        <a href="{{ url_for('document_detail', doc_id=doc.id) }}"
                             class="text-retro-text hover:text-retro-primary transition-colors">
                             {{ doc.filename }}
                         </a>
@@ -103,7 +103,7 @@
             </div>
         </div>
         <div class="bg-retro-card border-t-2 border-retro-border p-2">
-            <a href="{{ url_for('document_detail', doc_id=doc.doc_id) }}"
+            <a href="{{ url_for('document_detail', doc_id=doc.id) }}"
                 class="block w-full text-center font-arcade text-xs py-2 text-retro-primary hover:text-retro-secondary transition-colors">
                 <i class="fas fa-eye mr-1"></i>ACCESS_FILE
             </a>

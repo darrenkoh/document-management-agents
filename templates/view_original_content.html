@@ -11,12 +11,12 @@
             {{ document.filename }} <span class="text-retro-muted ml-2 text-xs">// RAW_DATA_VIEW</span>
         </h4>
         <div class="flex gap-2">
-            <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+            <a href="{{ url_for('serve_original_file', doc_id=document.id) }}"
                 class="btn-retro text-xs py-2 px-3 text-retro-primary border-retro-primary hover:bg-retro-primary/10"
                 target="_blank">
                 <i class="fas fa-download mr-2"></i>DOWNLOAD
             </a>
-            <a href="{{ url_for('document_detail', doc_id=document.doc_id) }}"
+            <a href="{{ url_for('document_detail', doc_id=document.id) }}"
                 class="btn-retro text-xs py-2 px-3 text-retro-secondary border-retro-secondary hover:bg-retro-secondary/10">
                 <i class="fas fa-arrow-left mr-2"></i>BACK
             </a>
@@ -127,7 +127,7 @@
                     const ctx = canvas.getContext('2d');
 
                     // Load PDF
-                    pdfjsLib.getDocument('{{ url_for("serve_original_file", doc_id=document.doc_id) }}').promise.then(function (pdf) {
+                    pdfjsLib.getDocument('{{ url_for("serve_original_file", doc_id=document.id) }}').promise.then(function (pdf) {
                         pdfDoc = pdf;
                         document.getElementById('page-count').textContent = pdf.numPages;
                         renderPage(pageNum);
@@ -198,7 +198,7 @@
                         class="font-terminal text-retro-text text-sm whitespace-pre-wrap leading-relaxed"></pre>
                 </div>
                 <script>
-                    fetch('{{ url_for("serve_original_file", doc_id=document.doc_id) }}')
+                    fetch('{{ url_for("serve_original_file", doc_id=document.id) }}')
                         .then(response => response.text())
                         .then(text => {
                             const textElement = document.getElementById('text-content');
@@ -216,7 +216,7 @@
                 <!-- Image Viewer -->
                 {% elif file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'] %}
                 <div class="flex items-center justify-center p-4 bg-retro-bg h-full min-h-[600px]">
-                    <img src="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                    <img src="{{ url_for('serve_original_file', doc_id=document.id) }}"
                         alt="{{ document.filename }}"
                         class="max-w-full max-h-[550px] border-2 border-retro-border rounded shadow-[0_0_20px_rgba(0,0,0,0.5)]">
                 </div>
@@ -231,12 +231,12 @@
                     <h5 class="font-arcade text-xl text-retro-text mb-2">WORD_DOCUMENT_DETECTED</h5>
                     <p class="font-terminal text-retro-muted mb-8">EXTERNAL_VIEWER_REQUIRED_FOR_THIS_FORMAT</p>
                     <div class="flex gap-4">
-                        <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                        <a href="{{ url_for('serve_original_file', doc_id=document.id) }}"
                             class="btn-retro text-retro-primary border-retro-primary hover:bg-retro-primary/10"
                             target="_blank">
                             <i class="fas fa-external-link-alt mr-2"></i>OPEN_VIEWER
                         </a>
-                        <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                        <a href="{{ url_for('serve_original_file', doc_id=document.id) }}"
                             class="btn-retro text-retro-secondary border-retro-secondary hover:bg-retro-secondary/10"
                             download>
                             <i class="fas fa-download mr-2"></i>DOWNLOAD
@@ -255,7 +255,7 @@
                     <p class="font-terminal text-retro-muted mb-8">FORMAT ({{ file_extension | upper }})
                         INCOMPATIBLE_WITH_BROWSER_VIEW</p>
                     <div class="mt-4">
-                        <a href="{{ url_for('serve_original_file', doc_id=document.doc_id) }}"
+                        <a href="{{ url_for('serve_original_file', doc_id=document.id) }}"
                             class="btn-retro text-retro-primary border-retro-primary hover:bg-retro-primary/10"
                             download>
                             <i class="fas fa-download mr-2"></i>DOWNLOAD_FILE

@@ -36,6 +36,12 @@ ENV/
 # Logs
 *.log
 agent.log
+*.log.*
+
+# SQLite temporary files
+*.db-journal
+*.db-wal
+*.db-shm
 
 # OS
 .DS_Store
@@ -45,10 +51,19 @@ Thumbs.db
 input/
 output/
 *.yaml.bak
+*.yml.bak
+
+# Local configuration (keep config.yaml.example if you create one)
+config.local.yaml
+config.local.yml
+.env
+.env.local
 
 # Database and exports
 documents.json
+documents.db
 *.json.bak
+*.db.bak
 classifications.json
 vector_store/
 

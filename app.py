@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, flash, redirect, url_for, send_file
 from config import Config
-from database import DocumentDatabase
+from database_sqlite_standalone import SQLiteDocumentDatabase
 from agent import DocumentAgent
 from file_handler import FileHandler
 from typing import List, Dict, Any
@@ -56,7 +56,7 @@ from main import setup_logging
 setup_logging(config, verbose=(config.log_level.upper() == 'DEBUG'))
 
 # Initialize components
-database = DocumentDatabase(config.database_path, config=config)
+database = SQLiteDocumentDatabase(config.database_path)
 agent = DocumentAgent(config)
 
 # Global function to refresh database data
@@ -344,12 +344,25 @@ def category_search_logic(category):
 @app.route('/document/<int:doc_id>')
 def document_detail(doc_id: int):
     """Show detailed document information."""
-    # Note: TinyDB doesn't use sequential IDs, so we'll search by doc_id
-    # For now, we'll get all documents and find the one with matching doc_id
+    # SQLite uses sequential IDs, so we can use direct database lookup
+    try:
+        # First try to get document by SQLite ID
+        cursor = database.connection.cursor()
+        cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
+        row = cursor.fetchone()
+        cursor.close()
+
+        if row:
+            doc = database._row_to_dict(row)
+            return render_template('document_detail.html', document=doc)
+    except Exception as e:
+        app.logger.error(f"Error fetching document {doc_id}: {e}")
+
+    # Fallback: search through all documents (for backward compatibility)
     all_docs = database.get_all_documents()
     doc = None
     for d in all_docs:
-        if d.get('doc_id') == doc_id:
+        if d.get('id') == doc_id or d.get('doc_id') == doc_id:
             doc = d
             break
 
@@ -363,13 +376,28 @@ def document_detail(doc_id: int):
 @app.route('/document/<int:doc_id>/view-original')
 def view_original_content(doc_id: int):
     """Show the original file in an appropriate viewer based on file type."""
-    # Get the document
-    all_docs = database.get_all_documents()
-    doc = None
-    for d in all_docs:
-        if d.get('doc_id') == doc_id:
-            doc = d
-            break
+    # Get the document by SQLite ID
+    try:
+        cursor = database.connection.cursor()
+        cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
+        row = cursor.fetchone()
+        cursor.close()
+
+        if row:
+            doc = database._row_to_dict(row)
+        else:
+            doc = None
+    except Exception as e:
+        app.logger.error(f"Error fetching document {doc_id}: {e}")
+        doc = None
+
+    # Fallback: search through all documents
+    if not doc:
+        all_docs = database.get_all_documents()
+        for d in all_docs:
+            if d.get('id') == doc_id or d.get('doc_id') == doc_id:
+                doc = d
+                break
 
     if not doc:
         flash('Document not found.', 'error')
@@ -400,13 +428,28 @@ def view_original_content(doc_id: int):
 @app.route('/document/<int:doc_id>/file')
 def serve_original_file(doc_id: int):
     """Serve the original file for viewing."""
-    # Get the document
-    all_docs = database.get_all_documents()
-    doc = None
-    for d in all_docs:
-        if d.get('doc_id') == doc_id:
-            doc = d
-            break
+    # Get the document by SQLite ID
+    try:
+        cursor = database.connection.cursor()
+        cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
+        row = cursor.fetchone()
+        cursor.close()
+
+        if row:
+            doc = database._row_to_dict(row)
+        else:
+            doc = None
+    except Exception as e:
+        app.logger.error(f"Error fetching document {doc_id}: {e}")
+        doc = None
+
+    # Fallback: search through all documents
+    if not doc:
+        all_docs = database.get_all_documents()
+        for d in all_docs:
+            if d.get('id') == doc_id or d.get('doc_id') == doc_id:
+                doc = d
+                break
 
     if not doc:
         return 'Document not found', 404

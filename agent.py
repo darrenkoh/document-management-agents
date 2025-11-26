@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from file_handler import FileHandler
 from classifier import Classifier
 from config import Config
-from database import DocumentDatabase
+from database_sqlite_standalone import SQLiteDocumentDatabase
 from embeddings import EmbeddingGenerator
 from vector_store import create_vector_store
 
@@ -52,7 +52,7 @@ class DocumentAgent:
             logger.error(f"Failed to initialize vector store: {e}")
             raise RuntimeError("Vector store initialization failed - embeddings cannot be stored")
 
-        self.database = DocumentDatabase(config.database_path, vector_store=vector_store, config=config)
+        self.database = SQLiteDocumentDatabase(config.database_path, vector_store=vector_store, config=config)
         self.embedding_generator = EmbeddingGenerator(
             endpoint=config.ollama_endpoint,
             model=config.ollama_embedding_model,

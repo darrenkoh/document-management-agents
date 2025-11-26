@@ -45,7 +45,7 @@
                     {{ get_file_icon(result.metadata.file_extension) }}
                 </div>
                 <h6 class="font-arcade text-sm md:text-base">
-                    <a href="{{ url_for('document_detail', doc_id=result['doc_id']) }}"
+                    <a href="{{ url_for('document_detail', doc_id=result['id']) }}"
                         class="text-retro-text hover:text-retro-primary transition-colors">
                         {{ result.filename }}
                     </a>
@@ -105,7 +105,7 @@
             </div>
         </div>
         <div class="bg-retro-card border-t-2 border-retro-border p-3 flex justify-end gap-3">
-            <a href="{{ url_for('document_detail', doc_id=result['doc_id']) }}"
+            <a href="{{ url_for('document_detail', doc_id=result['id']) }}"
                 class="btn-retro text-xs py-1 px-3 text-retro-primary border-retro-primary hover:bg-retro-primary/10">
                 <i class="fas fa-eye mr-2"></i>VIEW_DETAILS
             </a>
