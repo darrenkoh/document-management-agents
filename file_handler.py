@@ -3,6 +3,7 @@ import logging
 import hashlib
 import base64
 import io
+import subprocess
 from pathlib import Path
 from typing import Optional, List
 from pypdf import PdfReader
@@ -128,8 +129,10 @@ class FileHandler:
                     else:
                         logger.warning(f"DeepSeek-OCR not available, skipping OCR for {file_path}")
                 return text
-            elif suffix in ['.docx', '.doc']:
+            elif suffix == '.docx':
                 return self._extract_from_docx(file_path)
+            elif suffix == '.doc':
+                return self._extract_from_doc(file_path)
             elif suffix == '.txt':
                 return self._extract_from_txt(file_path)
             elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
@@ -169,6 +172,31 @@ class FileHandler:
         for paragraph in doc.paragraphs:
             text_parts.append(paragraph.text)
         return '\n'.join(text_parts)
+
+    def _extract_from_doc(self, file_path: Path) -> str:
+        """Extract text from DOC file using antiword."""
+        try:
+            # Try using antiword to extract text from .doc files
+            result = subprocess.run(
+                ['antiword', str(file_path)],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                return result.stdout
+            else:
+                logger.warning(f"antiword failed for {file_path}: {result.stderr}")
+                return ""
+        except FileNotFoundError:
+            logger.warning("antiword not installed. Install with: brew install antiword (macOS) or apt-get install antiword (Ubuntu)")
+            return ""
+        except subprocess.TimeoutExpired:
+            logger.warning(f"antiword timed out for {file_path}")
+            return ""
+        except Exception as e:
+            logger.error(f"Failed to extract text from DOC file {file_path}: {e}")
+            return ""
     
     def _extract_from_txt(self, file_path: Path) -> str:
         """Extract text from TXT file."""

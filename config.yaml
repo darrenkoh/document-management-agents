@@ -9,6 +9,7 @@
 source_paths:
   - "./input"
   - "/Volumes/1TB/Private/401K"
+  - "/Volumes/1TB/Private/Auto"
 
 # Database configuration
 database:
@@ -37,7 +38,7 @@ ollama:
   # Model name to use for classification
   model: "deepseek-r1:8b"
   # Timeout in seconds for API calls
-  timeout: 120
+  timeout: 300
   # Maximum number of tokens to predict (higher for reasoning models)
   num_predict: 6000
   # Embedding model for semantic search (default: qwen3-embedding:8b)
