@@ -106,6 +106,12 @@ semantic_search:
   max_candidates: 30
   # Enable debug logging for similarity calculations
   debug_similarity: true
+  # Enable RAG (Retrieval-Augmented Generation) analysis
+  # When enabled, retrieved documents are analyzed by LLM for relevance
+  enable_rag: true
+  # Minimum relevance score threshold for RAG filtering (0.0 to 1.0)
+  # Documents below this score may be filtered out
+  rag_relevance_threshold: 0.3
 
 # Logging
 logging:

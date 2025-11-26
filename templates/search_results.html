@@ -82,7 +82,11 @@
 <div
     class="mb-6 bg-retro-success/10 border border-retro-success/30 p-3 rounded text-retro-success font-terminal flex items-center gap-2">
     <i class="fas fa-check-circle"></i>
-    <span>FOUND {{ results | length }} RELEVANT FILE{{ 'S' if results | length != 1 else '' }}</span>
+    <span>FOUND {{ results | length }} RELEVANT FILE{{ 'S' if results | length != 1 else '' }}
+        {% if results and results[0].relevance_score is not none %}
+        <span class="text-retro-primary">(AI-POWERED RAG ANALYSIS APPLIED)</span>
+        {% endif %}
+    </span>
 </div>
 
 <!-- Search Results -->
@@ -111,7 +115,16 @@
                 'text-retro-secondary border-retro-secondary' if score_percent >= 51 else 'text-retro-accent
                 border-retro-accent' %}
                 <span class="font-arcade text-xs px-2 py-1 border {{ score_color }} rounded bg-retro-bg">
-                    <i class="fas fa-star mr-1"></i>{{ "%.1f"|format(score_percent) }}%
+                    <i class="fas fa-brain mr-1"></i>SIMILARITY: {{ "%.1f"|format(score_percent) }}%
+                </span>
+                {% endif %}
+                {% if result.relevance_score is not none %}
+                {% set relevance_percent = result.relevance_score * 100 %}
+                {% set relevance_color = 'text-retro-success border-retro-success' if relevance_percent >= 80 else
+                'text-retro-warning border-retro-warning' if relevance_percent >= 60 else 'text-retro-accent
+                border-retro-accent' %}
+                <span class="font-arcade text-xs px-2 py-1 border {{ relevance_color }} rounded bg-retro-bg">
+                    <i class="fas fa-robot mr-1"></i>RAG: {{ "%.1f"|format(relevance_percent) }}%
                 </span>
                 {% endif %}
                 {% for category in result.categories.split('-') %}
@@ -135,6 +148,16 @@
                         <div class="font-terminal text-sm text-retro-muted p-3 border border-retro-border rounded bg-retro-bg/50 markdown-preview overflow-auto"
                             data-content="{{ result.content_preview | truncate_content(300) }}"></div>
                     </div>
+                    {% if result.relevance_reasoning %}
+                    <div class="mt-4">
+                        <strong class="font-terminal text-retro-muted text-xs block mb-2">
+                            <i class="fas fa-robot mr-1"></i>RAG_ANALYSIS:
+                        </strong>
+                        <div class="font-terminal text-sm text-retro-text p-3 border border-retro-primary/30 rounded bg-retro-primary/5">
+                            {{ result.relevance_reasoning }}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="md:col-span-1 border-t md:border-t-0 md:border-l border-retro-border pt-4 md:pt-0 md:pl-4">
                     <div class="grid grid-cols-2 md:grid-cols-1 gap-4 text-center md:text-left">

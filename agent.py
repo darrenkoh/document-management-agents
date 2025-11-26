@@ -9,6 +9,7 @@ from config import Config
 from database_sqlite_standalone import SQLiteDocumentDatabase
 from embeddings import EmbeddingGenerator
 from vector_store import create_vector_store
+from rag_agent import RAGAgent
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,14 @@ class DocumentAgent:
             endpoint=config.ollama_endpoint,
             model=config.ollama_embedding_model,
             timeout=config.ollama_timeout
+        )
+
+        # Initialize RAG agent for document analysis
+        self.rag_agent = RAGAgent(
+            endpoint=config.ollama_endpoint,
+            model=config.ollama_model,  # Use same model as classifier (deepseek-r1:8b)
+            timeout=config.ollama_timeout,
+            num_predict=config.ollama_num_predict
         )
     
     def process_files_batch(self, file_paths: List[Path], batch_size: int = 10) -> Dict[str, any]:
@@ -339,29 +348,33 @@ class DocumentAgent:
         return ' '.join(filtered_words)
 
 
-    def search(self, query: str, top_k: int = None, max_candidates: int = None) -> List[Dict]:
-        """Perform semantic search on documents.
+    def search(self, query: str, top_k: int = None, max_candidates: int = None, use_rag: bool = None) -> List[Dict]:
+        """Perform semantic search on documents with optional RAG analysis.
 
         Args:
             query: Search query text
             top_k: Number of results to return (uses config default if None)
             max_candidates: Maximum number of candidates to retrieve before filtering (uses config default if None)
+            use_rag: Whether to use RAG analysis for relevance assessment (uses config default if None)
 
         Returns:
-            List of matching documents with similarity scores
+            List of matching documents with similarity scores and optional RAG analysis
         """
         # Use config values if not specified
         if top_k is None:
             top_k = self.config.semantic_search_top_k
         if max_candidates is None:
             max_candidates = self.config.semantic_search_max_candidates
+        if use_rag is None:
+            use_rag = getattr(self.config, 'semantic_search_enable_rag', True)
 
         threshold = self.config.semantic_search_min_threshold
+        rag_threshold = getattr(self.config, 'semantic_search_rag_relevance_threshold', 0.3)
         debug_enabled = self.config.semantic_search_debug or logger.isEnabledFor(logging.DEBUG)
 
         # Preprocess query for better semantic search
         processed_query = self._preprocess_query(query)
-        logger.info(f"Performing semantic search for: '{query}' -> '{processed_query}' (top_k={top_k}, threshold={threshold}, debug={debug_enabled})")
+        logger.info(f"Performing semantic search for: '{query}' -> '{processed_query}' (top_k={top_k}, threshold={threshold}, rag={use_rag}, debug={debug_enabled})")
 
         # Check if embedding generator is available
         if not hasattr(self, 'embedding_generator') or self.embedding_generator is None:
@@ -397,12 +410,39 @@ class DocumentAgent:
             logger.error(f"Exception during database search: {e}")
             return []
 
-        logger.info(f"Found {len(results)} matching documents")
+        logger.info(f"Found {len(results)} matching documents via semantic search")
+
+        # Apply RAG analysis if enabled
+        if use_rag and results:
+            logger.info("Applying RAG analysis for relevance assessment...")
+            try:
+                analyzed_results = self.rag_agent.analyze_relevance(query, results, verbose=debug_enabled)
+
+                # Filter results based on relevance threshold
+                filtered_results = []
+                for result in analyzed_results:
+                    relevance_score = result.get('relevance_score', 1.0)  # Default to relevant if no score
+                    if relevance_score >= rag_threshold:
+                        filtered_results.append(result)
+
+                results = filtered_results
+                logger.info(f"RAG analysis completed. Filtered to {len(results)} relevant documents (threshold: {rag_threshold})")
+
+            except Exception as e:
+                logger.error(f"RAG analysis failed: {e}")
+                # Continue with original results if RAG fails
+
         if results:
             if debug_enabled:
-                logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
+                relevance_info = ""
+                if use_rag:
+                    relevance_info = f", relevance: {results[0].get('relevance_score', 'N/A')}"
+                logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')}{relevance_info})")
                 for i, result in enumerate(results[:3]):
-                    logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} (similarity: {results[i].get('similarity', 'N/A')})")
+                    relevance_info = ""
+                    if use_rag:
+                        relevance_info = f", relevance: {results[i].get('relevance_score', 'N/A')}"
+                    logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} (similarity: {results[i].get('similarity', 'N/A')}{relevance_info})")
             else:
                 logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
         return results

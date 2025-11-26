@@ -11,8 +11,11 @@ An intelligent Python agent that automatically classifies documents by content u
 - **Markdown Rendering UI**: Beautiful markdown rendering across all content previews in the web interface
 - **High-Performance SQLite Database**: Stores all classifications in SQLite (DocumentDB with JSON support and indexing)
 - **JSON Export**: Automatically exports classification results to JSON file
-- **Semantic Search (RAG)**: Perform semantic search on document content using embeddings
+- **Agentic RAG Search**: Advanced semantic search with LLM-powered relevance analysis using DeepSeek-r1:8b
 - **Embedding Generation**: Automatically generates embeddings for all documents using Ollama
+- **Agentic RAG Analysis**: Retrieved documents are analyzed by DeepSeek-r1:8b for relevance assessment
+- **Relevance Scoring**: Each search result includes both similarity score and LLM relevance analysis
+- **Smart Filtering**: Documents below relevance threshold are filtered out for better results
 - **Web Interface**: Beautiful web UI for browsing documents, semantic search, and viewing results
 - **Watch Mode**: Continuously monitors a directory for new files
 - **Batch Processing**: Process all files in a directory at once
@@ -256,6 +259,12 @@ Edit `config.yaml` to customize:
   - **port**: Port to run the web app on (default: 5000)
   - **host**: Host to bind to (default: "0.0.0.0")
   - **debug**: Enable debug mode (default: true)
+- **semantic_search**: Semantic search and RAG settings
+  - **top_k**: Number of results to return (default: 10)
+  - **min_similarity_threshold**: Minimum similarity threshold (default: 0.1)
+  - **max_candidates**: Maximum candidates to retrieve before filtering (default: 30)
+  - **enable_rag**: Enable LLM-powered relevance analysis (default: true)
+  - **rag_relevance_threshold**: Minimum relevance score to keep results (default: 0.3)
 - **logging**: Log level and file path
 
 ## How It Works
