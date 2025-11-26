@@ -92,48 +92,7 @@
                     </div>
                 </div>
 
-                <!-- Content Preview -->
-                <div>
-                    <h6 class="font-arcade text-xs text-retro-muted mb-4 border-b border-retro-border pb-2">
-                        CONTENT_PREVIEW</h6>
-                    <div class="border-2 border-retro-border rounded bg-retro-bg p-4 relative overflow-hidden">
-                        <!-- Scanline overlay for content -->
-                        <div
-                            class="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-retro-primary/5 to-transparent opacity-20 animate-scanline">
-                        </div>
-
-                        <div id="content-preview" class="markdown-content font-terminal text-lg text-retro-text"
-                            style="min-height: 200px;"></div>
-                    </div>
-                </div>
-
-                <!-- Markdown rendering script -->
-                <script>
-                    function cleanAndRenderMarkdown(content) {
-                        // Remove DeepSeek-OCR reference tags and bounding box data
-                        const cleaned = content
-                            .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')
-                            .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')
-                            .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')
-                            .replace(/\n{3,}/g, '\n\n')
-                            .trim();
-
-                        const rendered = marked.parse(cleaned, {
-                            breaks: true,
-                            gfm: true
-                        });
-
-                        return rendered;
-                    }
-
-                    document.addEventListener('DOMContentLoaded', function () {
-                        const contentElement = document.getElementById('content-preview');
-                        const rawContent = {{ document.content | tojson
-                    }};
-
-                    contentElement.innerHTML = cleanAndRenderMarkdown(rawContent);
-                    });
-                </script>
+                <!-- Content Preview moved to bottom -->
             </div>
         </div>
     </div>
@@ -190,6 +149,54 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Full Width Content Preview -->
+<div class="bg-retro-card border-2 border-retro-border rounded-lg overflow-hidden box-glow mt-8">
+    <div class="bg-retro-bg border-b-2 border-retro-border p-4">
+        <h6 class="font-arcade text-sm text-retro-text">
+            <i class="fas fa-file-alt text-retro-primary mr-2"></i>CONTENT_PREVIEW
+        </h6>
+    </div>
+    <div class="p-6">
+        <div class="border-2 border-retro-border rounded bg-retro-bg p-4 relative overflow-auto">
+            <!-- Scanline overlay for content -->
+            <div
+                class="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-retro-primary/5 to-transparent opacity-20 animate-scanline">
+            </div>
+
+            <div id="content-preview" class="markdown-content font-terminal text-lg text-retro-text"
+                style="min-height: 200px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Markdown rendering script -->
+<script>
+    function cleanAndRenderMarkdown(content) {
+        // Remove DeepSeek-OCR reference tags and bounding box data
+        const cleaned = content
+            .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')
+            .replace(/<\|det\|>[^<]*<\|\/det\|>/g, '')
+            .replace(/<\|image\|>[^<]*<\|\/image\|>/g, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+        const rendered = marked.parse(cleaned, {
+            breaks: true,
+            gfm: true
+        });
+
+        return rendered;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const contentElement = document.getElementById('content-preview');
+        const rawContent = {{ document.content | tojson
+    }};
+
+    contentElement.innerHTML = cleanAndRenderMarkdown(rawContent);
+        });
+</script>
 
 <script>
     function copyPath(path) {
