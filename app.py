@@ -132,7 +132,7 @@ def index():
     all_docs = database.get_all_documents()
     recent_docs = sorted(all_docs, key=lambda x: x.get('classification_date', ''), reverse=True)[:10]
 
-    return render_template('index.html', recent_docs=recent_docs)
+    return render_template('index.html', recent_docs=recent_docs, agent=agent)
 
 
 @app.route('/documents')
@@ -206,6 +206,7 @@ def documents():
 def unified_search():
     """Unified search that handles both semantic and category searches."""
     query = request.form.get('query', '').strip()
+    max_candidates = request.form.get('max_candidates', '').strip()
 
     if not query:
         flash('Please enter a search query.', 'warning')
@@ -243,7 +244,7 @@ def unified_search():
                 return redirect(url_for('index'))
 
         # Default to semantic search
-        return semantic_search_logic(query)
+        return semantic_search_logic(query, max_candidates=max_candidates)
 
     except Exception as e:
         app.logger.error(f"Unified search error: {e}")
@@ -255,10 +256,11 @@ def unified_search():
 def semantic_search():
     """Perform semantic search."""
     query = request.form.get('query', '').strip()
-    return semantic_search_logic(query)
+    max_candidates = request.form.get('max_candidates', '').strip()
+    return semantic_search_logic(query, max_candidates=max_candidates)
 
 
-def semantic_search_logic(query):
+def semantic_search_logic(query, max_candidates=None):
     """Core semantic search logic."""
     if not query:
         flash('Please enter a search query.', 'warning')
@@ -273,9 +275,22 @@ def semantic_search_logic(query):
             flash('Semantic search is not available - embedding service not configured', 'error')
             return redirect(url_for('index'))
 
+        # Determine max_candidates (use provided value or default from config)
+        if max_candidates:
+            try:
+                max_candidates = int(max_candidates)
+                if max_candidates < 1:
+                    max_candidates = agent.config.semantic_search_max_candidates
+                elif max_candidates > 500:
+                    max_candidates = 500  # Cap at reasonable maximum
+            except (ValueError, TypeError):
+                max_candidates = agent.config.semantic_search_max_candidates
+        else:
+            max_candidates = agent.config.semantic_search_max_candidates
+
         # Perform semantic search with config settings
         top_k = agent.config.semantic_search_top_k
-        results = agent.search(query, top_k=top_k)
+        results = agent.search(query, top_k=top_k, max_candidates=max_candidates)
 
         app.logger.info(f"Semantic search completed. Found {len(results)} results")
 

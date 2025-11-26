@@ -211,7 +211,7 @@ class ChromaVectorStore(VectorStore):
             # Query ChromaDB (distance metric depends on collection configuration)
             results = self.collection.query(
                 query_embeddings=[normalized_query],
-                n_results=min(top_k * 3, 50),  # Get more results to rank properly
+                n_results=top_k,  # Use the max_candidates value passed from config
                 include=['metadatas', 'distances']
             )
 

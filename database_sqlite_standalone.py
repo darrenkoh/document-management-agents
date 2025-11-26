@@ -281,7 +281,7 @@ class SQLiteDocumentDatabase:
             return False
 
     def search_semantic(self, query_embedding: List[float], top_k: int = 10,
-                      threshold: float = None) -> List[Dict]:
+                      threshold: float = None, max_candidates: int = None) -> List[Dict]:
         """Perform semantic search using vector database.
 
         Args:
@@ -300,12 +300,14 @@ class SQLiteDocumentDatabase:
         if self.config:
             if threshold is None:
                 threshold = getattr(self.config, 'semantic_search_min_threshold', -1.0)
-            max_candidates = getattr(self.config, 'semantic_search_max_candidates', 50)
+            if max_candidates is None:
+                max_candidates = getattr(self.config, 'semantic_search_max_candidates', 50)
             debug_enabled = getattr(self.config, 'semantic_search_debug', False) or logger.isEnabledFor(logging.DEBUG)
         else:
             if threshold is None:
                 threshold = -1.0
-            max_candidates = 50
+            if max_candidates is None:
+                max_candidates = 50
             debug_enabled = logger.isEnabledFor(logging.DEBUG)
 
         logger.debug(f"Using vector store for semantic search (top_k={top_k}, threshold={threshold}, max_candidates={max_candidates}, debug={debug_enabled})")

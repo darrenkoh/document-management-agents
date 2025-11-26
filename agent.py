@@ -339,12 +339,13 @@ class DocumentAgent:
         return ' '.join(filtered_words)
 
 
-    def search(self, query: str, top_k: int = None) -> List[Dict]:
+    def search(self, query: str, top_k: int = None, max_candidates: int = None) -> List[Dict]:
         """Perform semantic search on documents.
 
         Args:
             query: Search query text
             top_k: Number of results to return (uses config default if None)
+            max_candidates: Maximum number of candidates to retrieve before filtering (uses config default if None)
 
         Returns:
             List of matching documents with similarity scores
@@ -352,6 +353,8 @@ class DocumentAgent:
         # Use config values if not specified
         if top_k is None:
             top_k = self.config.semantic_search_top_k
+        if max_candidates is None:
+            max_candidates = self.config.semantic_search_max_candidates
 
         threshold = self.config.semantic_search_min_threshold
         debug_enabled = self.config.semantic_search_debug or logger.isEnabledFor(logging.DEBUG)
@@ -389,7 +392,7 @@ class DocumentAgent:
         if debug_enabled:
             logger.debug("Searching database for semantic matches...")
         try:
-            results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold)
+            results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold, max_candidates=max_candidates)
         except Exception as e:
             logger.error(f"Exception during database search: {e}")
             return []
