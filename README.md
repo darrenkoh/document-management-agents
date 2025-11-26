@@ -5,8 +5,8 @@ An intelligent Python agent that automatically classifies documents by content u
 ## Features
 
 - **Content-based Classification**: Uses Ollama LLM to analyze file content and classify documents (supports up to 3 categories per document)
-- **Multiple File Formats**: Supports PDF, DOCX, TXT, and images (with OCR and DeepSeek-OCR fallback for complex PDFs)
-- **Advanced PDF Processing**: Uses DeepSeek-OCR as fallback for image-based PDFs that regular text extraction cannot handle
+- **Multiple File Formats**: Supports PDF, DOCX, TXT, and images (with DeepSeek-OCR for image and PDF OCR processing)
+- **Advanced PDF Processing**: Uses DeepSeek-OCR for image-based PDFs and document images with structured markdown output
 - **Structured Markdown Output**: DeepSeek-OCR outputs documents in structured markdown format with tables, headers, and layout information
 - **Markdown Rendering UI**: Beautiful markdown rendering across all content previews in the web interface
 - **NoSQL Database Storage**: Stores all classifications in TinyDB (JSON-based NoSQL database)
@@ -48,21 +48,16 @@ pip install -r requirements.txt
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-3. Install Tesseract OCR (for image text extraction):
-   - **macOS**: `brew install tesseract`
-   - **Linux**: `sudo apt-get install tesseract-ocr`
-   - **Windows**: Download from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
-
-4. Install system dependencies:
+3. Install system dependencies:
    - **macOS**: `brew install poppler` (required for PDF processing)
    - **Linux**: `sudo apt-get install poppler-utils`
    - **Windows**: Poppler is included with pdf2image
 
-5. Install and start Ollama:
+4. Install and start Ollama:
    - Visit [ollama.ai](https://ollama.ai) for installation instructions
    - Pull a classification model: `ollama pull deepseek-r1:8b` (or `llama3.2`)
    - Pull an embedding model: `ollama pull qwen3-embedding:8b`
-   - Pull the OCR model: `ollama pull deepseek-ocr:3b` (for advanced PDF processing)
+   - Pull the OCR model: `ollama pull deepseek-ocr:3b` (required for image and PDF OCR processing)
 
 5. Configure the agent by editing `config.yaml`:
 ```yaml

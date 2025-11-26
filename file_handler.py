@@ -9,7 +9,6 @@ from typing import Optional, List
 from pypdf import PdfReader
 from docx import Document
 from PIL import Image
-import pytesseract
 import ollama
 
 # Try to import pdf2image for PDF to image conversion
@@ -136,18 +135,17 @@ class FileHandler:
             elif suffix == '.txt':
                 return self._extract_from_txt(file_path)
             elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
-                text = self._extract_from_image(file_path)
-                # If regular OCR returns minimal content, try DeepSeek-OCR
-                if not text or len(text.strip()) < 10:  # Threshold for image OCR
-                    if self.ocr_available:
-                        logger.info(f"Regular OCR returned minimal content, trying DeepSeek-OCR for {file_path}")
-                        ocr_text = self._extract_text_with_deepseek_ocr(file_path)
-                        if ocr_text:
-                            logger.info(f"DeepSeek-OCR successfully extracted text from {file_path}")
-                            return ocr_text
+                if self.ocr_available:
+                    text = self._extract_from_image(file_path)
+                    if text:
+                        logger.info(f"DeepSeek-OCR successfully extracted text from {file_path}")
+                        return text
                     else:
-                        logger.warning(f"DeepSeek-OCR not available, skipping OCR for {file_path}")
-                return text
+                        logger.warning(f"DeepSeek-OCR failed to extract text from {file_path}")
+                        return None
+                else:
+                    logger.warning(f"DeepSeek-OCR not available, cannot process image {file_path}")
+                    return None
             else:
                 logger.warning(f"Unsupported file type: {suffix}")
                 return None
@@ -204,11 +202,11 @@ class FileHandler:
             return f.read()
     
     def _extract_from_image(self, file_path: Path) -> str:
-        """Extract text from image using OCR."""
+        """Extract text from image using DeepSeek OCR."""
         try:
             image = Image.open(file_path)
-            text = pytesseract.image_to_string(image)
-            return text
+            text = self._ocr_image_with_deepseek(image)
+            return text or ""
         except Exception as e:
             logger.error(f"OCR failed for {file_path}: {e}")
             return ""
