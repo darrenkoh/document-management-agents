@@ -19,9 +19,62 @@
         <div>
             <a href="{{ url_for('index') }}"
                 class="btn-retro text-retro-secondary border-retro-secondary hover:bg-retro-secondary/10">
-                <i class="fas fa-arrow-left mr-2"></i>NEW_SEARCH
+                <i class="fas fa-arrow-left mr-2"></i>BACK HOME
             </a>
         </div>
+    </div>
+</div>
+
+<!-- Search Again Section -->
+<div class="mb-8">
+    <div class="bg-retro-card border-2 border-retro-border rounded-lg p-6 box-glow">
+        <div class="text-center mb-4">
+            <h3 class="font-arcade text-lg text-retro-primary mb-2">
+                <i class="fas fa-search mr-2"></i>SEARCH AGAIN
+            </h3>
+        </div>
+
+        <form action="{{ url_for('unified_search') }}" method="post" id="unified-search-form" class="max-w-2xl mx-auto">
+            <div class="relative group">
+                <div
+                    class="absolute -inset-0.5 bg-gradient-to-r from-retro-primary to-retro-secondary rounded opacity-50 group-hover:opacity-100 transition duration-200 blur">
+                </div>
+                <div class="relative flex">
+                    <input type="text" name="query" id="search-input"
+                        class="w-full bg-retro-bg border-2 border-retro-border text-retro-text font-terminal text-lg p-3 focus:outline-none focus:border-retro-secondary placeholder-retro-muted/50"
+                        placeholder="> INPUT SEARCH QUERY..." autocomplete="off">
+                    <button
+                        class="bg-retro-bg border-2 border-l-0 border-retro-border text-retro-secondary px-5 hover:bg-retro-secondary/10 transition-colors"
+                        type="submit" id="search-btn">
+                        <i class="fas fa-search text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Advanced Search Options -->
+            <div class="mt-3">
+                <button type="button" id="advanced-toggle" class="font-terminal text-sm text-retro-muted hover:text-retro-text transition-colors">
+                    <i class="fas fa-cog mr-2"></i>ADVANCED OPTIONS <i class="fas fa-chevron-down ml-2"></i>
+                </button>
+                <div id="advanced-options" class="mt-3 hidden">
+                    <div class="bg-retro-bg border border-retro-border rounded p-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="max_candidates" class="font-arcade text-xs text-retro-text mb-2 block">
+                                    SEARCH DEPTH (MAX CANDIDATES)
+                                </label>
+                                <input type="number" name="max_candidates" id="max_candidates"
+                                    class="w-full bg-retro-bg border border-retro-border text-retro-text font-terminal text-sm p-2 focus:outline-none focus:border-retro-secondary placeholder-retro-muted/50"
+                                    placeholder="Default: 50" min="1" max="500">
+                                <small class="font-terminal text-retro-muted text-xs mt-1 block">
+                                    Higher values may find more results but take longer to search
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -125,12 +178,60 @@
     <p class="font-terminal text-retro-muted mb-6">TRY DIFFERENT QUERY OR CHECK EMBEDDINGS STATUS.</p>
     <a href="{{ url_for('index') }}"
         class="btn-retro text-retro-primary border-retro-primary hover:bg-retro-primary/10 inline-block">
-        <i class="fas fa-search mr-2"></i>NEW_SEARCH
+        <i class="fas fa-home mr-2"></i>BACK HOME
     </a>
 </div>
 {% endif %}
 
 <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('search-input');
+        const searchForm = document.getElementById('unified-search-form');
+        const advancedToggle = document.getElementById('advanced-toggle');
+        const advancedOptions = document.getElementById('advanced-options');
+
+        // Handle advanced options toggle
+        if (advancedToggle && advancedOptions) {
+            advancedToggle.addEventListener('click', function () {
+                const isHidden = advancedOptions.classList.contains('hidden');
+                if (isHidden) {
+                    advancedOptions.classList.remove('hidden');
+                    advancedToggle.querySelector('.fa-chevron-down').style.transform = 'rotate(180deg)';
+                } else {
+                    advancedOptions.classList.add('hidden');
+                    advancedToggle.querySelector('.fa-chevron-down').style.transform = 'rotate(0deg)';
+                }
+            });
+        }
+
+        // Handle form submission
+        if (searchForm) {
+            searchForm.addEventListener('submit', function (e) {
+                const query = searchInput.value.trim();
+
+                // If query starts with "category:", treat it as category search
+                if (query.toLowerCase().startsWith('category:')) {
+                    const category = query.substring(9).trim(); // Remove "category:" prefix
+                    if (category) {
+                        // Change form action to category search
+                        searchForm.action = '{{ url_for("category_search") }}';
+                        // Update the input name to match what category_search expects
+                        searchInput.name = 'category';
+                        searchInput.value = category;
+                    } else {
+                        e.preventDefault();
+                        alert('Please specify a category after "category:"');
+                        return;
+                    }
+                } else {
+                    // Default to semantic search
+                    searchForm.action = '{{ url_for("semantic_search") }}';
+                    searchInput.name = 'query';
+                }
+            });
+        }
+    });
+
     function cleanAndRenderMarkdown(content) {
         const cleaned = content
             .replace(/<\|ref\|>[^<]*<\|\/ref\|>/g, '')
