@@ -1,0 +1,237 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, FileText, BarChart3, Clock } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Document } from '@/types';
+import { apiClient, getFileIcon } from '@/lib/api';
+import toast from 'react-hot-toast';
+
+export default function HomePage() {
+  const [query, setQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [recentDocs, setRecentDocs] = useState<Document[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    loadRecentDocuments();
+  }, []);
+
+  const loadRecentDocuments = async () => {
+    try {
+      const response = await apiClient.getDocuments({ limit: 10 });
+      setRecentDocs(response.documents);
+    } catch (error) {
+      console.error('Failed to load recent documents:', error);
+      toast.error('Failed to load recent documents');
+    } finally {
+      setIsLoadingDocs(false);
+    }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) {
+      toast.error('Please enter a search query');
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      // For now, redirect to documents page with search
+      navigate(`/documents?search=${encodeURIComponent(query.trim())}`);
+    } catch (error) {
+      console.error('Search failed:', error);
+      toast.error('Search failed. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const truncateContent = (content: string, length = 150) => {
+    if (content.length <= length) return content;
+    return content.substring(0, length) + '...';
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Hero Section with Search */}
+      <div className="text-center">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+            Document Management
+            <span className="text-primary-600"> System</span>
+          </h1>
+          <p className="text-xl text-gray-600 mb-8">
+            Search, organize, and manage your documents with AI-powered classification
+          </p>
+
+          {/* Search Form */}
+          <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <Input
+                type="text"
+                placeholder="Search documents, categories, or content..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="pl-12 pr-4 py-4 text-lg h-14"
+                disabled={isSearching}
+              />
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
+                <Button
+                  type="submit"
+                  disabled={isSearching || !query.trim()}
+                  className="h-10 px-6"
+                >
+                  {isSearching ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    'Search'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </form>
+
+          {/* Search Examples */}
+          <div className="mt-6 text-sm text-gray-500">
+            <p>Try searching for: "travel documents", "financial statements", or "confirmation"</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate('/documents')}>
+          <CardHeader>
+            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
+              <FileText className="w-6 h-6 text-primary-600" />
+            </div>
+            <CardTitle className="text-lg">Browse Documents</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">
+              View and manage all your classified documents with advanced filtering options.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate('/stats')}>
+          <CardHeader>
+            <div className="w-12 h-12 bg-success-100 rounded-lg flex items-center justify-center mb-4">
+              <BarChart3 className="w-6 h-6 text-success-600" />
+            </div>
+            <CardTitle className="text-lg">View Statistics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">
+              Analyze your document collection with detailed statistics and insights.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-medium transition-shadow">
+          <CardHeader>
+            <div className="w-12 h-12 bg-warning-100 rounded-lg flex items-center justify-center mb-4">
+              <Clock className="w-6 h-6 text-warning-600" />
+            </div>
+            <CardTitle className="text-lg">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">
+              {recentDocs.length > 0
+                ? `${recentDocs.length} documents processed recently`
+                : 'No recent documents'
+              }
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Documents */}
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Recent Documents</h2>
+          <Button variant="outline" onClick={() => navigate('/documents')}>
+            View All
+          </Button>
+        </div>
+
+        {isLoadingDocs ? (
+          <div className="flex justify-center py-12">
+            <LoadingSpinner size="lg" />
+          </div>
+        ) : recentDocs.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {recentDocs.map((doc) => (
+              <Card
+                key={doc.id}
+                className="hover:shadow-medium transition-shadow cursor-pointer"
+                onClick={() => navigate(`/document/${doc.id}`)}
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="text-3xl">
+                      {getFileIcon(doc.metadata.file_extension)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 truncate mb-2">
+                        {doc.filename}
+                      </h3>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {doc.categories.split('-').map((category, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
+                          >
+                            {category.trim()}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                        {truncateContent(doc.content_preview)}
+                      </p>
+                      <div className="text-xs text-gray-500">
+                        {formatDate(doc.classification_date)}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="text-center py-12">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
+              <p className="text-gray-600">
+                Start by uploading and processing some documents to see them here.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}

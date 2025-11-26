@@ -2,15 +2,13 @@
 """Document Classification Agent - Web App Interface."""
 import os
 import argparse
-import re
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, flash, redirect, url_for, send_file
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 from config import Config
 from database_sqlite_standalone import SQLiteDocumentDatabase
 from agent import DocumentAgent
 from file_handler import FileHandler
-from typing import List, Dict, Any
-import math
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Document Classification Agent - Web Interface')
@@ -51,6 +49,15 @@ if args.no_verbose:
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
+# Enable CORS for API endpoints
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000", "http://localhost:5173", "http://localhost:5000"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
+
 # Setup logging
 from main import setup_logging
 setup_logging(config, verbose=(config.log_level.upper() == 'DEBUG'))
@@ -79,365 +86,22 @@ if hasattr(agent, 'embedding_generator'):
 else:
     app.logger.error("Agent does not have embedding generator!")
 
-# Pagination settings
-ITEMS_PER_PAGE = 20
-
-
-def highlight_search_terms_in_results(results, search_terms):
-    """Highlight search terms in content previews of search results.
-
-    Args:
-        results: List of search result dictionaries
-        search_terms: List of terms to highlight
-
-    Returns:
-        List of results with highlighted content previews
-    """
-    if not results or not search_terms:
-        return results
-
-    highlighted_results = []
-
-    for result in results:
-        highlighted_result = result.copy()
-
-        # Get content preview
-        content_preview = result.get('content_preview', '')
-
-        # Highlight each search term
-        highlighted_content = content_preview
-        for term in search_terms:
-            if len(term.strip()) > 0:
-                # Create case-insensitive regex pattern
-                pattern = re.escape(term.strip())
-                regex = re.compile(f'({pattern})', re.IGNORECASE)
-                highlighted_content = regex.sub(
-                    r'<mark class="search-highlight">\1</mark>',
-                    highlighted_content
-                )
-
-        highlighted_result['content_preview'] = highlighted_content
-        highlighted_results.append(highlighted_result)
-
-    return highlighted_results
-
-
-@app.route('/')
-def index():
-    """Home page - show recent documents and search interface."""
-    # Refresh data to ensure we have latest documents
-    refresh_database()
-
-    # Get recent documents
-    all_docs = database.get_all_documents()
-    recent_docs = sorted(all_docs, key=lambda x: x.get('classification_date', ''), reverse=True)[:10]
-
-    return render_template('index.html', recent_docs=recent_docs, agent=agent)
-
-
-@app.route('/documents')
-def documents():
-    """List all documents with pagination."""
-    page = request.args.get('page', 1, type=int)
-    search = request.args.get('search', '').strip()
-    category_filter = request.args.get('category', '').strip()
-
-    # Refresh data to ensure we have latest documents
-    refresh_database()
-
-    # Get all documents
-    all_docs = database.get_all_documents()
-
-    # Filter by search if provided
-    if search:
-        filtered_docs = []
-        search_lower = search.lower()
-        for doc in all_docs:
-            # Search in filename, categories, and content preview
-            filename = doc.get('filename', '').lower()
-            categories = doc.get('categories', '').lower()
-            content_preview = doc.get('content_preview', '').lower()
-
-            if (search_lower in filename or
-                search_lower in categories or
-                search_lower in content_preview):
-                filtered_docs.append(doc)
-        all_docs = filtered_docs
-
-    # Filter by category if provided
-    if category_filter:
-        filtered_docs = []
-        category_lower = category_filter.lower()
-        for doc in all_docs:
-            doc_categories = doc.get('categories', '').lower()
-            if category_lower in doc_categories:
-                filtered_docs.append(doc)
-        all_docs = filtered_docs
-
-    # Sort by classification date (newest first)
-    all_docs.sort(key=lambda x: x.get('classification_date', ''), reverse=True)
-
-    # Pagination
-    total_docs = len(all_docs)
-    total_pages = math.ceil(total_docs / ITEMS_PER_PAGE)
-    start_idx = (page - 1) * ITEMS_PER_PAGE
-    end_idx = start_idx + ITEMS_PER_PAGE
-    docs_page = all_docs[start_idx:end_idx]
-
-    # Get all unique categories for filter dropdown
-    all_categories = set()
-    for doc in database.get_all_documents():
-        for cat in doc.get('categories', '').split('-'):
-            if cat.strip():
-                all_categories.add(cat.strip())
-    sorted_categories = sorted(all_categories)
-
-    return render_template('documents.html',
-                         documents=docs_page,
-                         page=page,
-                         total_pages=total_pages,
-                         total_docs=total_docs,
-                         search=search,
-                         category_filter=category_filter,
-                         available_categories=sorted_categories)
-
-
-@app.route('/unified-search', methods=['POST'])
-def unified_search():
-    """Unified search that handles both semantic and category searches."""
-    query = request.form.get('query', '').strip()
-    max_candidates = request.form.get('max_candidates', '').strip()
-
-    if not query:
-        flash('Please enter a search query.', 'warning')
-        return redirect(url_for('index'))
-
-    try:
-        # Refresh data before searching
-        refresh_database()
-
-        # Check if this is a category search (starts with "category:")
-        if query.lower().startswith('category:'):
-            category = query[9:].strip()  # Remove "category:" prefix
-            return category_search_logic(category)
-
-        # Check if the query matches a known category
-        all_categories = set()
-        for doc in database.get_all_documents():
-            for cat in doc.get('categories', '').split('-'):
-                if cat.strip():
-                    all_categories.add(cat.strip().lower())
-
-        if query.lower() in all_categories:
-            # Perform category search with highlighting
-            try:
-                results = agent.search_by_category(query)
-                highlighted_results = highlight_search_terms_in_results(results, [query])
-
-                return render_template('search_results.html',
-                                     query=f"Category: {query}",
-                                     results=highlighted_results,
-                                     search_type='category')
-            except Exception as e:
-                app.logger.error(f"Category search error: {e}")
-                flash(f'Search failed: {str(e)}', 'error')
-                return redirect(url_for('index'))
-
-        # Default to semantic search
-        return semantic_search_logic(query, max_candidates=max_candidates)
-
-    except Exception as e:
-        app.logger.error(f"Unified search error: {e}")
-        flash(f'Search failed: {str(e)}', 'error')
-        return redirect(url_for('index'))
-
-
-@app.route('/semantic-search', methods=['POST'])
-def semantic_search():
-    """Perform semantic search."""
-    query = request.form.get('query', '').strip()
-    max_candidates = request.form.get('max_candidates', '').strip()
-    return semantic_search_logic(query, max_candidates=max_candidates)
-
-
-def semantic_search_logic(query, max_candidates=None):
-    """Core semantic search logic."""
-    if not query:
-        flash('Please enter a search query.', 'warning')
-        return redirect(url_for('index'))
-
-    try:
-        app.logger.info(f"Starting semantic search for query: '{query}'")
-
-        # Check if agent has embedding generator
-        if not hasattr(agent, 'embedding_generator'):
-            app.logger.error("Agent does not have embedding generator")
-            flash('Semantic search is not available - embedding service not configured', 'error')
-            return redirect(url_for('index'))
-
-        # Determine max_candidates (use provided value or default from config)
-        if max_candidates:
-            try:
-                max_candidates = int(max_candidates)
-                if max_candidates < 1:
-                    max_candidates = agent.config.semantic_search_max_candidates
-                elif max_candidates > 500:
-                    max_candidates = 500  # Cap at reasonable maximum
-            except (ValueError, TypeError):
-                max_candidates = agent.config.semantic_search_max_candidates
-        else:
-            max_candidates = agent.config.semantic_search_max_candidates
-
-        # Perform semantic search with config settings
-        top_k = agent.config.semantic_search_top_k
-        results = agent.search(query, top_k=top_k, max_candidates=max_candidates)
-
-        app.logger.info(f"Semantic search completed. Found {len(results)} results")
-
-        # Highlight relevant terms in content previews
-        highlighted_results = highlight_search_terms_in_results(results, query.split())
-
-        # Debug: Log details about results
-        if results:
-            app.logger.info(f"First result: {results[0].get('filename', 'N/A')} - similarity: {results[0].get('similarity', 'N/A')}")
-            for i, result in enumerate(results[:3]):
-                app.logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} - similarity: {result.get('similarity', 'N/A')}")
-                app.logger.info(f"  Has similarity key: {'similarity' in result}")
-                app.logger.info(f"  Similarity type: {type(result.get('similarity'))}")
-        else:
-            app.logger.warning("No results found for semantic search")
-            flash('No results found. Try different search terms or check if documents have embeddings.', 'warning')
-
-        return render_template('search_results.html',
-                             query=query,
-                             results=highlighted_results,
-                             search_type='semantic')
-
-    except Exception as e:
-        app.logger.error(f"Semantic search error: {e}")
-        import traceback
-        app.logger.error(f"Traceback: {traceback.format_exc()}")
-        flash(f'Search failed: {str(e)}', 'error')
-        return redirect(url_for('index'))
-
-
-@app.route('/category-search', methods=['GET', 'POST'])
-def category_search():
-    """Search documents by category."""
-    if request.method == 'POST':
-        category = request.form.get('category', '').strip()
-    else:
-        category = request.args.get('category', '').strip()
-
-    return category_search_logic(category)
-
-
-def category_search_logic(category):
-    """Core category search logic."""
-    if not category:
-        flash('Please select a category.', 'warning')
-        return redirect(url_for('documents'))
-
-    try:
-        # Perform category search
-        results = agent.search_by_category(category)
-
-        # Highlight category terms in content previews
-        highlighted_results = highlight_search_terms_in_results(results, [category])
-
-        return render_template('search_results.html',
-                             query=f"Category: {category}",
-                             results=highlighted_results,
-                             search_type='category')
-
-    except Exception as e:
-        app.logger.error(f"Category search error: {e}")
-        flash(f'Search failed: {str(e)}', 'error')
-        return redirect(url_for('documents'))
-
-
-@app.route('/document/<int:doc_id>')
-def document_detail(doc_id: int):
-    """Show detailed document information."""
-    # SQLite uses sequential IDs, so we can use direct database lookup
-    try:
-        # First try to get document by SQLite ID
-        cursor = database.connection.cursor()
-        cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
-        row = cursor.fetchone()
-        cursor.close()
-
-        if row:
-            doc = database._row_to_dict(row)
-            return render_template('document_detail.html', document=doc)
-    except Exception as e:
-        app.logger.error(f"Error fetching document {doc_id}: {e}")
-
-    # Fallback: search through all documents (for backward compatibility)
-    all_docs = database.get_all_documents()
-    doc = None
-    for d in all_docs:
-        if d.get('id') == doc_id or d.get('doc_id') == doc_id:
-            doc = d
-            break
-
-    if not doc:
-        flash('Document not found.', 'error')
-        return redirect(url_for('documents'))
-
-    return render_template('document_detail.html', document=doc)
-
-
-@app.route('/document/<int:doc_id>/view-original')
-def view_original_content(doc_id: int):
-    """Show the original file in an appropriate viewer based on file type."""
-    # Get the document by SQLite ID
-    try:
-        cursor = database.connection.cursor()
-        cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
-        row = cursor.fetchone()
-        cursor.close()
-
-        if row:
-            doc = database._row_to_dict(row)
-        else:
-            doc = None
-    except Exception as e:
-        app.logger.error(f"Error fetching document {doc_id}: {e}")
-        doc = None
-
-    # Fallback: search through all documents
-    if not doc:
-        all_docs = database.get_all_documents()
-        for d in all_docs:
-            if d.get('id') == doc_id or d.get('doc_id') == doc_id:
-                doc = d
-                break
-
-    if not doc:
-        flash('Document not found.', 'error')
-        return redirect(url_for('documents'))
-
-    try:
-        file_path = Path(doc['file_path'])
-        if not file_path.exists():
-            flash(f'Original file not found at: {file_path}', 'error')
-            return redirect(url_for('document_detail', doc_id=doc_id))
-
-        # Determine file type and viewer
-        file_extension = doc['metadata'].get('file_extension', '').lower()
-        file_size = doc['metadata'].get('file_size', 0)
-
-        return render_template('view_original_content.html',
-                             document=doc,
-                             file_path=file_path,
-                             file_extension=file_extension,
-                             file_size=file_size)
-
-    except Exception as e:
-        app.logger.error(f"Error viewing original content for document {doc_id}: {e}")
-        flash(f'Error loading original content: {str(e)}', 'error')
-        return redirect(url_for('document_detail', doc_id=doc_id))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 @app.route('/document/<int:doc_id>/file')
@@ -615,96 +279,40 @@ def api_documents():
 def refresh_data():
     """Refresh database data from disk."""
     if refresh_database():
-        flash('Database refreshed successfully.', 'success')
+        return jsonify({'success': True, 'message': 'Database refreshed successfully'})
     else:
-        flash('Failed to refresh database.', 'error')
-    return redirect(url_for('index'))
+        return jsonify({'success': False, 'message': 'Failed to refresh database'}), 500
 
 
-@app.route('/stats')
-def stats():
-    """Show database statistics."""
-    # Refresh data to ensure we have latest documents
-    refresh_database()
+@app.route('/api/verbose', methods=['GET', 'POST'])
+def toggle_verbose():
+    """Get or set verbose logging state."""
+    import logging
 
-    all_docs = database.get_all_documents()
+    current_level = app.logger.getEffectiveLevel()
+    is_verbose = current_level == logging.DEBUG
 
-    # Calculate statistics
-    total_docs = len(all_docs)
-    categories = {}
-    file_types = {}
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        enable_verbose = data.get('verbose', False)
 
-    for doc in all_docs:
-        # Category stats
-        doc_categories = doc.get('categories', '').split('-')
-        for cat in doc_categories:
-            if cat:
-                categories[cat] = categories.get(cat, 0) + 1
+        if enable_verbose:
+            app.logger.setLevel(logging.DEBUG)
+            # Also set other loggers to debug
+            logging.getLogger('werkzeug').setLevel(logging.DEBUG)
+            return jsonify({'success': True, 'verbose': True, 'message': 'Verbose logging enabled'})
+        else:
+            app.logger.setLevel(logging.INFO)
+            logging.getLogger('werkzeug').setLevel(logging.INFO)
+            return jsonify({'success': True, 'verbose': False, 'message': 'Verbose logging disabled'})
 
-        # File type stats
-        ext = doc.get('metadata', {}).get('file_extension', '')
-        if ext:
-            file_types[ext] = file_types.get(ext, 0) + 1
-
-    return render_template('stats.html',
-                         total_docs=total_docs,
-                         categories=sorted(categories.items(), key=lambda x: x[1], reverse=True),
-                         file_types=sorted(file_types.items(), key=lambda x: x[1], reverse=True))
+    return jsonify({'verbose': is_verbose})
 
 
-@app.template_filter('format_date')
-def format_date(date_string):
-    """Format ISO date string for display."""
-    if not date_string:
-        return 'Unknown'
-    try:
-        from datetime import datetime
-        dt = datetime.fromisoformat(date_string.replace('Z', '+00:00'))
-        return dt.strftime('%Y-%m-%d %H:%M')
-    except:
-        return date_string
 
 
-@app.template_filter('format_timestamp')
-def format_timestamp(timestamp):
-    """Format Unix timestamp for display."""
-    if not timestamp:
-        return 'Unknown'
-    try:
-        from datetime import datetime
-        dt = datetime.fromtimestamp(timestamp)
-        return dt.strftime('%Y-%m-%d %H:%M')
-    except:
-        return str(timestamp)
 
 
-@app.template_filter('truncate_content')
-def truncate_content(content, length=200):
-    """Truncate content to specified length."""
-    if not content:
-        return ''
-    if len(content) <= length:
-        return content
-    return content[:length] + '...'
-
-
-@app.context_processor
-def utility_processor():
-    """Add utility functions to template context."""
-    def get_file_icon(extension):
-        icon_map = {
-            '.pdf': '📄',
-            '.docx': '📝',
-            '.doc': '📝',
-            '.txt': '📃',
-            '.png': '🖼️',
-            '.jpg': '🖼️',
-            '.jpeg': '🖼️',
-            '.gif': '🖼️',
-        }
-        return icon_map.get(extension.lower(), '📄')
-
-    return dict(get_file_icon=get_file_icon)
 
 
 if __name__ == '__main__':

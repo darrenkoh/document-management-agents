@@ -2,6 +2,47 @@
 
 An intelligent Python agent that automatically classifies documents by content using a local LLM (Ollama), with advanced OCR capabilities for image-based PDFs via DeepSeek-OCR, stores classifications in a NoSQL database, and provides semantic search (RAG) capabilities with beautiful markdown rendering.
 
+## 🎉 UI Refactored to React!
+
+The web interface has been completely refactored from Flask server-side templates to a modern **React frontend** with TypeScript!
+
+### ✨ New Features
+- **Modern, responsive design** that works perfectly on mobile devices
+- **Clean, professional UI** without retro gaming themes
+- **Fast client-side rendering** for better performance
+- **TypeScript** for better development experience
+- **Component-based architecture** for maintainability
+
+### 🚀 Quick Start with React UI
+
+#### **Clean Architecture: Separate Services**
+
+- **Flask Backend** (port 5000): Pure API server
+- **React Frontend** (port 5173): Modern UI
+
+```bash
+# Terminal 1: Flask API Backend
+source venv/bin/activate
+python app.py  # APIs on port 5000
+
+# Terminal 2: React Frontend
+npm run dev   # UI on port 5173
+```
+
+#### **Production Deployment**
+
+```bash
+# Build React for production
+npm run build
+
+# Serve React static files with nginx/apache
+# Flask API runs separately: python app.py
+```
+
+### 📖 Detailed Documentation
+
+See [README_REACT_FRONTEND.md](README_REACT_FRONTEND.md) for complete React frontend documentation, migration guide, and development setup.
+
 ## Features
 
 - **Content-based Classification**: Uses Ollama LLM to analyze file content and classify documents (supports up to 3 categories per document)
@@ -17,6 +58,7 @@ An intelligent Python agent that automatically classifies documents by content u
 - **Relevance Scoring**: Each search result includes both similarity score and LLM relevance analysis
 - **Smart Filtering**: Documents below relevance threshold are filtered out for better results
 - **Web Interface**: Beautiful web UI for browsing documents, semantic search, and viewing results
+- **Verbose Logging Control**: Real-time logging level toggle in React UI
 - **Watch Mode**: Continuously monitors a directory for new files
 - **Batch Processing**: Process all files in a directory at once
 - **Configurable**: Easy-to-use YAML configuration file

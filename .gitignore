@@ -25,6 +25,7 @@ venv/
 env/
 ENV/
 .venv
+.vite/
 
 # IDE
 .vscode/
@@ -67,3 +68,4 @@ documents.db
 classifications.json
 vector_store/
 
+node_modules
