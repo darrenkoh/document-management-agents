@@ -287,6 +287,48 @@ def refresh_data():
         return jsonify({'success': False, 'message': 'Failed to refresh database'}), 500
 
 
+@app.route('/api/stats')
+def api_get_stats():
+    """Get document statistics."""
+    try:
+        # Refresh data to ensure we have latest documents
+        refresh_database()
+
+        all_docs = database.get_all_documents()
+        total_docs = len(all_docs)
+
+        # Count categories
+        category_counts = {}
+        file_type_counts = {}
+
+        for doc in all_docs:
+            # Count categories
+            categories = doc.get('categories', '').split(',')
+            for category in categories:
+                category = category.strip()
+                if category:
+                    category_counts[category] = category_counts.get(category, 0) + 1
+
+            # Count file types
+            filename = doc.get('filename', '')
+            if '.' in filename:
+                file_ext = filename.split('.')[-1].lower()
+                file_type_counts[file_ext] = file_type_counts.get(file_ext, 0) + 1
+
+        # Convert to sorted lists of tuples
+        categories = sorted(category_counts.items(), key=lambda x: x[1], reverse=True)
+        file_types = sorted(file_type_counts.items(), key=lambda x: x[1], reverse=True)
+
+        return jsonify({
+            'total_docs': total_docs,
+            'categories': categories,
+            'file_types': file_types
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/verbose', methods=['GET', 'POST'])
 def toggle_verbose():
     """Get or set verbose logging state."""

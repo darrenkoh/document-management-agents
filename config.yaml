@@ -103,7 +103,7 @@ semantic_search:
   # Lower values return more results, higher values return more precise results
   min_similarity_threshold: 0.1
   # Maximum number of results to retrieve before filtering (for better ranking)
-  max_candidates: 30
+  max_candidates: 3
   # Enable debug logging for similarity calculations
   debug_similarity: true
   # Enable RAG (Retrieval-Augmented Generation) analysis
