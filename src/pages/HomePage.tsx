@@ -32,21 +32,43 @@ export default function HomePage() {
     }
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = async () => {
+    console.log('handleSearch called with query:', query);
     if (!query.trim()) {
+      console.log('Query is empty');
       toast.error('Please enter a search query');
       return;
     }
 
+    console.log('Setting isSearching to true');
     setIsSearching(true);
     try {
-      // For now, redirect to documents page with search
-      navigate(`/documents?search=${encodeURIComponent(query.trim())}`);
+      console.log('Calling apiClient.searchSemantic...');
+      // Perform semantic search using the agentic RAG API
+      const results = await apiClient.searchSemantic(query.trim());
+      console.log('Search results received:', results);
+      console.log('Number of results:', results.results.length);
+
+      if (results.results.length === 0) {
+        console.log('No results found, showing error toast');
+        toast.error('No documents found matching your query');
+      } else {
+        console.log('Results found, navigating to documents page');
+        // Navigate to documents page with semantic search results
+        // We'll pass the search results via state since they're already fetched
+        navigate('/documents', {
+          state: {
+            semanticSearchResults: results.results,
+            semanticSearchQuery: query.trim()
+          }
+        });
+        console.log('Navigation called');
+      }
     } catch (error) {
-      console.error('Search failed:', error);
+      console.error('Semantic search failed:', error);
       toast.error('Search failed. Please try again.');
     } finally {
+      console.log('Setting isSearching to false');
       setIsSearching(false);
     }
   };
@@ -84,7 +106,7 @@ export default function HomePage() {
           </p>
 
           {/* Search Form */}
-          <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-gray-400" />
@@ -94,14 +116,14 @@ export default function HomePage() {
                 placeholder="Search documents, categories, or content..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="pl-12 pr-4 py-4 text-lg h-14"
+                className="pl-12 pr-24 py-4 text-lg h-14"
                 disabled={isSearching}
               />
               <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
                 <Button
-                  type="submit"
                   disabled={isSearching || !query.trim()}
                   className="h-10 px-6"
+                  onClick={handleSearch}
                 >
                   {isSearching ? (
                     <LoadingSpinner size="sm" />
@@ -111,7 +133,7 @@ export default function HomePage() {
                 </Button>
               </div>
             </div>
-          </form>
+          </div>
 
           {/* Search Examples */}
           <div className="mt-6 text-sm text-gray-500">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Filter, Download, Eye, FileText } from 'lucide-react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { Search, Filter, Download, Eye, FileText, Brain } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 export default function DocumentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,9 +23,37 @@ export default function DocumentsPage() {
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
+  // Semantic search state
+  const [isSemanticSearch, setIsSemanticSearch] = useState(false);
+  const [semanticSearchResults, setSemanticSearchResults] = useState<Document[]>([]);
+  const [semanticSearchQuery, setSemanticSearchQuery] = useState('');
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Handle semantic search results from navigation state
   useEffect(() => {
-    loadDocuments();
-  }, [currentPage, searchQuery, categoryFilter]);
+    console.log('DocumentsPage useEffect triggered, location.state:', location.state);
+    const state = location.state as any;
+    if (state?.semanticSearchResults) {
+      console.log('Semantic search results found in state:', state.semanticSearchResults.length, 'results');
+      setSemanticSearchResults(state.semanticSearchResults);
+      setSemanticSearchQuery(state.semanticSearchQuery || '');
+      setIsSemanticSearch(true);
+      setDocuments(state.semanticSearchResults);
+      setLoading(false);
+      setHasInitialized(true);
+      console.log('DocumentsPage state set, semantic search mode initialized');
+    } else {
+      console.log('No semantic search results in state, initializing regular mode');
+      setHasInitialized(true);
+    }
+  }, []); // Only run once on mount
+
+  useEffect(() => {
+    // Only load documents after initialization and if we're not in semantic search mode
+    if (hasInitialized && !isSemanticSearch) {
+      loadDocuments();
+    }
+  }, [hasInitialized, currentPage, searchQuery, categoryFilter, isSemanticSearch]);
 
   useEffect(() => {
     // Update URL params when filters change
@@ -65,9 +94,37 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const performSemanticSearch = async (query: string) => {
+    setLoading(true);
+    try {
+      const results = await apiClient.searchSemantic(query);
+      setSemanticSearchResults(results.results);
+      setSemanticSearchQuery(query);
+      setIsSemanticSearch(true);
+      setDocuments(results.results);
+      setTotalPages(1);
+      setTotalDocuments(results.results.length);
+      setCurrentPage(1);
+    } catch (error) {
+      console.error('Semantic search failed:', error);
+      toast.error('Semantic search failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentPage(1); // Reset to first page when searching
+
+    if (isSemanticSearch) {
+      // Perform semantic search
+      if (searchQuery.trim()) {
+        await performSemanticSearch(searchQuery.trim());
+      }
+    } else {
+      // Regular search - reset to first page
+      setCurrentPage(1);
+    }
   };
 
   const handleCategoryChange = (category: string) => {
@@ -79,6 +136,33 @@ export default function DocumentsPage() {
     setSearchQuery('');
     setCategoryFilter('');
     setCurrentPage(1);
+    // If in semantic search mode, clear semantic search as well
+    if (isSemanticSearch) {
+      setIsSemanticSearch(false);
+      setSemanticSearchResults([]);
+      setSemanticSearchQuery('');
+      // Reload regular documents
+      loadDocuments();
+    }
+  };
+
+  const toggleSearchMode = () => {
+    if (isSemanticSearch) {
+      // Switching from semantic to regular search
+      setIsSemanticSearch(false);
+      setSemanticSearchResults([]);
+      setSemanticSearchQuery('');
+      setSearchQuery('');
+      setCategoryFilter('');
+      setCurrentPage(1);
+      loadDocuments();
+    } else {
+      // Switching to semantic search
+      setIsSemanticSearch(true);
+      setSearchQuery('');
+      setCategoryFilter('');
+      setCurrentPage(1);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -105,47 +189,71 @@ export default function DocumentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Documents</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isSemanticSearch ? 'Semantic Search Results' : 'Documents'}
+          </h1>
           <p className="text-gray-600 mt-1">
-            {totalDocuments} document{totalDocuments !== 1 ? 's' : ''} found
+            {isSemanticSearch ? (
+              semanticSearchQuery ? (
+                <>Found {totalDocuments} document{totalDocuments !== 1 ? 's' : ''} matching "{semanticSearchQuery}"</>
+              ) : (
+                'Enter a search query to find documents using AI-powered semantic search'
+              )
+            ) : (
+              <>{totalDocuments} document{totalDocuments !== 1 ? 's' : ''} found</>
+            )}
           </p>
         </div>
+        {/* Search Mode Toggle */}
+        <Button
+          variant={isSemanticSearch ? "default" : "outline"}
+          onClick={toggleSearchMode}
+          className="flex items-center gap-2"
+        >
+          <Brain className="w-4 h-4" />
+          {isSemanticSearch ? 'AI Search' : 'Regular Search'}
+        </Button>
       </div>
 
-      {/* Filters */}
+      {/* Search */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            <form onSubmit={handleSearch} className="flex-1">
-              <div className="relative">
+          <form onSubmit={handleSearch} className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 relative">
+              {isSemanticSearch ? (
+                <Brain className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-400 w-5 h-5" />
+              ) : (
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input
-                  type="text"
-                  placeholder="Search documents..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </form>
-
-            {/* Category Filter */}
-            <div className="flex items-center gap-2 min-w-0 lg:min-w-[200px]">
-              <Filter className="text-gray-400 w-5 h-5 flex-shrink-0" />
-              <select
-                value={categoryFilter}
-                onChange={(e) => handleCategoryChange(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-              >
-                <option value="">All Categories</option>
-                {availableCategories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
+              )}
+              <Input
+                type="text"
+                placeholder={isSemanticSearch ? "Search using AI-powered semantic search..." : "Search documents..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
+
+            {!isSemanticSearch && (
+              <>
+                {/* Category Filter */}
+                <div className="flex items-center gap-2 min-w-0 lg:min-w-[200px]">
+                  <Filter className="text-gray-400 w-5 h-5 flex-shrink-0" />
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => handleCategoryChange(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                  >
+                    <option value="">All Categories</option>
+                    {availableCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
             {/* Clear Filters */}
             {hasActiveFilters && (
@@ -153,23 +261,25 @@ export default function DocumentsPage() {
                 Clear Filters
               </Button>
             )}
-          </div>
+          </form>
 
           {/* Active Filters Display */}
           {hasActiveFilters && (
             <div className="mt-4 flex flex-wrap gap-2">
               {searchQuery && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary-100 text-primary-800">
-                  Search: "{searchQuery}"
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${
+                  isSemanticSearch ? 'bg-purple-100 text-purple-800' : 'bg-primary-100 text-primary-800'
+                }`}>
+                  {isSemanticSearch ? 'AI Search' : 'Search'}: "{searchQuery}"
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="ml-2 text-primary-600 hover:text-primary-800"
+                    className={`ml-2 ${isSemanticSearch ? 'text-purple-600 hover:text-purple-800' : 'text-primary-600 hover:text-primary-800'}`}
                   >
                     ×
                   </button>
                 </span>
               )}
-              {categoryFilter && (
+              {categoryFilter && !isSemanticSearch && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-secondary-100 text-secondary-800">
                   Category: {categoryFilter}
                   <button
@@ -259,8 +369,8 @@ export default function DocumentsPage() {
             ))}
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
+          {/* Pagination - only show for regular search mode */}
+          {!isSemanticSearch && totalPages > 1 && (
             <div className="flex justify-center mt-8">
               <div className="flex items-center gap-2">
                 <Button
