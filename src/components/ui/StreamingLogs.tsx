@@ -20,14 +20,13 @@ export function StreamingLogs({ isVisible, logs = [], isStreaming = false }: Str
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  console.log('StreamingLogs render - logs:', logs.length, 'isStreaming:', isStreaming);
 
   // Auto-expand when streaming starts
   useEffect(() => {
     if (isStreaming && !isExpanded) {
       setIsExpanded(true);
     }
-  }, [isStreaming, isExpanded]);
+  }, [isStreaming]);
 
   // Auto-scroll to bottom when new logs arrive (only if expanded)
   useEffect(() => {
@@ -83,11 +82,13 @@ export function StreamingLogs({ isVisible, logs = [], isStreaming = false }: Str
               {logs.length} steps
             </span>
           )}
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          )}
+          <div className="p-1 hover:bg-gray-200 rounded cursor-pointer">
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+            )}
+          </div>
         </div>
       </button>
 
@@ -133,6 +134,7 @@ export function StreamingLogs({ isVisible, logs = [], isStreaming = false }: Str
 export function useStreamingLogs(onLogReceived?: (log: StreamingLogMessage) => void) {
   const [logs, setLogs] = useState<StreamingLogMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [cancelToken, setCancelToken] = useState<{ cancelled: boolean }>({ cancelled: false });
 
   const addLog = (log: StreamingLogMessage) => {
     setLogs(prev => [...prev, log]);
@@ -142,6 +144,7 @@ export function useStreamingLogs(onLogReceived?: (log: StreamingLogMessage) => v
   const startStreaming = async (query: string, onComplete?: (results: any) => void, onError?: (error: string) => void) => {
     setLogs([]);
     setIsStreaming(true);
+    setCancelToken({ cancelled: false });
 
     try {
       const response = await fetch('/api/search/stream', {
@@ -166,6 +169,13 @@ export function useStreamingLogs(onLogReceived?: (log: StreamingLogMessage) => v
       let buffer = '';
 
       while (true) {
+        // Check if search was cancelled
+        if (cancelToken.cancelled) {
+          console.log('🚫 Search cancelled');
+          reader.cancel();
+          break;
+        }
+
         const { done, value } = await reader.read();
 
         if (done) {
@@ -183,6 +193,12 @@ export function useStreamingLogs(onLogReceived?: (log: StreamingLogMessage) => v
             try {
               const data: StreamingLogMessage = JSON.parse(line.slice(6));
               console.log('🎯 Real-time message received:', data);
+
+              // Check again if cancelled before processing
+              if (cancelToken.cancelled) {
+                console.log('🚫 Ignoring message - search cancelled');
+                continue;
+              }
 
               // Use React's flushSync to force immediate re-render for true real-time updates
               flushSync(() => {
@@ -211,9 +227,12 @@ export function useStreamingLogs(onLogReceived?: (log: StreamingLogMessage) => v
         await new Promise(resolve => setTimeout(resolve, 10));
       }
     } catch (error) {
-      console.error('Streaming error:', error);
-      setIsStreaming(false);
-      onError?.(error instanceof Error ? error.message : 'Connection error');
+      // Don't show error if cancelled
+      if (!cancelToken.cancelled) {
+        console.error('Streaming error:', error);
+        setIsStreaming(false);
+        onError?.(error instanceof Error ? error.message : 'Connection error');
+      }
     }
   };
 
@@ -222,5 +241,13 @@ export function useStreamingLogs(onLogReceived?: (log: StreamingLogMessage) => v
     setIsStreaming(false);
   };
 
-  return { logs, isStreaming, startStreaming, clearLogs };
+  const cancelSearch = () => {
+    console.log('🚫 Cancelling search operation');
+    setCancelToken({ cancelled: true });
+    setIsStreaming(false);
+    // Trigger error callback with special cancellation message
+    // This will be caught and handled appropriately
+  };
+
+  return { logs, isStreaming, startStreaming, clearLogs, cancelSearch };
 }

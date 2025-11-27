@@ -19,7 +19,7 @@ export default function HomePage() {
   const navigate = useNavigate();
 
   // Streaming logs hook with callback
-  const { isStreaming, startStreaming, clearLogs } = useStreamingLogs((log) => {
+  const { isStreaming, startStreaming, clearLogs, cancelSearch } = useStreamingLogs((log) => {
     setStreamingLogs(prev => [...prev, log]);
   });
 
@@ -67,12 +67,23 @@ export default function HomePage() {
         setIsSearching(false);
       },
       (error) => {
-        // Error callback
-        console.error('Streaming semantic search failed:', error);
-        toast.error(`Search failed: ${error}`);
+        // Error callback - don't show error if cancelled
+        if (error !== 'cancelled') {
+          console.error('Streaming semantic search failed:', error);
+          toast.error(`Search failed: ${error}`);
+        }
         setIsSearching(false);
       }
     );
+  };
+
+  const handleCancel = () => {
+    console.log('Cancelling search...');
+    cancelSearch();
+    setIsSearching(false);
+    setStreamingLogs([]);
+    clearLogs();
+    toast('Search cancelled');
   };
 
   const formatDate = (dateString: string) => {
@@ -118,17 +129,23 @@ export default function HomePage() {
                 placeholder="Search documents, categories, or content..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isSearching && query.trim()) {
+                    handleSearch();
+                  }
+                }}
                 className="pl-12 pr-24 py-4 text-lg h-14"
                 disabled={isSearching}
               />
               <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
                 <Button
-                  disabled={isSearching || !query.trim()}
+                  disabled={!query.trim()}
+                  variant={isSearching ? "destructive" : "default"}
                   className="h-10 px-6"
-                  onClick={handleSearch}
+                  onClick={isSearching ? handleCancel : handleSearch}
                 >
                   {isSearching ? (
-                    <LoadingSpinner size="sm" />
+                    'Cancel'
                   ) : (
                     'Search'
                   )}
