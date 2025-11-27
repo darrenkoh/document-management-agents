@@ -348,14 +348,15 @@ class DocumentAgent:
         return ' '.join(filtered_words)
 
 
-    def search(self, query: str, top_k: int = None, max_candidates: int = None, use_rag: bool = None) -> List[Dict]:
-        """Perform semantic search on documents with optional RAG analysis.
+    def search(self, query: str, top_k: int = None, max_candidates: int = None, use_rag: bool = None, progress_callback=None) -> List[Dict]:
+        """Perform semantic search on documents with optional RAG analysis and progress reporting.
 
         Args:
             query: Search query text
             top_k: Number of results to return (uses config default if None)
             max_candidates: Maximum number of candidates to retrieve before filtering (uses config default if None)
             use_rag: Whether to use RAG analysis for relevance assessment (uses config default if None)
+            progress_callback: Optional callback function to report progress (message, type)
 
         Returns:
             List of matching documents with similarity scores and optional RAG analysis
@@ -373,8 +374,12 @@ class DocumentAgent:
         debug_enabled = self.config.semantic_search_debug or logger.isEnabledFor(logging.DEBUG)
 
         # Preprocess query for better semantic search
+        if progress_callback:
+            progress_callback(f"Preprocessing query: '{query}'", "log")
+        logger.info(f"Preprocessing query: '{query}'")
         processed_query = self._preprocess_query(query)
-        logger.info(f"Performing semantic search for: '{query}' -> '{processed_query}' (top_k={top_k}, threshold={threshold}, rag={use_rag}, debug={debug_enabled})")
+        logger.info(f"Query preprocessed: '{query}' -> '{processed_query}'")
+        logger.info(f"Search parameters: top_k={top_k}, threshold={threshold}, rag={use_rag}, debug={debug_enabled}")
 
         # Check if embedding generator is available
         if not hasattr(self, 'embedding_generator') or self.embedding_generator is None:
@@ -382,8 +387,9 @@ class DocumentAgent:
             return []
 
         # Generate query embedding
-        if debug_enabled:
-            logger.debug("Generating query embedding...")
+        if progress_callback:
+            progress_callback("Generating query embedding using AI model...", "log")
+        logger.info("Generating query embedding...")
         try:
             query_embedding = self.embedding_generator.generate_query_embedding(processed_query)
         except Exception as e:
@@ -398,12 +404,14 @@ class DocumentAgent:
             logger.error(f"Invalid query embedding: {type(query_embedding)}, length: {len(query_embedding) if isinstance(query_embedding, list) else 'N/A'}")
             return []
 
-        if debug_enabled:
-            logger.debug(f"Generated query embedding with {len(query_embedding)} dimensions")
+        logger.info(f"Generated query embedding with {len(query_embedding)} dimensions")
+        if progress_callback:
+            progress_callback(f"Generated {len(query_embedding)}-dimensional embedding vector", "log")
 
         # Search database
-        if debug_enabled:
-            logger.debug("Searching database for semantic matches...")
+        if progress_callback:
+            progress_callback("Searching document database for semantic matches...", "log")
+        logger.info("Searching database for semantic matches...")
         try:
             results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold, max_candidates=max_candidates)
         except Exception as e:
@@ -411,12 +419,17 @@ class DocumentAgent:
             return []
 
         logger.info(f"Found {len(results)} matching documents via semantic search")
+        if progress_callback:
+            progress_callback(f"Found {len(results)} potential matches in database", "log")
 
         # Apply RAG analysis if enabled
         if use_rag and results:
-            logger.info("Applying RAG analysis for relevance assessment...")
+            if progress_callback:
+                progress_callback(f"Analyzing document relevance using AI (RAG) on {len(results)} matches...", "log")
+            logger.info(f"Applying RAG analysis for relevance assessment on {len(results)} documents...")
             try:
                 analyzed_results = self.rag_agent.analyze_relevance(query, results, verbose=debug_enabled)
+                logger.info("RAG analysis completed, processing results...")
 
                 # Filter results based on relevance threshold
                 filtered_results = []
@@ -427,12 +440,17 @@ class DocumentAgent:
 
                 results = filtered_results
                 logger.info(f"RAG analysis completed. Filtered to {len(results)} relevant documents (threshold: {rag_threshold})")
+                if progress_callback:
+                    progress_callback(f"AI relevance analysis complete. Kept {len(results)} most relevant documents", "log")
 
             except Exception as e:
                 logger.error(f"RAG analysis failed: {e}")
                 # Continue with original results if RAG fails
 
         if results:
+            logger.info(f"Returning {len(results)} search results")
+            if progress_callback:
+                progress_callback(f"Search completed successfully! Found {len(results)} relevant documents", "complete")
             if debug_enabled:
                 relevance_info = ""
                 if use_rag:
@@ -445,6 +463,12 @@ class DocumentAgent:
                     logger.info(f"Result {i+1}: {result.get('filename', 'N/A')} (similarity: {results[i].get('similarity', 'N/A')}{relevance_info})")
             else:
                 logger.info(f"Top result: {results[0].get('filename', 'N/A')} (similarity: {results[0].get('similarity', 'N/A')})")
+        else:
+            logger.info("No results found for the search query")
+            if progress_callback:
+                progress_callback("No documents found matching your search query", "complete")
+
+        logger.info("Semantic search completed")
         return results
     
     def search_by_category(self, category: str) -> List[Dict]:

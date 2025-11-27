@@ -3,7 +3,7 @@
 import os
 import argparse
 from pathlib import Path
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
 from config import Config
 from database_sqlite_standalone import SQLiteDocumentDatabase
@@ -57,7 +57,7 @@ CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:3000", "http://localhost:5173", "http://localhost:5000"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization", "Cache-Control"]
     }
 })
 
@@ -181,6 +181,99 @@ def api_search():
     except Exception as e:
         app.logger.error(f"API search error: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/search/stream', methods=['POST'])
+def api_search_stream():
+    """API endpoint for streaming semantic search with real-time logs."""
+    data = request.get_json()
+    query = data.get('query', '').strip()
+
+    if not query:
+        return jsonify({'error': 'Query required'}), 400
+
+    def generate():
+        import json
+        import time
+        import queue
+        import threading
+
+        # Thread-safe queue for real-time message passing
+        message_queue = queue.Queue()
+        search_completed = threading.Event()
+        search_results = {}
+        search_error = {}
+
+        def progress_callback(message, message_type='log'):
+            """Callback that immediately queues messages for streaming"""
+            message_queue.put({'type': message_type, 'message': message})
+
+        def search_worker():
+            """Background thread that performs the search"""
+            try:
+                app.logger.info(f"Starting search for query: {query}")
+                results = agent.search(query, top_k=50, progress_callback=progress_callback)
+                search_results['data'] = results
+                app.logger.info(f"Search completed with {len(results)} results")
+            except Exception as e:
+                app.logger.error(f"Search error: {e}")
+                search_error['error'] = str(e)
+            finally:
+                search_completed.set()
+
+        # Start the search in a background thread
+        search_thread = threading.Thread(target=search_worker, daemon=True)
+        search_thread.start()
+
+        try:
+            # Send initial message immediately
+            start_data = json.dumps({'type': 'start', 'message': f'Starting AI-powered semantic search for: "{query}"'})
+            yield f"data: {start_data}\n\n"
+
+            # Stream messages as they become available
+            while not search_completed.is_set():
+                try:
+                    # Wait for a message with timeout
+                    message = message_queue.get(timeout=0.1)
+                    data = json.dumps(message)
+                    yield f"data: {data}\n\n"
+                except queue.Empty:
+                    # No message available, continue checking
+                    continue
+
+            # Send any remaining messages
+            while not message_queue.empty():
+                try:
+                    message = message_queue.get_nowait()
+                    data = json.dumps(message)
+                    yield f"data: {data}\n\n"
+                except queue.Empty:
+                    break
+
+            # Check for errors
+            if search_error:
+                error_data = json.dumps({'type': 'error', 'message': search_error['error']})
+                yield f"data: {error_data}\n\n"
+                return
+
+            # Send completion message
+            results = search_results.get('data', [])
+            complete_data = json.dumps({'type': 'complete', 'results': len(results), 'message': 'Search completed successfully'})
+            yield f"data: {complete_data}\n\n"
+
+            # Send final results
+            results_data = json.dumps({'type': 'results', 'data': {'query': query, 'results': results, 'count': len(results)}})
+            yield f"data: {results_data}\n\n"
+
+        except Exception as e:
+            error_data = json.dumps({'type': 'error', 'message': str(e)})
+            yield f"data: {error_data}\n\n"
+
+    response = Response(generate(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Connection'] = 'keep-alive'
+    response.headers['X-Accel-Buffering'] = 'no'  # Disable nginx buffering if used
+    return response
 
 
 @app.route('/debug/search')

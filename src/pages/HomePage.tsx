@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { StreamingLogs, useStreamingLogs, StreamingLogMessage } from '@/components/ui/StreamingLogs';
 import { Document } from '@/types';
 import { apiClient, getFileIcon } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -14,7 +15,14 @@ export default function HomePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [recentDocs, setRecentDocs] = useState<Document[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const [streamingLogs, setStreamingLogs] = useState<StreamingLogMessage[]>([]);
   const navigate = useNavigate();
+
+  // Streaming logs hook with callback
+  const { isStreaming, startStreaming, clearLogs } = useStreamingLogs((log) => {
+    setStreamingLogs(prev => [...prev, log]);
+  });
+
 
   useEffect(() => {
     loadRecentDocuments();
@@ -33,44 +41,38 @@ export default function HomePage() {
   };
 
   const handleSearch = async () => {
-    console.log('handleSearch called with query:', query);
     if (!query.trim()) {
-      console.log('Query is empty');
       toast.error('Please enter a search query');
       return;
     }
 
-    console.log('Setting isSearching to true');
     setIsSearching(true);
-    try {
-      console.log('Calling apiClient.searchSemantic...');
-      // Perform semantic search using the agentic RAG API
-      const results = await apiClient.searchSemantic(query.trim());
-      console.log('Search results received:', results);
-      console.log('Number of results:', results.results.length);
+    setStreamingLogs([]);
+    clearLogs();
 
-      if (results.results.length === 0) {
-        console.log('No results found, showing error toast');
-        toast.error('No documents found matching your query');
-      } else {
-        console.log('Results found, navigating to documents page');
-        // Navigate to documents page with semantic search results
-        // We'll pass the search results via state since they're already fetched
-        navigate('/documents', {
-          state: {
-            semanticSearchResults: results.results,
-            semanticSearchQuery: query.trim()
-          }
-        });
-        console.log('Navigation called');
+    startStreaming(query.trim(),
+      (results) => {
+        // Success callback
+        if (results.results.length === 0) {
+          toast.error('No documents found matching your query');
+        } else {
+          // Navigate to documents page with semantic search results
+          navigate('/documents', {
+            state: {
+              semanticSearchResults: results.results,
+              semanticSearchQuery: query.trim()
+            }
+          });
+        }
+        setIsSearching(false);
+      },
+      (error) => {
+        // Error callback
+        console.error('Streaming semantic search failed:', error);
+        toast.error(`Search failed: ${error}`);
+        setIsSearching(false);
       }
-    } catch (error) {
-      console.error('Semantic search failed:', error);
-      toast.error('Search failed. Please try again.');
-    } finally {
-      console.log('Setting isSearching to false');
-      setIsSearching(false);
-    }
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -134,6 +136,17 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* Streaming Logs - show during search */}
+          {(isStreaming || streamingLogs.length > 0) && (
+            <div className="mt-6 max-w-2xl mx-auto">
+              <StreamingLogs
+                isVisible={true}
+                logs={streamingLogs}
+                isStreaming={isStreaming}
+              />
+            </div>
+          )}
 
           {/* Search Examples */}
           <div className="mt-6 text-sm text-gray-500">

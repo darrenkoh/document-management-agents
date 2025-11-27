@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { StreamingLogs, useStreamingLogs } from '@/components/ui/StreamingLogs';
 import { Document, DocumentsResponse } from '@/types';
 import { apiClient, getFileIcon, formatFileSize } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -25,9 +26,11 @@ export default function DocumentsPage() {
 
   // Semantic search state
   const [isSemanticSearch, setIsSemanticSearch] = useState(false);
-  const [semanticSearchResults, setSemanticSearchResults] = useState<Document[]>([]);
   const [semanticSearchQuery, setSemanticSearchQuery] = useState('');
   const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Streaming logs
+  const { logs, isStreaming, startStreaming, clearLogs } = useStreamingLogs();
 
   // Handle semantic search results from navigation state
   useEffect(() => {
@@ -35,7 +38,6 @@ export default function DocumentsPage() {
     const state = location.state as any;
     if (state?.semanticSearchResults) {
       console.log('Semantic search results found in state:', state.semanticSearchResults.length, 'results');
-      setSemanticSearchResults(state.semanticSearchResults);
       setSemanticSearchQuery(state.semanticSearchQuery || '');
       setIsSemanticSearch(true);
       setDocuments(state.semanticSearchResults);
@@ -95,22 +97,32 @@ export default function DocumentsPage() {
   };
 
   const performSemanticSearch = async (query: string) => {
+    console.log('performSemanticSearch called with query:', query);
     setLoading(true);
-    try {
-      const results = await apiClient.searchSemantic(query);
-      setSemanticSearchResults(results.results);
-      setSemanticSearchQuery(query);
-      setIsSemanticSearch(true);
-      setDocuments(results.results);
-      setTotalPages(1);
-      setTotalDocuments(results.results.length);
-      setCurrentPage(1);
-    } catch (error) {
-      console.error('Semantic search failed:', error);
-      toast.error('Semantic search failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    clearLogs();
+
+    const cleanup = startStreaming(query,
+      (results) => {
+        // Success callback
+        setSemanticSearchQuery(query);
+        setIsSemanticSearch(true);
+        setDocuments(results.results);
+        setTotalPages(1);
+        setTotalDocuments(results.results.length);
+        setCurrentPage(1);
+        setLoading(false);
+        toast.success(`Found ${results.results.length} results for "${query}"`);
+      },
+      (error) => {
+        // Error callback
+        console.error('Streaming semantic search failed:', error);
+        toast.error(`Semantic search failed: ${error}`);
+        setLoading(false);
+      }
+    );
+
+    // Store cleanup function for potential cancellation
+    return cleanup;
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -139,8 +151,8 @@ export default function DocumentsPage() {
     // If in semantic search mode, clear semantic search as well
     if (isSemanticSearch) {
       setIsSemanticSearch(false);
-      setSemanticSearchResults([]);
       setSemanticSearchQuery('');
+      clearLogs();
       // Reload regular documents
       loadDocuments();
     }
@@ -150,8 +162,8 @@ export default function DocumentsPage() {
     if (isSemanticSearch) {
       // Switching from semantic to regular search
       setIsSemanticSearch(false);
-      setSemanticSearchResults([]);
       setSemanticSearchQuery('');
+      clearLogs();
       setSearchQuery('');
       setCategoryFilter('');
       setCurrentPage(1);
@@ -294,6 +306,13 @@ export default function DocumentsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Streaming Logs - show during streaming regardless of search mode */}
+      {(isStreaming || logs.length > 0) && (
+        <StreamingLogs
+          isVisible={true}
+        />
+      )}
 
       {/* Documents Grid */}
       {loading ? (
