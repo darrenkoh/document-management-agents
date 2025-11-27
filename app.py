@@ -9,6 +9,9 @@ from config import Config
 from database_sqlite_standalone import SQLiteDocumentDatabase
 from agent import DocumentAgent
 from file_handler import FileHandler
+import math
+
+ITEMS_PER_PAGE = 20
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Document Classification Agent - Web Interface')

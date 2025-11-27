@@ -13,7 +13,15 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/refresh': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/document': {
+        target: 'http://localhost:8081',
         changeOrigin: true,
       },
     },
