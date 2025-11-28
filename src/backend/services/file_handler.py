@@ -299,7 +299,7 @@ class FileHandler:
             return (None, 0.0)
 
     def _has_meaningful_content(self, text: str) -> bool:
-        """Check if text contains meaningful content (not just boilerplate or formatting).
+        """Check if text contains meaningful content (not just boilerplate, formatting, or OCR metadata).
 
         Args:
             text: The text to check
@@ -313,6 +313,13 @@ class FileHandler:
         # Remove common markdown boilerplate
         text = text.replace('```markdown', '').replace('```', '').strip()
 
+        # Remove DeepSeek OCR metadata tokens
+        text = text.replace('<|ref|>', '').replace('<|/ref|>', '').replace('<|det|>', '').replace('<|/det|>', '').strip()
+
+        # Remove coordinate data (patterns like [[x,y,w,h]])
+        import re
+        text = re.sub(r'\[\[\d+,\s*\d+,\s*\d+,\s*\d+\]\]', '', text).strip()
+
         # Check for minimum length (at least 10 characters for meaningful content)
         if len(text) < 10:
             return False
@@ -324,9 +331,15 @@ class FileHandler:
         # Check for common "no content" responses
         no_content_indicators = [
             'no text found', 'no content', 'empty', 'blank',
-            'no readable text', 'unable to extract', 'no data'
+            'no readable text', 'unable to extract', 'no data',
+            'image', 'photo', 'picture', 'diagram', 'chart', 'graph'
         ]
         if any(indicator in text.lower() for indicator in no_content_indicators):
+            return False
+
+        # Check if text contains actual readable words (not just symbols)
+        words = [word for word in text.split() if word.isalnum() and len(word) > 1]
+        if len(words) < 2:  # Need at least 2 meaningful words
             return False
 
         return True
