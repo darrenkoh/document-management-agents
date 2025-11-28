@@ -148,7 +148,22 @@ class FileHandler:
                         return (text, 0.0)
                 return (text, 0.0)
             elif suffix == '.docx':
-                return (self._extract_from_docx(file_path), 0.0)
+                text = self._extract_from_docx(file_path)
+                # If DOCX text extraction returns minimal content, try OCR as fallback
+                if not text or len(text.strip()) < 50:  # Threshold for "empty" content
+                    if self.ocr_available:
+                        logger.info(f"DOCX text extraction returned minimal content, trying DeepSeek-OCR for {file_path}")
+                        ocr_result = self._extract_text_with_deepseek_ocr(file_path)
+                        if ocr_result:
+                            ocr_text, ocr_duration = ocr_result
+                            logger.info(f"DeepSeek-OCR successfully extracted text from DOCX {file_path}")
+                            return (ocr_text, ocr_duration)
+                        else:
+                            return (text, 0.0)
+                    else:
+                        logger.warning(f"DeepSeek-OCR not available, skipping OCR fallback for {file_path}")
+                        return (text, 0.0)
+                return (text, 0.0)
             elif suffix == '.doc':
                 return (self._extract_from_doc(file_path), 0.0)
             elif suffix == '.txt':
@@ -156,14 +171,13 @@ class FileHandler:
             elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
                 if self.ocr_available:
                     text, ocr_duration = self._extract_from_image(file_path)
-                    if text:
-                        logger.info(f"DeepSeek-OCR successfully extracted text from {file_path}")
+                    if text is not None:
                         return (text, ocr_duration)
                     else:
-                        logger.warning(f"DeepSeek-OCR failed to extract text from {file_path}")
-                        return (None, 0.0)
+                        logger.info(f"Skipping image {file_path} - no meaningful text content found")
+                        return (None, ocr_duration)
                 else:
-                    logger.warning(f"DeepSeek-OCR not available, cannot process image {file_path}")
+                    logger.warning(f"DeepSeek-OCR not available, skipping image {file_path}")
                     return (None, 0.0)
             else:
                 logger.warning(f"Unsupported file type: {suffix}")
@@ -184,11 +198,49 @@ class FileHandler:
     
     def _extract_from_docx(self, file_path: Path) -> str:
         """Extract text from DOCX file."""
-        doc = Document(file_path)
-        text_parts = []
-        for paragraph in doc.paragraphs:
-            text_parts.append(paragraph.text)
-        return '\n'.join(text_parts)
+        try:
+            doc = Document(file_path)
+            text_parts = []
+
+            # Extract text from paragraphs
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text)
+
+            # Extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        for paragraph in cell.paragraphs:
+                            if paragraph.text.strip():
+                                text_parts.append(paragraph.text)
+
+            # Extract text from headers and footers
+            for section in doc.sections:
+                header = section.header
+                if header:
+                    for paragraph in header.paragraphs:
+                        if paragraph.text.strip():
+                            text_parts.append(paragraph.text)
+
+                footer = section.footer
+                if footer:
+                    for paragraph in footer.paragraphs:
+                        if paragraph.text.strip():
+                            text_parts.append(paragraph.text)
+
+            extracted_text = '\n'.join(text_parts)
+
+            if not extracted_text.strip():
+                logger.warning(f"No text content found in DOCX file {file_path}. File may be empty, corrupted, or contain only images.")
+                return ""
+
+            logger.debug(f"Successfully extracted {len(extracted_text)} characters from DOCX file {file_path}")
+            return extracted_text
+
+        except Exception as e:
+            logger.error(f"Failed to extract text from DOCX file {file_path}: {e}")
+            return ""
 
     def _extract_from_doc(self, file_path: Path) -> str:
         """Extract text from DOC file using antiword."""
@@ -220,19 +272,64 @@ class FileHandler:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             return f.read()
     
-    def _extract_from_image(self, file_path: Path) -> tuple[str, float]:
-        """Extract text from image using DeepSeek OCR."""
+    def _extract_from_image(self, file_path: Path) -> tuple[Optional[str], float]:
+        """Extract text from image using DeepSeek OCR.
+
+        Returns:
+            Tuple of (extracted text or None if no meaningful text found, OCR duration in seconds)
+        """
         try:
             image = Image.open(file_path)
             ocr_result = self._ocr_image_with_deepseek(image)
             if ocr_result:
                 text, duration = ocr_result
-                return (text, duration)
+                # Check for meaningful content (not just whitespace or markdown boilerplate)
+                stripped_text = text.strip() if text else ""
+                if self._has_meaningful_content(stripped_text):
+                    logger.info(f"DeepSeek-OCR successfully extracted {len(stripped_text)} characters of meaningful content from {file_path}")
+                    return (text, duration)
+                else:
+                    logger.info(f"DeepSeek-OCR found no meaningful text content in image {file_path} (likely a photo, chart, or empty image). Extracted: '{stripped_text[:100]}{'...' if len(stripped_text) > 100 else ''}'")
+                    return (None, duration)
             else:
-                return ("", 0.0)
+                logger.warning(f"DeepSeek-OCR processing failed for {file_path}")
+                return (None, 0.0)
         except Exception as e:
-            logger.error(f"OCR failed for {file_path}: {e}")
-            return ("", 0.0)
+            logger.error(f"Failed to process image {file_path}: {e}")
+            return (None, 0.0)
+
+    def _has_meaningful_content(self, text: str) -> bool:
+        """Check if text contains meaningful content (not just boilerplate or formatting).
+
+        Args:
+            text: The text to check
+
+        Returns:
+            True if text appears to contain meaningful content, False otherwise
+        """
+        if not text:
+            return False
+
+        # Remove common markdown boilerplate
+        text = text.replace('```markdown', '').replace('```', '').strip()
+
+        # Check for minimum length (at least 10 characters for meaningful content)
+        if len(text) < 10:
+            return False
+
+        # Check if it's just whitespace, punctuation, or common OCR artifacts
+        if text.replace(' ', '').replace('\n', '').replace('\t', '').replace('-', '').replace('_', '').replace('=', '').replace('*', '').replace('#', '') == '':
+            return False
+
+        # Check for common "no content" responses
+        no_content_indicators = [
+            'no text found', 'no content', 'empty', 'blank',
+            'no readable text', 'unable to extract', 'no data'
+        ]
+        if any(indicator in text.lower() for indicator in no_content_indicators):
+            return False
+
+        return True
 
     def _pdf_to_images(self, file_path: Path) -> List[Image.Image]:
         """Convert PDF pages to PIL Images for OCR processing.
@@ -294,6 +391,12 @@ class FileHandler:
                     return ('\n'.join(all_text), total_ocr_duration)
                 else:
                     return None
+
+            elif suffix == '.docx':
+                # For DOCX files, we need to convert to images first
+                # This requires additional dependencies like docx2pdf and pdf2image
+                logger.warning(f"DOCX OCR not yet implemented. Consider installing docx2pdf and pdf2image for DOCX OCR support.")
+                return None
 
             elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
                 # Direct image OCR
