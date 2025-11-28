@@ -87,12 +87,13 @@ class DocumentAgent:
             num_predict=config.ollama_num_predict
         )
     
-    def process_files_batch(self, file_paths: List[Path], batch_size: int = 10) -> Dict[str, any]:
+    def process_files_batch(self, file_paths: List[Path], batch_size: int = 10, progress_callback=None) -> Dict[str, any]:
         """Process multiple files in batches for better performance.
 
         Args:
             file_paths: List of file paths to process
             batch_size: Number of files to process before generating/storing embeddings
+            progress_callback: Optional callback function called after each file (current_count, total_count)
 
         Returns:
             Dictionary with processing statistics and performance metrics
@@ -142,9 +143,16 @@ class DocumentAgent:
                     stats['performance']['total_db_lookup_duration'] += perf_metrics['db_lookup_duration']
                     stats['performance']['total_db_insert_duration'] += perf_metrics['db_insert_duration']
 
+                    # Call progress callback after each file
+                    if progress_callback:
+                        progress_callback(stats['processed'] + stats['failed'], stats['total'])
+
                 except Exception as e:
                     logger.error(f"Unexpected error processing {file_path}: {e}")
                     stats['failed'] += 1
+                    # Call progress callback even on error
+                    if progress_callback:
+                        progress_callback(stats['processed'] + stats['failed'], stats['total'])
 
         # Calculate averages
         if processed_files_count > 0:
@@ -198,13 +206,12 @@ class DocumentAgent:
                 logger.debug(f"Skipping already processed file (duplicate content): {file_path.name}")
                 logger.debug(f"Original file: {existing.get('filename', 'Unknown')}")
 
-                # Log performance metrics for skipped files in verbose mode
-                if self.verbose:
-                    total_duration = perf_metrics['hash_duration'] + perf_metrics['db_lookup_duration']
-                    logger.info(f"Performance for {file_path.name} (skipped - duplicate): "
-                               f"hash={perf_metrics['hash_duration']:.3f}s, "
-                               f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
-                               f"total={total_duration:.3f}s")
+                # Log performance metrics for skipped files
+                total_duration = perf_metrics['hash_duration'] + perf_metrics['db_lookup_duration']
+                logger.info(f"Performance for {file_path.name} (skipped - duplicate): "
+                           f"hash={perf_metrics['hash_duration']:.3f}s, "
+                           f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
+                           f"total={total_duration:.3f}s")
 
                 return (True, {**perf_metrics, 'ocr_duration': 0.0, 'classification_duration': 0.0, 'db_insert_duration': 0.0})
 
@@ -267,17 +274,16 @@ class DocumentAgent:
 
             logger.info(f"Successfully processed {file_path.name} -> {categories} (DB ID: {doc_id})")
 
-            # Log performance metrics for this file in verbose mode
-            if self.verbose:
-                total_duration = (perf_metrics['hash_duration'] + perf_metrics['ocr_duration'] +
-                                perf_metrics['classification_duration'] + perf_metrics['db_lookup_duration'] +
-                                perf_metrics['db_insert_duration'])
-                logger.info(f"Performance for {file_path.name}: hash={perf_metrics['hash_duration']:.3f}s, "
-                           f"ocr={perf_metrics['ocr_duration']:.3f}s, "
-                           f"classify={perf_metrics['classification_duration']:.3f}s, "
-                           f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
-                           f"db_insert={perf_metrics['db_insert_duration']:.3f}s, "
-                           f"total={total_duration:.3f}s")
+            # Log performance metrics for this file
+            total_duration = (perf_metrics['hash_duration'] + perf_metrics['ocr_duration'] +
+                            perf_metrics['classification_duration'] + perf_metrics['db_lookup_duration'] +
+                            perf_metrics['db_insert_duration'])
+            logger.info(f"Performance for {file_path.name}: hash={perf_metrics['hash_duration']:.3f}s, "
+                       f"ocr={perf_metrics['ocr_duration']:.3f}s, "
+                       f"classify={perf_metrics['classification_duration']:.3f}s, "
+                       f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
+                       f"db_insert={perf_metrics['db_insert_duration']:.3f}s, "
+                       f"total={total_duration:.3f}s")
 
             return (True, perf_metrics)
 
@@ -285,37 +291,16 @@ class DocumentAgent:
             logger.error(f"Error processing file {file_path}: {e}")
             return (False, {'hash_duration': 0.0, 'ocr_duration': 0.0, 'classification_duration': 0.0,
                            'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
-    
-    def process_all(self) -> dict:
-        """Process all files in the source directories using BFS directory traversal.
+
+    def _collect_all_files(self) -> Dict[Path, List[Path]]:
+        """Collect all files from all directories using BFS traversal.
 
         Returns:
-            Dictionary with processing statistics
+            Dictionary mapping directory paths to lists of files in that directory
         """
-        logger.info("Starting BFS directory-by-directory processing of all files")
-
-        # Initialize statistics
-        total_stats = {
-            'total': 0,
-            'processed': 0,
-            'failed': 0,
-            'skipped': 0,
-            'performance': {
-                'total_hash_duration': 0.0,
-                'total_ocr_duration': 0.0,
-                'total_classification_duration': 0.0,
-                'total_db_lookup_duration': 0.0,
-                'total_db_insert_duration': 0.0,
-                'avg_hash_duration': 0.0,
-                'avg_ocr_duration': 0.0,
-                'avg_classification_duration': 0.0,
-                'avg_db_lookup_duration': 0.0,
-                'avg_db_insert_duration': 0.0
-            }
-        }
-
-        # BFS traversal using a queue
         from collections import deque
+
+        files_by_directory = {}
         directories_to_process = deque()
 
         # Start with source directories
@@ -325,10 +310,9 @@ class DocumentAgent:
             else:
                 logger.warning(f"Source path does not exist: {source_path}")
 
-        # Process directories in BFS order
+        # BFS traversal to collect all files
         while directories_to_process:
             current_dir = directories_to_process.popleft()
-            logger.info(f"Processing directory: {current_dir}")
 
             # Get files in current directory only (not subdirectories)
             try:
@@ -347,27 +331,10 @@ class DocumentAgent:
                 logger.error(f"Error accessing directory {current_dir}: {e}")
                 continue
 
+            # Store files for this directory
             if files_in_dir:
-                logger.info(f"Found {len(files_in_dir)} file(s) in directory {current_dir}")
-                total_stats['total'] += len(files_in_dir)
-
-                # Process files in current directory in batches
-                if files_in_dir:
-                    batch_stats = self.process_files_batch(files_in_dir, batch_size=10)
-
-                    # Accumulate statistics
-                    total_stats['processed'] += batch_stats['processed']
-                    total_stats['failed'] += batch_stats['failed']
-                    total_stats['skipped'] += batch_stats.get('skipped', 0)
-
-                    # Accumulate performance metrics
-                    total_stats['performance']['total_hash_duration'] += batch_stats['performance']['total_hash_duration']
-                    total_stats['performance']['total_ocr_duration'] += batch_stats['performance']['total_ocr_duration']
-                    total_stats['performance']['total_classification_duration'] += batch_stats['performance']['total_classification_duration']
-                    total_stats['performance']['total_db_lookup_duration'] += batch_stats['performance']['total_db_lookup_duration']
-                    total_stats['performance']['total_db_insert_duration'] += batch_stats['performance']['total_db_insert_duration']
-            else:
-                logger.debug(f"No files found in directory: {current_dir}")
+                files_by_directory[current_dir] = files_in_dir
+                logger.debug(f"Collected {len(files_in_dir)} file(s) from directory {current_dir}")
 
             # Add subdirectories to queue for BFS traversal
             if self.config.watch_recursive:
@@ -380,6 +347,75 @@ class DocumentAgent:
                 except Exception as e:
                     logger.error(f"Error listing subdirectories of {current_dir}: {e}")
 
+        return files_by_directory
+    
+    def process_all(self) -> dict:
+        """Process all files in the source directories using BFS directory traversal.
+
+        Returns:
+            Dictionary with processing statistics
+        """
+        logger.info("Starting file collection and processing of all directories")
+
+        # Phase 1: Collect all files from all directories
+        logger.info("Phase 1: Collecting all files from directories...")
+        files_by_directory = self._collect_all_files()
+
+        # Initialize statistics with complete total
+        total_files = sum(len(files) for files in files_by_directory.values())
+        logger.info(f"Found {total_files} total files across {len(files_by_directory)} directories")
+
+        total_stats = {
+            'total': total_files,
+            'processed': 0,
+            'failed': 0,
+            'skipped': 0,
+            'performance': {
+                'total_hash_duration': 0.0,
+                'total_ocr_duration': 0.0,
+                'total_classification_duration': 0.0,
+                'total_db_lookup_duration': 0.0,
+                'total_db_insert_duration': 0.0,
+                'avg_hash_duration': 0.0,
+                'avg_ocr_duration': 0.0,
+                'avg_classification_duration': 0.0,
+                'avg_db_lookup_duration': 0.0,
+                'avg_db_insert_duration': 0.0
+            }
+        }
+
+        # Phase 2: Process files folder by folder
+        logger.info("Phase 2: Processing files folder by folder...")
+
+        current_processed = 0
+        def progress_callback(batch_processed_count, batch_total_count):
+            """Progress callback to show current progress across all files."""
+            nonlocal current_processed
+            current_processed += 1
+            logger.info(f"Total files processed: {current_processed}/{total_files}")
+
+        # Process each directory's files
+        for directory_path, files_in_dir in files_by_directory.items():
+            if not files_in_dir:
+                continue
+
+            logger.info(f"Processing directory: {directory_path} ({len(files_in_dir)} files)")
+
+            # Process files in current directory in batches
+            batch_stats = self.process_files_batch(files_in_dir, batch_size=10, progress_callback=progress_callback)
+
+            # Accumulate statistics
+            total_stats['processed'] += batch_stats['processed']
+            total_stats['failed'] += batch_stats['failed']
+            total_stats['skipped'] += batch_stats.get('skipped', 0)
+
+            # Accumulate performance metrics
+            total_stats['performance']['total_hash_duration'] += batch_stats['performance']['total_hash_duration']
+            total_stats['performance']['total_ocr_duration'] += batch_stats['performance']['total_ocr_duration']
+            total_stats['performance']['total_classification_duration'] += batch_stats['performance']['total_classification_duration']
+            total_stats['performance']['total_db_lookup_duration'] += batch_stats['performance']['total_db_lookup_duration']
+            total_stats['performance']['total_db_insert_duration'] += batch_stats['performance']['total_db_insert_duration']
+
         # Calculate averages
         if total_stats['processed'] > 0:
             total_stats['performance']['avg_hash_duration'] = total_stats['performance']['total_hash_duration'] / total_stats['processed']
@@ -389,7 +425,7 @@ class DocumentAgent:
             total_stats['performance']['avg_db_insert_duration'] = total_stats['performance']['total_db_insert_duration'] / total_stats['processed']
 
         logger.info(
-            f"BFS processing complete: {total_stats['processed']} processed, "
+            f"File processing complete: {total_stats['processed']} processed, "
             f"{total_stats['failed']} failed, {total_stats['total']} total"
         )
 
