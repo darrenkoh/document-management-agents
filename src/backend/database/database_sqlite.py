@@ -9,8 +9,9 @@ from datetime import datetime
 import threading
 from contextlib import contextmanager
 
-# Add parent directories to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.backend.services.vector_store import create_vector_store, VectorStore
 

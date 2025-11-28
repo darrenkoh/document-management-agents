@@ -212,7 +212,7 @@ export default function HomePage() {
                         </h3>
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-xs bg-primary-100 text-primary-800 px-2 py-1 rounded-full font-medium">
-                            {(doc.similarity || 0 * 100).toFixed(1)}% match
+                            {((doc.similarity || 0) * 100).toFixed(1)}% match
                           </span>
                         </div>
                       </div>

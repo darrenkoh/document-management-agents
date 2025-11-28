@@ -7,8 +7,9 @@ from pathlib import Path
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
 
-# Add parent directories to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.backend.utils.config import Config
 from src.backend.database.database_sqlite_standalone import SQLiteDocumentDatabase
@@ -67,10 +68,6 @@ CORS(app, resources={
 })
 
 # Setup logging - import setup_logging from main.py at root
-import sys
-from pathlib import Path
-root_path = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(root_path))
 from main import setup_logging
 setup_logging(config, verbose=(config.log_level.upper() == 'DEBUG'))
 

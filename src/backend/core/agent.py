@@ -5,8 +5,9 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-# Add parent directories to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.backend.services.file_handler import FileHandler
 from src.backend.core.classifier import Classifier
