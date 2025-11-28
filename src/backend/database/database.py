@@ -1,13 +1,17 @@
 """Database operations for storing document classifications and embeddings."""
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from tinydb import TinyDB, Query
 import numpy as np
 
-from vector_store import create_vector_store, VectorStore
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.backend.services.vector_store import create_vector_store, VectorStore
 
 logger = logging.getLogger(__name__)
 

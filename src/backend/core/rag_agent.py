@@ -1,10 +1,16 @@
 """Agentic RAG implementation for document analysis using LLM."""
 import logging
 import ollama
+import sys
+from pathlib import Path
 from typing import List, Dict, Any, Optional
-from classifier import Classifier
 import time
 import re
+
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.backend.core.classifier import Classifier
 
 logger = logging.getLogger(__name__)
 

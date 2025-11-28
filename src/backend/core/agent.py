@@ -1,15 +1,20 @@
 """Core agent workflow for document classification."""
 import logging
 import time
+import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from file_handler import FileHandler
-from classifier import Classifier
-from config import Config
-from database_sqlite_standalone import SQLiteDocumentDatabase
-from embeddings import EmbeddingGenerator
-from vector_store import create_vector_store
-from rag_agent import RAGAgent
+
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.backend.services.file_handler import FileHandler
+from src.backend.core.classifier import Classifier
+from src.backend.utils.config import Config
+from src.backend.database.database_sqlite_standalone import SQLiteDocumentDatabase
+from src.backend.services.embeddings import EmbeddingGenerator
+from src.backend.services.vector_store import create_vector_store
+from src.backend.core.rag_agent import RAGAgent
 
 logger = logging.getLogger(__name__)
 

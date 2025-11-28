@@ -3,14 +3,14 @@
 import sys
 from pathlib import Path
 
-# Add current directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 def add_embeddings_to_existing_docs():
     """Add embeddings to existing documents in the database."""
     try:
-        from agent import DocumentAgent
-        from config import Config
+        from src.backend.core.agent import DocumentAgent
+        from src.backend.utils.config import Config
 
         # Load configuration
         config = Config()

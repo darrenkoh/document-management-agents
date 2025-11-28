@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import Dict, Any
 import time
 
-from database_sqlite import SQLiteDocumentDatabase
+import sys
+from pathlib import Path
+
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.backend.database.database_sqlite import SQLiteDocumentDatabase
 
 logger = logging.getLogger(__name__)
 

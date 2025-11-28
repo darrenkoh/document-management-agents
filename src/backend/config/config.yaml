@@ -7,20 +7,20 @@
 #   - "./documents"
 #   - "/path/to/other/folder"
 source_paths:
-  - "/Volumes/1TB/Private"
+  - "data/input"
 
 # Database configuration
 database:
   # Path to the SQLite database file (high-performance DocumentDB)
-  path: "documents.db"
+  path: "data/databases/documents.db"
   # Path to export JSON output file
-  json_export_path: "classifications.json"
+  json_export_path: "data/exports/classifications.json"
   # Vector database configuration
   vector_store:
     # Type of vector store: 'chromadb' or 'faiss'
     type: "chromadb"
     # Directory to persist vector data
-    persist_directory: "vector_store"
+    persist_directory: "data/vector_store"
     # Collection name for ChromaDB
     collection_name: "documents"
     # Embedding dimension (should match your embedding model)
@@ -116,5 +116,5 @@ semantic_search:
 # Logging
 logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-  file: "agent.log"
+  file: "data/agent.log"
 

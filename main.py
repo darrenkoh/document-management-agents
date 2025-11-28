@@ -5,8 +5,12 @@ import logging
 import os
 import sys
 from pathlib import Path
-from config import Config
-from agent import DocumentAgent
+
+# Add project root to Python path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from src.backend.utils.config import Config
+from src.backend.core.agent import DocumentAgent
 
 
 def format_duration(seconds: float) -> str:
@@ -57,8 +61,8 @@ def main():
     parser.add_argument(
         '--config',
         type=str,
-        default='config.yaml',
-        help='Path to configuration file (default: config.yaml)'
+        default='src/backend/config/config.yaml',
+        help='Path to configuration file (default: src/backend/config/config.yaml)'
     )
     parser.add_argument(
         '--verbose', '-v',

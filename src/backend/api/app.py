@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 """Document Classification Agent - Web App Interface."""
 import os
+import sys
 import argparse
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
-from config import Config
-from database_sqlite_standalone import SQLiteDocumentDatabase
-from agent import DocumentAgent
-from file_handler import FileHandler
+
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.backend.utils.config import Config
+from src.backend.database.database_sqlite_standalone import SQLiteDocumentDatabase
+from src.backend.core.agent import DocumentAgent
+from src.backend.services.file_handler import FileHandler
 import math
 
 ITEMS_PER_PAGE = 20
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Document Classification Agent - Web Interface')
-parser.add_argument('--config', type=str, default='config.yaml',
-                   help='Path to configuration file (default: config.yaml)')
+parser.add_argument('--config', type=str, default='src/backend/config/config.yaml',
+                   help='Path to configuration file (default: src/backend/config/config.yaml)')
 parser.add_argument('--port', type=int,
                    help='Port to run the web app on (overrides config)')
 parser.add_argument('--host', type=str,
@@ -61,7 +66,11 @@ CORS(app, resources={
     }
 })
 
-# Setup logging
+# Setup logging - import setup_logging from main.py at root
+import sys
+from pathlib import Path
+root_path = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(root_path))
 from main import setup_logging
 setup_logging(config, verbose=(config.log_level.upper() == 'DEBUG'))
 

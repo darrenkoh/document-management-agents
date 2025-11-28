@@ -8,6 +8,9 @@ set -e  # Exit on any error
 echo "🚀 Building React Frontend for DOCRAG"
 echo "========================================================="
 
+# Change to frontend directory
+cd "$(dirname "$0")/../src/frontend" || exit 1
+
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed. Please install Node.js 18+ first."
@@ -47,12 +50,12 @@ fi
 
 echo "✅ Build completed successfully!"
 echo ""
-echo "📁 Built files are in the 'dist/' directory"
-echo "🌐 To serve the built app locally, run: npm run preview"
+echo "📁 Built files are in the 'src/frontend/dist/' directory"
+echo "🌐 To serve the built app locally, run: cd src/frontend && npm run preview"
 echo ""
 echo "📋 Next steps:"
-echo "1. Ensure Flask backend is running with CORS enabled"
+echo "1. Ensure Flask backend is running: python src/backend/api/app.py"
 echo "2. The Flask app will automatically serve the React build"
-echo "3. Access the app at http://localhost:5000"
+echo "3. Access the app at http://localhost:8081"
 echo ""
 echo "🎉 Frontend refactoring complete!"
