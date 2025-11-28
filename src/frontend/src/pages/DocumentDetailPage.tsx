@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Eye, FileText, Calendar, Tag, HardDrive, Trash2, AlertTriangle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { ArrowLeft, Download, Eye, Trash2, AlertTriangle, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Document } from '@/types';
-import { apiClient, getFileIcon, formatFileSize, downloadFile } from '@/lib/api';
+import { apiClient, downloadFile } from '@/lib/api';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
+
+// New Components
+import { FileInfoBar } from '@/components/FileInfoBar';
+import { UnifiedFileViewer } from '@/components/UnifiedFileViewer';
+import { CoolTooltip } from '@/components/ui/CoolTooltip';
 
 export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,11 +21,10 @@ export default function DocumentDetailPage() {
   const [downloading, setDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Function to filter out LLM encoding tokens
   const filterLLMEncoding = (content: string): string => {
-    // Remove tokens like <|ref|>title<|/ref|> and <|det|>[[310, 110, 756, 127]]<|/det|>
-    // Pattern: <|tag|>content<|/tag|>
     const tokenPattern = /<\|[^>]+\|>.*?<\|\/[^>]+\|>/g;
     return content.replace(tokenPattern, '').trim();
   };
@@ -89,23 +93,18 @@ export default function DocumentDetailPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateString;
-    }
+  const handleCopyContent = () => {
+    if (!document) return;
+    const cleanContent = filterLLMEncoding(document.content);
+    navigator.clipboard.writeText(cleanContent);
+    setCopied(true);
+    toast.success('Content copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
+      <div className="flex justify-center items-center h-[calc(100vh-100px)]">
         <LoadingSpinner size="lg" />
       </div>
     );
@@ -114,66 +113,163 @@ export default function DocumentDetailPage() {
   if (!document) {
     return (
       <div className="text-center py-12">
-        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-primary-900 mb-2">Document not found</h2>
-        <p className="text-primary-600 mb-4">The document you're looking for doesn't exist.</p>
         <Button onClick={() => navigate('/documents')}>Back to Documents</Button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/documents')}
-          className="flex items-center gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Documents
-        </Button>
+    <div className="min-h-screen bg-gray-50/30 pb-12">
+      {/* Top Bar with File Info */}
+      <FileInfoBar document={document} />
 
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleViewOriginal}>
-            <Eye className="w-4 h-4 mr-2" />
-            View Original
-          </Button>
-          <Button onClick={handleDownload} disabled={downloading}>
-            <Download className="w-4 h-4 mr-2" />
-            {downloading ? 'Downloading...' : 'Download'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowDeleteConfirm(true)}
-            className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Header Actions */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center justify-between"
+        >
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/documents')}
+              className="flex items-center gap-2 hover:bg-white/80 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            <h1 className="text-3xl font-bold text-gray-900 truncate max-w-2xl tracking-tight" title={document.filename}>
+              {document.filename}
+            </h1>
+          </div>
+
+          <div className="flex gap-3">
+            <CoolTooltip content="View original file in new tab" side="bottom">
+              <Button variant="outline" onClick={handleViewOriginal} className="bg-white/80 backdrop-blur-sm hover:shadow-sm transition-all">
+                <Eye className="w-4 h-4 mr-2" />
+                Open Original
+              </Button>
+            </CoolTooltip>
+
+            <CoolTooltip content="Download original file" side="bottom">
+              <Button onClick={handleDownload} disabled={downloading} className="bg-white/80 backdrop-blur-sm border border-primary-200 text-primary-700 hover:bg-white hover:shadow-sm transition-all">
+                <Download className="w-4 h-4 mr-2" />
+                {downloading ? 'Downloading...' : 'Download'}
+              </Button>
+            </CoolTooltip>
+
+            <CoolTooltip content="Delete this document permanently" side="left">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 bg-white/80 backdrop-blur-sm transition-all"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            </CoolTooltip>
+          </div>
+        </motion.div>
+
+        {/* Main Stacked Content */}
+        <div className="flex flex-col gap-8">
+          
+          {/* 1. Extracted Content Section */}
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="space-y-4"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete
-          </Button>
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                <span className="w-2 h-6 rounded-full bg-primary-500" />
+                Extracted Content
+              </h2>
+               <div className="relative z-10">
+                <CoolTooltip content="Copy text to clipboard" side="left">
+                  <button 
+                    onClick={handleCopyContent}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:text-primary-600 hover:border-primary-200 hover:bg-primary-50 transition-all shadow-sm"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-4 h-4 text-green-500" />
+                        <span className="text-green-600">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copy Text</span>
+                      </>
+                    )}
+                  </button>
+                </CoolTooltip>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden relative">
+              <div className="max-h-[500px] overflow-y-auto p-8 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300 transition-colors">
+                <div className="prose prose-gray max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-primary-600 prose-strong:text-gray-900">
+                   <div className="whitespace-pre-wrap leading-relaxed font-normal text-base font-sans">
+                      {filterLLMEncoding(document.content)}
+                   </div>
+                </div>
+              </div>
+              {/* Bottom Fade for overflow indication */}
+              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+            </div>
+          </motion.section>
+
+          {/* 2. Original File Preview Section */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="space-y-4"
+          >
+             <div className="flex items-center justify-between px-1">
+              <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                <span className="w-2 h-6 rounded-full bg-green-500" />
+                Original File Preview
+              </h2>
+            </div>
+            
+            <div className="h-[800px] rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
+               <UnifiedFileViewer document={document} className="h-full border-0 rounded-none shadow-none" />
+            </div>
+          </motion.section>
+
         </div>
       </div>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6 border border-gray-200"
+          >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
-              <h3 className="text-lg font-semibold text-primary-900">Delete Document</h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Document</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone.</p>
+              </div>
             </div>
-            <p className="text-primary-600 mb-2">
-              Are you sure you want to delete this document?
-            </p>
-            <p className="text-sm text-primary-500 mb-6 bg-primary-50 p-3 rounded-lg font-medium">
-              {document?.filename}
-            </p>
-            <p className="text-sm text-primary-500 mb-6">
-              This action cannot be undone and will remove the document from both the database and vector store.
-            </p>
+            
+            <div className="bg-gray-50 p-3 rounded-lg mb-6 border border-gray-100">
+              <p className="text-sm font-medium text-gray-700 truncate">
+                {document?.filename}
+              </p>
+            </div>
+
             <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
@@ -185,155 +281,24 @@ export default function DocumentDetailPage() {
               <Button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="bg-red-600 hover:bg-red-700 text-white"
+                className="bg-red-600 hover:bg-red-700 text-white border-transparent shadow-md shadow-red-200"
               >
                 {isDeleting ? (
                   <>
-                    <LoadingSpinner size="sm" className="mr-2" />
+                    <LoadingSpinner size="sm" className="mr-2 text-white/90" />
                     Deleting...
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
+                    Delete Permanently
                   </>
                 )}
               </Button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
-
-      {/* Document Header */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="text-5xl flex-shrink-0">
-              {getFileIcon(document.metadata.file_extension)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-primary-900 mb-2">
-                {document.filename}
-              </h1>
-
-              <div className="flex flex-wrap items-center gap-4 text-sm text-primary-600 mb-4">
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
-                  {formatDate(document.classification_date)}
-                </div>
-                <div className="flex items-center gap-1">
-                  <HardDrive className="w-4 h-4" />
-                  {formatFileSize(document.metadata.file_size)}
-                </div>
-                <div className="flex items-center gap-1">
-                  <FileText className="w-4 h-4" />
-                  {document.metadata.file_extension.toUpperCase()}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {document.categories.split('-').map((category, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800"
-                  >
-                    <Tag className="w-3 h-3" />
-                    {category.trim()}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Full Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Content</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="prose prose-gray max-w-none">
-            <div className="markdown-content whitespace-pre-wrap text-primary-700 leading-relaxed max-h-96 overflow-y-auto border rounded p-4 bg-gray-50">
-              {filterLLMEncoding(document.content)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Metadata */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>File Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-primary-600">Filename:</span>
-              <span className="font-medium">{document.filename}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-primary-600">File Extension:</span>
-              <span className="font-medium">{document.metadata.file_extension}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-primary-600">File Size:</span>
-              <span className="font-medium">{formatFileSize(document.metadata.file_size)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-primary-600">MIME Type:</span>
-              <span className="font-medium">{document.metadata.mime_type || 'Unknown'}</span>
-            </div>
-            {document.metadata.page_count && (
-              <div className="flex justify-between">
-                <span className="text-primary-600">Pages:</span>
-                <span className="font-medium">{document.metadata.page_count}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Classification Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-primary-600">Document ID:</span>
-              <span className="font-medium">{document.id}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-primary-600">Classification Date:</span>
-              <span className="font-medium">{formatDate(document.classification_date)}</span>
-            </div>
-            <div>
-              <span className="text-primary-600 block mb-2">Categories:</span>
-              <div className="flex flex-wrap gap-1">
-                {document.categories.split('-').map((category, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
-                  >
-                    {category.trim()}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* File Path */}
-      <Card>
-        <CardHeader>
-          <CardTitle>File Location</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <code className="text-sm bg-primary-100 px-3 py-2 rounded block font-mono break-all text-primary-800">
-            {document.file_path}
-          </code>
-        </CardContent>
-      </Card>
     </div>
   );
 }
