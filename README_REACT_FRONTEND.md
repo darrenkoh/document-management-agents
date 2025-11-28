@@ -1,6 +1,6 @@
-# React Frontend for Document Management System
+# React Frontend for DOCRAG
 
-This document outlines the complete refactoring of the Document Management System UI from Flask server-side rendered templates to a modern React frontend.
+This document outlines the complete refactoring of the DOCRAG UI from Flask server-side rendered templates to a modern React frontend.
 
 ## Overview
 

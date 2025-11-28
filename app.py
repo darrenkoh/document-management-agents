@@ -371,6 +371,29 @@ def api_documents():
     })
 
 
+@app.route('/api/document/<int:doc_id>')
+def api_get_document(doc_id):
+    """API endpoint to get a single document by ID."""
+    try:
+        # Refresh data to ensure we have latest documents
+        refresh_database()
+
+        # Get document by ID
+        doc = database.get_document_by_id(doc_id)
+        if not doc:
+            return jsonify({'error': f'Document with ID {doc_id} not found'}), 404
+
+        # Add doc_id to the response
+        doc_dict = dict(doc)
+        doc_dict['id'] = doc_id
+
+        return jsonify(doc_dict)
+
+    except Exception as e:
+        app.logger.error(f"Error getting document {doc_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/refresh')
 def refresh_data():
     """Refresh database data from disk."""

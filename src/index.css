@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles for the document management system */
+/* Custom styles for the DOCRAG */
 @layer base {
   html {
     font-family: 'Inter', system-ui, sans-serif;

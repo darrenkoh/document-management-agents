@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, FileText, BarChart3, Clock } from 'lucide-react';
+import { Search, FileText, BarChart3, Clock, Eye, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StreamingLogs, useStreamingLogs, StreamingLogMessage } from '@/components/ui/StreamingLogs';
-import { Document } from '@/types';
-import { apiClient, getFileIcon } from '@/lib/api';
+import { Document, SearchResult } from '@/types';
+import { apiClient, getFileIcon, formatFileSize } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function HomePage() {
@@ -16,6 +16,8 @@ export default function HomePage() {
   const [recentDocs, setRecentDocs] = useState<Document[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [streamingLogs, setStreamingLogs] = useState<StreamingLogMessage[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [hasSearchResults, setHasSearchResults] = useState(false);
   const navigate = useNavigate();
 
   // Streaming logs hook with callback
@@ -48,21 +50,18 @@ export default function HomePage() {
 
     setIsSearching(true);
     setStreamingLogs([]);
+    setHasSearchResults(false);
     clearLogs();
 
     startStreaming(query.trim(),
       (results) => {
         // Success callback
+        setSearchResults(results.results);
+        setHasSearchResults(true);
         if (results.results.length === 0) {
           toast.error('No documents found matching your query');
         } else {
-          // Navigate to documents page with semantic search results
-          navigate('/documents', {
-            state: {
-              semanticSearchResults: results.results,
-              semanticSearchQuery: query.trim()
-            }
-          });
+          toast.success(`Found ${results.results.length} documents matching "${query.trim()}"`);
         }
         setIsSearching(false);
       },
@@ -82,6 +81,8 @@ export default function HomePage() {
     cancelSearch();
     setIsSearching(false);
     setStreamingLogs([]);
+    setHasSearchResults(false);
+    setSearchResults([]);
     clearLogs();
     toast('Search cancelled');
   };
@@ -105,13 +106,21 @@ export default function HomePage() {
     return content.substring(0, length) + '...';
   };
 
+  const clearSearchResults = () => {
+    setHasSearchResults(false);
+    setSearchResults([]);
+    setQuery('');
+    setStreamingLogs([]);
+    clearLogs();
+  };
+
   return (
     <div className="space-y-8">
       {/* Hero Section with Search */}
       <div className="text-center">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Document Management
+            My Doc
             <span className="text-primary-600"> System</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8">
@@ -172,8 +181,110 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Search Results Section */}
+      {hasSearchResults && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Search Results</h2>
+              <p className="text-gray-600 mt-1">
+                Found {searchResults.length} document{searchResults.length !== 1 ? 's' : ''} matching "{query.trim()}"
+              </p>
+            </div>
+            <Button variant="outline" onClick={clearSearchResults}>
+              Clear Results
+            </Button>
+          </div>
+
+          {searchResults.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {searchResults.map((doc) => (
+                <Card key={doc.id} className="hover:shadow-lg transition-all duration-300 border-0 shadow-md bg-white/80 backdrop-blur-sm">
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4 mb-4">
+                      <div className="text-4xl flex-shrink-0">
+                        {getFileIcon(doc.metadata.file_extension)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate cursor-pointer hover:text-primary-600 transition-colors mb-2"
+                            onClick={() => navigate(`/document/${doc.id}`)}>
+                          {doc.filename}
+                        </h3>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xs bg-primary-100 text-primary-800 px-2 py-1 rounded-full font-medium">
+                            {(doc.similarity || 0 * 100).toFixed(1)}% match
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1 mb-4">
+                      {doc.categories.split('-').map((category, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-primary-50 to-primary-100 text-primary-700 border border-primary-200"
+                        >
+                          {category.trim()}
+                        </span>
+                      ))}
+                    </div>
+
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-3 leading-relaxed">
+                      {truncateContent(doc.content_preview)}
+                    </p>
+
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatDate(doc.classification_date)}
+                      </span>
+                      <span>{formatFileSize(doc.metadata.file_size)}</span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/document/${doc.id}`)}
+                        className="flex-1 hover:bg-primary-50 hover:border-primary-300 transition-colors"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Details
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // TODO: Implement download
+                          toast.success('Download feature coming soon!');
+                        }}
+                        className="hover:bg-gray-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="border-2 border-dashed border-gray-200">
+              <CardContent className="text-center py-12">
+                <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
+                <p className="text-gray-600 mb-4">
+                  Try adjusting your search query or check if documents have been processed with embeddings.
+                </p>
+                <Button onClick={clearSearchResults}>Clear Search</Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Quick Actions - hide when showing search results */}
+      {!hasSearchResults && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate('/documents')}>
           <CardHeader>
             <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
@@ -219,9 +330,11 @@ export default function HomePage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
-      {/* Recent Documents */}
-      <div>
+      {/* Recent Documents - hide when showing search results */}
+      {!hasSearchResults && (
+        <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Recent Documents</h2>
           <Button variant="outline" onClick={() => navigate('/documents')}>
@@ -283,7 +396,8 @@ export default function HomePage() {
             </CardContent>
           </Card>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

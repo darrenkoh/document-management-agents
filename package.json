@@ -1,7 +1,7 @@
 {
   "name": "document-management-ui",
   "version": "1.0.0",
-  "description": "Modern React UI for Document Management System",
+  "description": "Modern React UI for DOCRAG",
   "type": "module",
   "scripts": {
     "dev": "vite",

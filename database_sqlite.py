@@ -325,6 +325,26 @@ class SQLiteDocumentDatabase:
         if self.vector_store:
             self.vector_store.close()
 
+    def get_document_by_id(self, doc_id: int) -> Optional[Dict]:
+        """Get a single document by its ID.
+
+        Args:
+            doc_id: The document ID
+
+        Returns:
+            Document dictionary or None if not found
+        """
+        try:
+            with self._get_cursor() as cursor:
+                cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
+                row = cursor.fetchone()
+                if row:
+                    return self._row_to_dict(row)
+                return None
+        except Exception as e:
+            logger.error(f"Error getting document by ID {doc_id}: {e}")
+            return None
+
     def get_stats(self) -> Dict:
         """Get database statistics."""
         with self._get_cursor() as cursor:

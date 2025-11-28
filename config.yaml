@@ -32,7 +32,7 @@ database:
 # Ollama configuration
 ollama:
   # Ollama API endpoint (default: http://localhost:11434)
-  endpoint: "http://localhost:11434"
+  endpoint: "http://spark-7819.local:11434"
   # Model name to use for classification
   model: "deepseek-r1:8b"
   # Timeout in seconds for API calls

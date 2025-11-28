@@ -5,7 +5,7 @@
 
 set -e  # Exit on any error
 
-echo "🚀 Building React Frontend for Document Management System"
+echo "🚀 Building React Frontend for DOCRAG"
 echo "========================================================="
 
 # Check if Node.js is installed

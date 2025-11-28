@@ -229,7 +229,27 @@ class DocumentDatabase:
             doc_dict['doc_id'] = doc.doc_id
             docs.append(doc_dict)
         return docs
-    
+
+    def get_document_by_id(self, doc_id: int) -> Optional[Dict]:
+        """Get a single document by its TinyDB doc_id.
+
+        Args:
+            doc_id: The TinyDB document ID
+
+        Returns:
+            Document dictionary or None if not found
+        """
+        try:
+            doc = self.documents.get(doc_id=doc_id)
+            if doc:
+                doc_dict = dict(doc)
+                doc_dict['doc_id'] = doc.doc_id
+                return doc_dict
+            return None
+        except Exception as e:
+            logger.error(f"Error getting document by ID {doc_id}: {e}")
+            return None
+
     def export_to_json(self, output_path: str) -> bool:
         """Export all documents to a JSON file.
         
