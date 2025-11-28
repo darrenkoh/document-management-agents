@@ -115,10 +115,10 @@ export default function HomePage() {
   };
 
   return (
-    <div className="space-y-20">
+    <div className="space-y-5">
       {/* Hero Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        <div className="space-y-8 animate-slide-up">
+        {/* <div className="space-y-8 animate-slide-up">
           <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-primary-500 uppercase">
             <span className="w-2 h-2 rounded-full bg-accent-500 animate-pulse"></span>
             New Announcement on X - Read More
@@ -134,7 +134,7 @@ export default function HomePage() {
             The first engineering automations that operate everywhere your team ships code.
             From local dev to CI/CD — offload end-to-end tasks like refactors, migrations, and debugging.
           </p>
-        </div>
+        </div> */}
 
         {/* Hero Visual - Code Window */}
         <div className="relative animate-fade-in delay-100 hidden lg:block">
