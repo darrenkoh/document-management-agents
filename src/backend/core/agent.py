@@ -38,13 +38,6 @@ class DocumentAgent:
             ocr_model=config.ollama_ocr_model,
             ocr_timeout=config.ollama_ocr_timeout
         )
-        self.classifier = Classifier(
-            endpoint=config.ollama_endpoint,
-            model=config.ollama_model,
-            timeout=config.ollama_timeout,
-            num_predict=config.ollama_num_predict,
-            prompt_template=config.prompt_template
-        )
         # Initialize vector store (required for embeddings)
         try:
             vector_store = create_vector_store(
@@ -64,6 +57,26 @@ class DocumentAgent:
             endpoint=config.ollama_endpoint,
             model=config.ollama_embedding_model,
             timeout=config.ollama_timeout
+        )
+
+        # Create method to get existing categories for classifier
+        def get_existing_categories():
+            """Get all unique categories from existing documents."""
+            try:
+                all_docs = self.database.get_all_documents()
+                categories = [doc.get('categories', '') for doc in all_docs if doc.get('categories')]
+                return categories
+            except Exception as e:
+                logger.warning(f"Failed to get existing categories: {e}")
+                return []
+
+        self.classifier = Classifier(
+            endpoint=config.ollama_endpoint,
+            model=config.ollama_model,
+            timeout=config.ollama_timeout,
+            num_predict=config.ollama_num_predict,
+            prompt_template=config.prompt_template,
+            existing_categories_getter=get_existing_categories
         )
 
         # Initialize RAG agent for document analysis
@@ -274,39 +287,113 @@ class DocumentAgent:
                            'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
     
     def process_all(self) -> dict:
-        """Process all files in the source directory.
-        
+        """Process all files in the source directories using BFS directory traversal.
+
         Returns:
             Dictionary with processing statistics
         """
-        logger.info("Starting batch processing of all files")
-        
-        # Get files to process
-        files = self.file_handler.get_files(
-            extensions=self.config.file_extensions if self.config.file_extensions else None,
-            recursive=self.config.watch_recursive
-        )
-        
-        if not files:
-            logger.info("No files found to process")
-            return {
-                'total': 0,
-                'processed': 0,
-                'failed': 0,
-                'skipped': 0
+        logger.info("Starting BFS directory-by-directory processing of all files")
+
+        # Initialize statistics
+        total_stats = {
+            'total': 0,
+            'processed': 0,
+            'failed': 0,
+            'skipped': 0,
+            'performance': {
+                'total_hash_duration': 0.0,
+                'total_ocr_duration': 0.0,
+                'total_classification_duration': 0.0,
+                'total_db_lookup_duration': 0.0,
+                'total_db_insert_duration': 0.0,
+                'avg_hash_duration': 0.0,
+                'avg_ocr_duration': 0.0,
+                'avg_classification_duration': 0.0,
+                'avg_db_lookup_duration': 0.0,
+                'avg_db_insert_duration': 0.0
             }
-        
-        logger.info(f"Found {len(files)} file(s) to process")
-        
-        # Use batch processing for better performance
-        stats = self.process_files_batch(files, batch_size=10)
-        
+        }
+
+        # BFS traversal using a queue
+        from collections import deque
+        directories_to_process = deque()
+
+        # Start with source directories
+        for source_path in self.file_handler.source_paths:
+            if source_path.exists():
+                directories_to_process.append(source_path)
+            else:
+                logger.warning(f"Source path does not exist: {source_path}")
+
+        # Process directories in BFS order
+        while directories_to_process:
+            current_dir = directories_to_process.popleft()
+            logger.info(f"Processing directory: {current_dir}")
+
+            # Get files in current directory only (not subdirectories)
+            try:
+                files_in_dir = []
+                for item in current_dir.iterdir():
+                    if item.is_file():
+                        # Check if file should be included based on extensions
+                        if self.file_handler._is_included(item, self.config.file_extensions if self.config.file_extensions else None):
+                            files_in_dir.append(item)
+                        else:
+                            logger.debug(f"Skipping file with disallowed extension: {item}")
+            except PermissionError:
+                logger.warning(f"Permission denied accessing directory: {current_dir}")
+                continue
+            except Exception as e:
+                logger.error(f"Error accessing directory {current_dir}: {e}")
+                continue
+
+            if files_in_dir:
+                logger.info(f"Found {len(files_in_dir)} file(s) in directory {current_dir}")
+                total_stats['total'] += len(files_in_dir)
+
+                # Process files in current directory in batches
+                if files_in_dir:
+                    batch_stats = self.process_files_batch(files_in_dir, batch_size=10)
+
+                    # Accumulate statistics
+                    total_stats['processed'] += batch_stats['processed']
+                    total_stats['failed'] += batch_stats['failed']
+                    total_stats['skipped'] += batch_stats.get('skipped', 0)
+
+                    # Accumulate performance metrics
+                    total_stats['performance']['total_hash_duration'] += batch_stats['performance']['total_hash_duration']
+                    total_stats['performance']['total_ocr_duration'] += batch_stats['performance']['total_ocr_duration']
+                    total_stats['performance']['total_classification_duration'] += batch_stats['performance']['total_classification_duration']
+                    total_stats['performance']['total_db_lookup_duration'] += batch_stats['performance']['total_db_lookup_duration']
+                    total_stats['performance']['total_db_insert_duration'] += batch_stats['performance']['total_db_insert_duration']
+            else:
+                logger.debug(f"No files found in directory: {current_dir}")
+
+            # Add subdirectories to queue for BFS traversal
+            if self.config.watch_recursive:
+                try:
+                    for item in current_dir.iterdir():
+                        if item.is_dir():
+                            directories_to_process.append(item)
+                except PermissionError:
+                    logger.warning(f"Permission denied listing subdirectories of: {current_dir}")
+                except Exception as e:
+                    logger.error(f"Error listing subdirectories of {current_dir}: {e}")
+
+        # Calculate averages
+        if total_stats['processed'] > 0:
+            total_stats['performance']['avg_hash_duration'] = total_stats['performance']['total_hash_duration'] / total_stats['processed']
+            total_stats['performance']['avg_ocr_duration'] = total_stats['performance']['total_ocr_duration'] / total_stats['processed']
+            total_stats['performance']['avg_classification_duration'] = total_stats['performance']['total_classification_duration'] / total_stats['processed']
+            total_stats['performance']['avg_db_lookup_duration'] = total_stats['performance']['total_db_lookup_duration'] / total_stats['processed']
+            total_stats['performance']['avg_db_insert_duration'] = total_stats['performance']['total_db_insert_duration'] / total_stats['processed']
+
         logger.info(
-            f"Processing complete: {stats['processed']} processed, "
-            f"{stats['failed']} failed, {stats['total']} total"
+            f"BFS processing complete: {total_stats['processed']} processed, "
+            f"{total_stats['failed']} failed, {total_stats['total']} total"
         )
 
-        return stats
+        return total_stats
     
     def _preprocess_query(self, query: str) -> str:
         """Preprocess search query to improve semantic search quality.
@@ -345,7 +432,6 @@ class DocumentAgent:
             filtered_words = words
 
         return ' '.join(filtered_words)
-
 
     def search(self, query: str, top_k: int = None, max_candidates: int = None, use_rag: bool = None, progress_callback=None) -> List[Dict]:
         """Perform semantic search on documents with optional RAG analysis and progress reporting.

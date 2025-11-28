@@ -15,6 +15,14 @@ export default function DocumentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
 
+  // Function to filter out LLM encoding tokens
+  const filterLLMEncoding = (content: string): string => {
+    // Remove tokens like <|ref|>title<|/ref|> and <|det|>[[310, 110, 756, 127]]<|/det|>
+    // Pattern: <|tag|>content<|/tag|>
+    const tokenPattern = /<\|[^>]+\|>.*?<\|\/[^>]+\|>/g;
+    return content.replace(tokenPattern, '').trim();
+  };
+
   useEffect(() => {
     if (id) {
       loadDocument(parseInt(id));
@@ -156,15 +164,15 @@ export default function DocumentDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Content Preview */}
+      {/* Full Content */}
       <Card>
         <CardHeader>
-          <CardTitle>Content Preview</CardTitle>
+          <CardTitle>Content</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="prose prose-gray max-w-none">
-            <div className="markdown-content whitespace-pre-wrap text-primary-700 leading-relaxed">
-              {document.content_preview}
+            <div className="markdown-content whitespace-pre-wrap text-primary-700 leading-relaxed max-h-96 overflow-y-auto border rounded p-4 bg-gray-50">
+              {filterLLMEncoding(document.content)}
             </div>
           </div>
         </CardContent>

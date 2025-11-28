@@ -67,5 +67,6 @@ documents.db
 *.db.bak
 classifications.json
 vector_store/
-
 node_modules
+data/
+MagicMock/

@@ -43,6 +43,10 @@ def setup_logging(config: Config, verbose: bool = False):
     handlers = [logging.StreamHandler(sys.stdout)]
     
     if config.log_file:
+        # Ensure the log file directory exists
+        log_dir = os.path.dirname(config.log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
         handlers.append(logging.FileHandler(config.log_file))
     
     logging.basicConfig(
@@ -169,7 +173,7 @@ def main():
                 print(f"  Processed: {stats['processed']}")
                 print(f"  Failed: {stats['failed']}")
 
-                # Display performance metrics
+                # Display and log performance metrics
                 if 'performance' in stats and stats['processed'] > 0:
                     perf = stats['performance']
                     print(f"\nPerformance metrics (per file averages):")
@@ -182,6 +186,15 @@ def main():
                                perf['avg_classification_duration'] + perf['avg_db_lookup_duration'] +
                                perf['avg_db_insert_duration'])
                     print(f"  Total per file: {format_duration(total_avg)}")
+
+                    # Log performance metrics
+                    logger.info(f"Performance metrics - Processed {stats['processed']} files:")
+                    logger.info(f"  SHA256 hash: {format_duration(perf['avg_hash_duration'])}")
+                    logger.info(f"  OCR: {format_duration(perf['avg_ocr_duration'])}")
+                    logger.info(f"  Classification: {format_duration(perf['avg_classification_duration'])}")
+                    logger.info(f"  DB lookup: {format_duration(perf['avg_db_lookup_duration'])}")
+                    logger.info(f"  DB insert: {format_duration(perf['avg_db_insert_duration'])}")
+                    logger.info(f"  Total per file: {format_duration(total_avg)}")
 
                 if stats['failed'] > 0:
                     sys.exit(1)

@@ -18,22 +18,24 @@ logger = logging.getLogger(__name__)
 
 class Classifier:
     """Classifies file content using Ollama LLM."""
-    
-    def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None):
+
+    def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None, existing_categories_getter=None):
         """Initialize classifier.
-        
+
         Args:
             endpoint: Ollama API endpoint
             model: Model name to use
             timeout: API timeout in seconds
             num_predict: Maximum number of tokens to predict
             prompt_template: Optional custom prompt template with {filename} and {content} placeholders
+            existing_categories_getter: Optional callable that returns list of existing categories from database
         """
         self.endpoint = endpoint
         self.model = model
         self.timeout = timeout
         self.num_predict = num_predict
         self.prompt_template = prompt_template
+        self.existing_categories_getter = existing_categories_getter
         self.client = ollama.Client(host=endpoint, timeout=timeout)
         self._cache: Dict[str, str] = {}
     
@@ -200,28 +202,48 @@ class Classifier:
     
     def _build_prompt(self, content: str, filename: Optional[str] = None) -> str:
         """Build classification prompt for LLM.
-        
+
         Args:
             content: File content
             filename: Optional filename
-        
+
         Returns:
             Formatted prompt string
         """
         # Truncate content if too long (keep first 3000 chars for context)
         truncated_content = content[:3000] if len(content) > 3000 else content
-        
+
+        # Get existing categories from database if available
+        existing_categories_str = ""
+        if self.existing_categories_getter:
+            try:
+                existing_categories = self.existing_categories_getter()
+                if existing_categories:
+                    # Extract unique categories from hyphen-separated strings
+                    unique_categories = set()
+                    for category_str in existing_categories:
+                        if category_str and category_str != 'uncategorized':
+                            categories = category_str.split('-')
+                            unique_categories.update(cat.strip() for cat in categories if cat.strip())
+                    if unique_categories:
+                        existing_categories_str = f"\n\nExisting categories in your database (prefer these when possible): {', '.join(sorted(unique_categories))}"
+            except Exception as e:
+                logger.warning(f"Failed to get existing categories: {e}")
+
         # Use custom template if provided, otherwise use default
         if self.prompt_template:
             prompt = self.prompt_template.format(
                 filename=filename if filename else 'unknown',
                 content=truncated_content
             )
+            # Add existing categories to custom template if available
+            if existing_categories_str:
+                prompt += existing_categories_str
         else:
             # Default prompt
             prompt = f"""Analyze the following document content and classify it into up to 3 specific categories.
 
-Common categories include but should be be limited to: invoice, contract, receipt, letter, report, resume, certificate, form, statement, manual, article, email, memo, note, presentation, spreadsheet, confirmation, booking, ticket, itinerary, image, other.
+Common categories include but should be be limited to: invoice, contract, receipt, letter, report, resume, certificate, form, statement, manual, article, email, memo, note, presentation, spreadsheet, confirmation, booking, ticket, itinerary, image, other, {existing_categories_str}.
 
 Filename: {filename if filename else 'unknown'}
 
@@ -231,7 +253,7 @@ Content:
 Based on the content above, classify this document into up to 3 categories. Respond with ONLY the category names separated by commas, nothing else. Use lowercase and single words or short phrases (e.g., "invoice", "contract", "receipt", "confirmation", "booking"). If uncertain, use "other". Examples: "invoice", "confirmation,booking", "contract,legal,agreement".
 
 Categories:"""
-        
+
         return prompt
     
     def _extract_category(self, response: str) -> str:

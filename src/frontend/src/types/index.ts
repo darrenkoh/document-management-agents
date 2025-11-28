@@ -12,6 +12,7 @@ export interface Document {
   filename: string;
   file_path: string;
   categories: string;
+  content: string;
   content_preview: string;
   classification_date: string;
   metadata: DocumentMetadata;
