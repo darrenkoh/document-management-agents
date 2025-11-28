@@ -50,6 +50,7 @@ cd ../..
 
 Edit `src/backend/config/config.yaml` to customize:
 - Source directories for document monitoring
+- File extensions to include for processing (required)
 - Database and vector store locations
 - Ollama model settings
 - Web server configuration
@@ -60,10 +61,10 @@ Edit `src/backend/config/config.yaml` to customize:
 
 ```bash
 # Classify documents in your input directory
-python main.py classify
+python document_ingestion.py classify
 
 # Monitor directory for new files
-python main.py watch
+python document_ingestion.py watch
 ```
 
 **Web Interface**
@@ -101,7 +102,7 @@ Then open http://localhost:5173 in your browser.
 │   ├── databases/              # SQLite database files
 │   ├── vector_store/           # ChromaDB vector embeddings
 │   └── exports/                # JSON export of classifications
-├── main.py                     # CLI entry point
+├── document_ingestion.py      # CLI entry point for document processing
 └── requirements.txt            # Python dependencies
 ```
 
@@ -119,19 +120,19 @@ Place your documents in the `data/input/` directory. Supported formats:
 
 ```bash
 # Process all documents in input directory
-python main.py classify
+python document_ingestion.py classify
 
 # Continuous monitoring for new files
-python main.py watch
+python document_ingestion.py watch
 
 # Semantic search through documents
-python main.py search "travel booking confirmation"
+python document_ingestion.py search "travel booking confirmation"
 
 # Find documents by category
-python main.py category invoice
+python document_ingestion.py category invoice
 
 # Enable verbose logging
-python main.py --verbose classify
+python document_ingestion.py --verbose classify
 ```
 
 ### Web Interface
@@ -153,10 +154,23 @@ Key settings in `src/backend/config/config.yaml`:
 source_paths:
   - "data/input"
 
+# File extensions to process (REQUIRED)
+# Only files with these extensions will be processed
+# Empty list means NO files will be processed
+file_extensions:
+  - ".pdf"
+  - ".docx"
+  - ".doc"
+  - ".txt"
+  - ".png"
+  - ".jpg"
+  - ".jpeg"
+  - ".gif"
+  - ".tiff"
+
 # Database settings
 database:
   path: "data/databases/documents.db"
-  json_export_path: "data/exports/classifications.json"
 
 # AI model configuration
 ollama:
@@ -272,6 +286,6 @@ This project is open source and available under the MIT License.
 ### Getting Help
 
 - Check the logs in `data/agent.log`
-- Enable verbose mode: `python main.py --verbose classify`
+- Enable verbose mode: `python document_ingestion.py --verbose classify`
 - Review configuration in `src/backend/config/config.yaml`
 

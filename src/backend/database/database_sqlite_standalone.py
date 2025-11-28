@@ -27,6 +27,9 @@ class SQLiteDocumentDatabase:
         self.config = config
         self._local = threading.local()  # Thread-local storage for connections
 
+        # Ensure the parent directory exists
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
         # Create database and tables
         self._create_tables()
 
@@ -198,25 +201,6 @@ class SQLiteDocumentDatabase:
             rows = cursor.fetchall()
 
         return [self._row_to_dict(row) for row in rows]
-
-    def export_to_json(self, output_path: str) -> bool:
-        """Export all documents to a JSON file."""
-        try:
-            documents = self.get_all_documents()
-            export_data = {
-                'export_date': datetime.now().isoformat(),
-                'total_documents': len(documents),
-                'documents': documents
-            }
-
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
-
-            logger.info(f"Exported {len(documents)} documents to {output_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error exporting to JSON: {e}")
-            return False
 
     def refresh(self):
         """Refresh database connections (no-op for SQLite - connections are persistent)."""

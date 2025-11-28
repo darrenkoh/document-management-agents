@@ -70,8 +70,8 @@ CORS(app, resources={
     }
 })
 
-# Setup logging - import setup_logging from main.py at root
-from main import setup_logging
+# Setup logging - import setup_logging from document_ingestion.py at root
+from document_ingestion import setup_logging
 setup_logging(config, verbose=(config.log_level.upper() == 'DEBUG'))
 
 # Initialize components

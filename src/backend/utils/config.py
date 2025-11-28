@@ -163,13 +163,7 @@ class Config:
         """Get the database file path."""
         db_config = self._config.get('database', {})
         return db_config.get('path', 'documents.json')
-    
-    @property
-    def json_export_path(self) -> str:
-        """Get the JSON export file path."""
-        db_config = self._config.get('database', {})
-        return db_config.get('json_export_path', 'classifications.json')
-    
+
     @property
     def ollama_embedding_model(self) -> str:
         """Get the embedding model name."""

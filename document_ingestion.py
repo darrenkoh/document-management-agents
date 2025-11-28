@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Main entry point for the document classification agent."""
+"""Document ingestion entry point for processing and classifying documents."""
 import argparse
 import logging
 import os
@@ -168,7 +168,6 @@ def main():
                 print(f"  Total files: {stats['total']}")
                 print(f"  Processed: {stats['processed']}")
                 print(f"  Failed: {stats['failed']}")
-                print(f"  JSON export: {config.json_export_path}")
 
                 # Display performance metrics
                 if 'performance' in stats and stats['processed'] > 0:

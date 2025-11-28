@@ -13,7 +13,7 @@ import { NavItem } from '@/types';
 import { Button } from '@/components/ui/Button';
 
 const navigation: NavItem[] = [
-  { label: 'Platform', href: '/', icon: Home },
+  { label: 'Ask', href: '/', icon: Home },
   { label: 'Documents', href: '/documents', icon: FileText },
   { label: 'Statistics', href: '/stats', icon: BarChart3 },
 ];

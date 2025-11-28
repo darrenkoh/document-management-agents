@@ -7,14 +7,26 @@
 #   - "./documents"
 #   - "/path/to/other/folder"
 source_paths:
-  - "data/input"
+  - "/Volumes/1TB/Private"
+
+# File extensions to process (REQUIRED - only files with these extensions will be processed)
+# Empty list means NO files will be processed - you must specify extensions
+# Common document formats:
+file_extensions:
+  - ".pdf"
+  - ".docx"
+  - ".doc"
+  - ".txt"
+  - ".png"
+  - ".jpg"
+  - ".jpeg"
+  - ".gif"
+  - ".tiff"
 
 # Database configuration
 database:
   # Path to the SQLite database file (high-performance DocumentDB)
   path: "data/databases/documents.db"
-  # Path to export JSON output file
-  json_export_path: "data/exports/classifications.json"
   # Vector database configuration
   vector_store:
     # Type of vector store: 'chromadb' or 'faiss'
@@ -45,18 +57,6 @@ ollama:
   ocr_model: "deepseek-ocr:3b"
   # Timeout for OCR operations (can be longer than regular models)
   ocr_timeout: 300
-
-# File extensions to process (empty list means process all files)
-file_extensions:
-  - ".pdf"
-  - ".docx"
-  - ".doc"
-  - ".txt"
-  - ".png"
-  - ".jpg"
-  - ".jpeg"
-  - ".gif"
-  - ".tiff"
 
 # Optional: Predefined classification categories
 # If empty, the agent will auto-detect categories

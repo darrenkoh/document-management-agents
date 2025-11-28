@@ -62,16 +62,31 @@ class FileHandler:
             logger.warning(f"DeepSeek-OCR not available at {self.ollama_endpoint}")
             return False
     
+    def _is_included(self, file_path: Path, allowed_extensions: Optional[List[str]] = None) -> bool:
+        """Check if a file path should be included for processing.
+
+        Args:
+            file_path: Path to the file to check
+            allowed_extensions: List of allowed file extensions (lowercase)
+
+        Returns:
+            True if the file should be included, False otherwise
+        """
+        if not allowed_extensions:
+            return True  # If no extensions specified, include all files
+
+        return file_path.suffix.lower() in allowed_extensions
+    
     def get_files(self, extensions: Optional[List[str]] = None, recursive: bool = True) -> List[Path]:
         """Get list of files from source directories.
 
         Args:
-            extensions: List of file extensions to filter (e.g., ['.pdf', '.docx'])
+            extensions: List of file extensions to include (e.g., ['.pdf', '.docx'])
                        If None, returns all files
             recursive: Whether to search recursively
 
         Returns:
-            List of file paths
+            List of file paths that match the inclusion criteria
         """
         files = []
 
@@ -84,12 +99,11 @@ class FileHandler:
 
             for file_path in source_path.glob(pattern):
                 if file_path.is_file():
-                    # Filter by extension if specified
-                    if extensions:
-                        if file_path.suffix.lower() in extensions:
-                            files.append(file_path)
-                    else:
+                    # Check if file should be included
+                    if self._is_included(file_path, extensions):
                         files.append(file_path)
+                    else:
+                        logger.debug(f"Skipping file with disallowed extension: {file_path}")
         
         return files
     

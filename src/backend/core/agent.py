@@ -251,10 +251,7 @@ class DocumentAgent:
             # Store embedding
             self.database.store_embedding(str(file_path), embedding)
             perf_metrics['db_insert_duration'] = time.time() - db_insert_start
-            
-            # Export to JSON file
-            self.database.export_to_json(self.config.json_export_path)
-            
+
             logger.info(f"Successfully processed {file_path.name} -> {categories} (DB ID: {doc_id})")
 
             # Log performance metrics for this file in verbose mode
@@ -308,11 +305,7 @@ class DocumentAgent:
             f"Processing complete: {stats['processed']} processed, "
             f"{stats['failed']} failed, {stats['total']} total"
         )
-        
-        # Final JSON export
-        self.database.export_to_json(self.config.json_export_path)
-        logger.info(f"Classification results exported to {self.config.json_export_path}")
-        
+
         return stats
     
     def _preprocess_query(self, query: str) -> str:
@@ -512,6 +505,10 @@ class DocumentAgent:
                 """Handle file creation events."""
                 if not event.is_directory:
                     file_path = Path(event.src_path)
+                    # Check if file is excluded before processing
+                    if self.agent.file_handler._is_excluded(file_path):
+                        logger.debug(f"Skipping excluded file in watch mode: {file_path}")
+                        return
                     # Wait a bit for file to be fully written
                     time.sleep(1)
                     if file_path.exists() and str(file_path) not in self.processed:
