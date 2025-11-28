@@ -20,7 +20,9 @@ export default defineConfig({
         target: 'http://localhost:8081',
         changeOrigin: true,
       },
-      '/document': {
+      // Use regex to match /document/ followed by a number (document detail API)
+      // This prevents /documents (frontend route) from being proxied
+      '^/document/\\d+': {
         target: 'http://localhost:8081',
         changeOrigin: true,
       },

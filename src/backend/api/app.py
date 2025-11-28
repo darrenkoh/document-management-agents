@@ -4,7 +4,7 @@ import os
 import sys
 import argparse
 from pathlib import Path
-from flask import Flask, request, jsonify, send_file, Response
+from flask import Flask, request, jsonify, send_file, Response, send_from_directory
 from flask_cors import CORS
 
 # Add project root to Python path
@@ -55,7 +55,10 @@ if args.verbose is True:
 if args.no_verbose:
     config._config.setdefault('logging', {})['level'] = 'INFO'
 
-app = Flask(__name__)
+# Frontend static files directory
+FRONTEND_DIST_DIR = Path(__file__).parent.parent.parent / 'frontend' / 'dist'
+
+app = Flask(__name__, static_folder=str(FRONTEND_DIST_DIR), static_url_path='')
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
 # Enable CORS for API endpoints
@@ -476,6 +479,23 @@ def toggle_verbose():
     return jsonify({'verbose': is_verbose})
 
 
+# Serve static assets from frontend dist
+@app.route('/assets/<path:filename>')
+def serve_assets(filename):
+    """Serve static assets (JS, CSS) from the frontend dist folder."""
+    return send_from_directory(FRONTEND_DIST_DIR / 'assets', filename)
+
+
+# SPA fallback - serve index.html for all non-API routes
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_spa(path):
+    """Serve the SPA index.html for client-side routing."""
+    # If the path is for a static file that exists, serve it
+    if path and (FRONTEND_DIST_DIR / path).exists() and (FRONTEND_DIST_DIR / path).is_file():
+        return send_from_directory(FRONTEND_DIST_DIR, path)
+    # Otherwise, serve index.html for SPA routing
+    return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
 
 
 
