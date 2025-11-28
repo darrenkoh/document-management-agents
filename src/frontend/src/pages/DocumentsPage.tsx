@@ -54,15 +54,11 @@ export default function DocumentsPage() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        // Fetch a large number of docs to get all categories
-        const response = await apiClient.getDocuments({ limit: 1000 });
-        const categories = new Set<string>();
-        response.documents.forEach(doc => {
-          doc.categories.split('-').forEach(cat => {
-            if (cat.trim()) categories.add(cat.trim());
-          });
-        });
-        setAvailableCategories(Array.from(categories).sort());
+        // Use stats API to get all categories from all documents
+        const stats = await apiClient.getStats();
+        // Extract category names from [category, count] tuples
+        const categories = stats.categories.map(([category]) => category);
+        setAvailableCategories(categories);
       } catch (error) {
         console.error('Failed to load categories:', error);
       }

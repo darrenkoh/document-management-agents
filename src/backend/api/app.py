@@ -340,11 +340,23 @@ def api_documents():
     page = request.args.get('page', 1, type=int)
     limit = request.args.get('limit', ITEMS_PER_PAGE, type=int)
     search = request.args.get('search', '').strip()
+    category = request.args.get('category', '').strip()
 
     # Refresh data to ensure we have latest documents
     refresh_database()
 
     all_docs = database.get_all_documents()
+
+    # Filter by category if provided (similar to search_by_category method)
+    if category:
+        filtered_docs = []
+        category_lower = category.lower()
+        for doc in all_docs:
+            categories = doc.get('categories', '').lower()
+            # Use LIKE-style matching (category appears anywhere in hyphen-separated string)
+            if category_lower in categories:
+                filtered_docs.append(doc)
+        all_docs = filtered_docs
 
     # Filter by search if provided
     if search:
@@ -428,7 +440,7 @@ def api_get_stats():
 
         for doc in all_docs:
             # Count categories
-            categories = doc.get('categories', '').split(',')
+            categories = doc.get('categories', '').split('-')
             for category in categories:
                 category = category.strip()
                 if category:
