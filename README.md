@@ -1,158 +1,280 @@
-# Document Management Agents
+# Document Management Agent
 
-An intelligent Python agent that automatically classifies documents by content using a local LLM (Ollama), with advanced OCR capabilities for image-based PDFs via DeepSeek-OCR, stores classifications in a SQLite database, and provides semantic search (RAG) capabilities with a modern React frontend.
+An intelligent document classification and search system that uses local AI models to automatically categorize documents, extract text content, and provide semantic search capabilities. Built with Python (FastAPI) backend and React frontend, featuring OCR support and vector-based semantic search.
 
-## Project Structure
+## ✨ Features
 
-```
-/
-├── src/
-│   ├── backend/              # Python backend code
-│   │   ├── api/              # Flask API application
-│   │   ├── core/              # Core business logic (agent, classifier, RAG)
-│   │   ├── database/          # Database modules
-│   │   ├── services/          # Service modules (file handling, embeddings, vector store)
-│   │   ├── scripts/           # Utility scripts (migrations, etc.)
-│   │   ├── utils/             # Utility modules (config)
-│   │   └── config/            # Configuration files
-│   └── frontend/              # React frontend application
-│       ├── src/               # React source files
-│       ├── dist/              # Build output
-│       └── package.json       # Frontend dependencies
-├── tests/                     # Test files
-├── data/                      # Data files
-│   ├── databases/             # SQLite databases
-│   ├── exports/               # JSON exports
-│   ├── vector_store/          # Vector store data
-│   └── input/                 # Input documents
-├── docs/                      # Documentation
-├── scripts/                   # Build and setup scripts
-├── main.py                    # Main CLI entry point
-└── requirements.txt           # Python dependencies
-```
+- **🤖 AI-Powered Classification**: Automatically categorizes documents using local Ollama LLMs
+- **🔍 Semantic Search**: Vector-based search with RAG (Retrieval-Augmented Generation) for precise results
+- **📄 Multi-Format Support**: Handles PDFs, Word docs, text files, and images with OCR fallback
+- **🖥️ Modern Web UI**: Clean React interface for browsing and searching documents
+- **⚡ High Performance**: Batch processing, duplicate detection, and optimized embeddings
+- **🔒 Local AI**: No cloud dependencies - runs entirely on your hardware
+- **📊 Analytics Dashboard**: View statistics and processing metrics
+- **🔄 Real-time Monitoring**: Watch mode for automatic processing of new files
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Install Dependencies
+### Prerequisites
+
+- **Python 3.8+**
+- **Node.js 18+**
+- **Ollama** installed and running locally
+
+### 1. Install Ollama Models
 
 ```bash
-# Install Python dependencies
-./scripts/setup.sh
+# Install required AI models
+ollama pull deepseek-r1:8b        # Document classification
+ollama pull qwen3-embedding:8b    # Text embeddings for search
+ollama pull deepseek-ocr:3b       # OCR for image-based PDFs
+```
 
-# Or manually:
+### 2. Clone and Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd document-management-agents
+
+# Install Python dependencies
 pip install -r requirements.txt
 
 # Install frontend dependencies
 cd src/frontend
 npm install
+cd ../..
 ```
 
-### 2. Configure the Agent
+### 3. Configure (Optional)
 
-Edit `src/backend/config/config.yaml` to configure:
-- Source directories (`source_paths`)
-- Database paths
-- Ollama endpoint and models
-- Vector store settings
+Edit `src/backend/config/config.yaml` to customize:
+- Source directories for document monitoring
+- Database and vector store locations
+- Ollama model settings
+- Web server configuration
 
-### 3. Run the Backend
+### 4. Start the Application
+
+**Option A: Web Interface (Recommended)**
 
 ```bash
-# CLI mode
+# Terminal 1: Start the backend API
+python src/backend/api/app.py
+
+# Terminal 2: Start the frontend
+cd src/frontend && npm run dev
+```
+
+Then open http://localhost:5173 in your browser.
+
+**Option B: Command Line Only**
+
+```bash
+# Classify documents in your input directory
 python main.py classify
 
-# Web API mode
-python src/backend/api/app.py
+# Search for documents
+python main.py search "invoice payment"
+
+# Monitor directory for new files
+python main.py watch
 ```
 
-### 4. Run the Frontend
+## 📁 Project Structure
 
-```bash
-cd src/frontend
-npm run dev
+```
+├── src/
+│   ├── backend/                 # Python FastAPI backend
+│   │   ├── api/                 # REST API endpoints
+│   │   ├── core/                # AI agents (classifier, RAG)
+│   │   ├── database/            # SQLite database layer
+│   │   ├── services/            # File handling, embeddings, OCR
+│   │   ├── utils/               # Configuration and utilities
+│   │   └── config/              # YAML configuration files
+│   └── frontend/                # React TypeScript frontend
+│       ├── src/
+│       │   ├── components/      # Reusable UI components
+│       │   ├── pages/          # Main application pages
+│       │   ├── lib/            # API clients and utilities
+│       │   └── types/          # TypeScript type definitions
+│       └── dist/               # Built frontend assets
+├── data/
+│   ├── input/                  # Place your documents here
+│   ├── databases/              # SQLite database files
+│   ├── vector_store/           # ChromaDB vector embeddings
+│   └── exports/                # JSON export of classifications
+├── main.py                     # CLI entry point
+└── requirements.txt            # Python dependencies
 ```
 
-## Usage
+## 🛠️ Usage
+
+### Adding Documents
+
+Place your documents in the `data/input/` directory. Supported formats:
+- PDF documents (text-based and image-based with OCR)
+- Microsoft Word (.docx, .doc)
+- Text files (.txt)
+- Images (.png, .jpg, .jpeg, .gif, .tiff)
 
 ### CLI Commands
 
 ```bash
-# Classify files once
+# Process all documents in input directory
 python main.py classify
 
-# Watch for new files
+# Continuous monitoring for new files
 python main.py watch
 
-# Semantic search
-python main.py search "your query"
+# Semantic search through documents
+python main.py search "travel booking confirmation"
 
-# Search by category
+# Find documents by category
 python main.py category invoice
+
+# Enable verbose logging
+python main.py --verbose classify
 ```
 
 ### Web Interface
 
-```bash
-# Start backend API (port 8081)
-python src/backend/api/app.py
+The web interface provides:
 
-# Start frontend dev server (port 5173)
-cd src/frontend && npm run dev
+- **Dashboard**: Overview of processed documents and statistics
+- **Document Browser**: View all classified documents with filtering
+- **Search Interface**: Semantic search with AI-powered relevance ranking
+- **Document Details**: View full content and metadata
+- **Real-time Logs**: Monitor processing status
+
+## ⚙️ Configuration
+
+Key settings in `src/backend/config/config.yaml`:
+
+```yaml
+# Document source directories
+source_paths:
+  - "data/input"
+
+# Database settings
+database:
+  path: "data/databases/documents.db"
+  json_export_path: "data/exports/classifications.json"
+
+# AI model configuration
+ollama:
+  endpoint: "http://localhost:11434"
+  model: "deepseek-r1:8b"
+  embedding_model: "qwen3-embedding:8b"
+  ocr_model: "deepseek-ocr:3b"
+
+# Web server settings
+webapp:
+  port: 8081
+  host: "0.0.0.0"
 ```
 
-## Configuration
-
-Configuration files are located in `src/backend/config/`. The main configuration file is `config.yaml`.
-
-Key configuration options:
-- `source_paths`: Directories to monitor for documents
-- `database.path`: SQLite database location (default: `data/databases/documents.db`)
-- `database.json_export_path`: JSON export location (default: `data/exports/classifications.json`)
-- `ollama.endpoint`: Ollama API endpoint
-- `ollama.model`: Classification model name
-- `ollama.embedding_model`: Embedding model name
-
-## Development
+## 🔧 Development
 
 ### Backend Development
 
-Backend code is organized in `src/backend/`:
-- `api/`: Flask API routes
-- `core/`: Business logic (agent, classifier, RAG)
-- `database/`: Database implementations
-- `services/`: Supporting services
-- `scripts/`: Utility scripts
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run with auto-reload
+python src/backend/api/app.py --debug
+```
 
 ### Frontend Development
 
-Frontend code is in `src/frontend/`:
-- `src/`: React components and pages
-- `dist/`: Production build output
-
-### Running Tests
-
 ```bash
-# Run tests from project root
-python -m pytest tests/
+cd src/frontend
+
+# Development server with hot reload
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
-## Documentation
+### Testing
 
-- [Main Documentation](docs/README.md)
-- [React Frontend Guide](docs/README_REACT_FRONTEND.md)
-- [Vector Database Guide](docs/README_VECTOR_DB.md)
+```bash
+# Backend tests
+python -m pytest
 
-## Requirements
+# Frontend tests
+cd src/frontend && npm test
+```
 
-- Python 3.8+
-- Node.js 18+
-- Ollama installed and running
-- Required Ollama models:
-  - Classification: `deepseek-r1:8b` (or similar)
-  - Embeddings: `qwen3-embedding:8b`
-  - OCR: `deepseek-ocr:3b`
+## 🤖 How It Works
 
-## License
+1. **Document Ingestion**: Files are processed in batches for optimal performance
+2. **Text Extraction**: Content is extracted using format-specific parsers with OCR fallback
+3. **Duplicate Detection**: Content-based hashing prevents reprocessing identical files
+4. **AI Classification**: Local LLM analyzes content and assigns relevant categories
+5. **Vector Embeddings**: Documents are converted to semantic vectors for search
+6. **Storage**: Metadata and embeddings stored in SQLite + ChromaDB
+7. **Search**: Semantic similarity search with optional RAG relevance filtering
 
-This project is open source and available for use and modification.
+## 📊 Performance Features
+
+- **Batch Processing**: Handles multiple documents simultaneously
+- **Content-Based Deduplication**: Skips files with identical content
+- **Optimized Embeddings**: Efficient vector storage and retrieval
+- **Caching**: Database lookups prevent redundant operations
+- **Progress Tracking**: Real-time status updates and performance metrics
+
+## 🔍 Supported Categories
+
+The AI automatically detects categories including:
+- invoice, receipt, contract, agreement
+- confirmation, booking, ticket, itinerary
+- report, memo, letter, email
+- certificate, form, manual, presentation
+- image, document, other
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📝 License
+
+This project is open source and available under the MIT License.
+
+## 🆘 Troubleshooting
+
+### Common Issues
+
+**Ollama connection failed**
+- Ensure Ollama is running: `ollama serve`
+- Check endpoint URL in config.yaml
+- Verify required models are installed
+
+**OCR not working**
+- Install deepseek-ocr model: `ollama pull deepseek-ocr:3b`
+- Check poppler-utils and tesseract are installed for PDF processing
+
+**Frontend not loading**
+- Ensure backend API is running on port 8081
+- Check CORS settings if accessing from different domain
+
+**Slow processing**
+- Use batch processing for multiple files
+- Consider GPU acceleration for Ollama if available
+- Reduce model size for faster inference
+
+### Getting Help
+
+- Check the logs in `data/agent.log`
+- Enable verbose mode: `python main.py --verbose classify`
+- Review configuration in `src/backend/config/config.yaml`
 
