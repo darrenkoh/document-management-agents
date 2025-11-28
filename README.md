@@ -54,10 +54,19 @@ Edit `src/backend/config/config.yaml` to customize:
 - Ollama model settings
 - Web server configuration
 
-### 4. Start the Application
+### 4. Running File Processing and Web App for Browsing
 
-**Option A: Web Interface (Recommended)**
+**File Processing**
 
+```bash
+# Classify documents in your input directory
+python main.py classify
+
+# Monitor directory for new files
+python main.py watch
+```
+
+**Web Interface**
 ```bash
 # Terminal 1: Start the backend API
 python src/backend/api/app.py
@@ -68,18 +77,6 @@ cd src/frontend && npm run dev
 
 Then open http://localhost:5173 in your browser.
 
-**Option B: Command Line Only**
-
-```bash
-# Classify documents in your input directory
-python main.py classify
-
-# Search for documents
-python main.py search "invoice payment"
-
-# Monitor directory for new files
-python main.py watch
-```
 
 ## 📁 Project Structure
 
