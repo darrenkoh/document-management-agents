@@ -81,8 +81,8 @@ export default function DocumentDetailPage() {
     return (
       <div className="text-center py-12">
         <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Document not found</h2>
-        <p className="text-gray-600 mb-4">The document you're looking for doesn't exist.</p>
+        <h2 className="text-xl font-semibold text-primary-900 mb-2">Document not found</h2>
+        <p className="text-primary-600 mb-4">The document you're looking for doesn't exist.</p>
         <Button onClick={() => navigate('/documents')}>Back to Documents</Button>
       </div>
     );
@@ -121,11 +121,11 @@ export default function DocumentDetailPage() {
               {getFileIcon(document.metadata.file_extension)}
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              <h1 className="text-2xl font-bold text-primary-900 mb-2">
                 {document.filename}
               </h1>
 
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-primary-600 mb-4">
                 <div className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
                   {formatDate(document.classification_date)}
@@ -163,7 +163,7 @@ export default function DocumentDetailPage() {
         </CardHeader>
         <CardContent>
           <div className="prose prose-gray max-w-none">
-            <div className="markdown-content whitespace-pre-wrap text-gray-700 leading-relaxed">
+            <div className="markdown-content whitespace-pre-wrap text-primary-700 leading-relaxed">
               {document.content_preview}
             </div>
           </div>
@@ -178,24 +178,24 @@ export default function DocumentDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-gray-600">Filename:</span>
+              <span className="text-primary-600">Filename:</span>
               <span className="font-medium">{document.filename}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">File Extension:</span>
+              <span className="text-primary-600">File Extension:</span>
               <span className="font-medium">{document.metadata.file_extension}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">File Size:</span>
+              <span className="text-primary-600">File Size:</span>
               <span className="font-medium">{formatFileSize(document.metadata.file_size)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">MIME Type:</span>
+              <span className="text-primary-600">MIME Type:</span>
               <span className="font-medium">{document.metadata.mime_type || 'Unknown'}</span>
             </div>
             {document.metadata.page_count && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Pages:</span>
+                <span className="text-primary-600">Pages:</span>
                 <span className="font-medium">{document.metadata.page_count}</span>
               </div>
             )}
@@ -208,15 +208,15 @@ export default function DocumentDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-gray-600">Document ID:</span>
+              <span className="text-primary-600">Document ID:</span>
               <span className="font-medium">{document.id}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Classification Date:</span>
+              <span className="text-primary-600">Classification Date:</span>
               <span className="font-medium">{formatDate(document.classification_date)}</span>
             </div>
             <div>
-              <span className="text-gray-600 block mb-2">Categories:</span>
+              <span className="text-primary-600 block mb-2">Categories:</span>
               <div className="flex flex-wrap gap-1">
                 {document.categories.split('-').map((category, index) => (
                   <span
@@ -238,7 +238,7 @@ export default function DocumentDetailPage() {
           <CardTitle>File Location</CardTitle>
         </CardHeader>
         <CardContent>
-          <code className="text-sm bg-gray-100 px-3 py-2 rounded block font-mono break-all">
+          <code className="text-sm bg-primary-100 px-3 py-2 rounded block font-mono break-all text-primary-800">
             {document.file_path}
           </code>
         </CardContent>

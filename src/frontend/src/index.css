@@ -2,62 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles for the DOCRAG */
 @layer base {
   html {
     font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-primary-100 text-primary-900;
   }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50;
   }
 
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700 focus-visible:outline-primary-600;
+    @apply bg-primary-900 text-white hover:bg-primary-800 shadow-lg shadow-primary-900/10 hover:shadow-primary-900/20 hover:-translate-y-0.5;
   }
 
-  .btn-secondary {
-    @apply bg-secondary-100 text-secondary-900 hover:bg-secondary-200 focus-visible:outline-secondary-100;
+  .btn-outline {
+    @apply border border-primary-300 bg-transparent text-primary-900 hover:bg-primary-50 hover:border-primary-400;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-secondary-700 hover:bg-secondary-100 focus-visible:outline-secondary-100;
+    @apply bg-transparent text-primary-600 hover:bg-primary-100 hover:text-primary-900;
   }
 
   .card {
-    @apply rounded-lg border border-gray-200 bg-white shadow-soft;
+    @apply rounded-xl border border-primary-200 bg-white shadow-soft transition-shadow duration-300 hover:shadow-medium;
   }
 
   .input {
-    @apply flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex h-11 w-full rounded-lg border border-primary-300 bg-white px-4 py-2 text-sm text-primary-900 placeholder:text-primary-400 focus:border-primary-900 focus:outline-none focus:ring-1 focus:ring-primary-900 disabled:cursor-not-allowed disabled:opacity-50 transition-colors;
   }
 
   .label {
-    @apply text-sm font-medium leading-none text-gray-700;
+    @apply text-sm font-medium leading-none text-primary-700 mb-2 block;
+  }
+  
+  .code-block {
+    @apply font-mono text-sm bg-white border border-primary-200 rounded-lg p-4 overflow-x-auto;
   }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100;
+  @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 rounded-full;
+  @apply bg-primary-300 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400;
+  @apply bg-primary-400;
 }
 
 /* PDF viewer styles */
@@ -80,7 +86,7 @@
 
 /* Markdown content styles */
 .markdown-content {
-  @apply text-gray-700;
+  @apply text-primary-700;
 }
 
 .markdown-content h1,
@@ -89,19 +95,19 @@
 .markdown-content h4,
 .markdown-content h5,
 .markdown-content h6 {
-  @apply text-gray-900 font-semibold mb-2 mt-4;
+  @apply text-primary-900 font-bold mb-4 mt-8 font-sans;
 }
 
 .markdown-content h1 {
-  @apply text-2xl border-b border-gray-200 pb-2;
+  @apply text-3xl border-b border-primary-200 pb-4;
 }
 
 .markdown-content h2 {
-  @apply text-xl;
+  @apply text-2xl;
 }
 
 .markdown-content h3 {
-  @apply text-lg;
+  @apply text-xl;
 }
 
 .markdown-content p {
@@ -109,69 +115,40 @@
 }
 
 .markdown-content code {
-  @apply bg-gray-100 px-2 py-1 rounded text-sm font-mono;
+  @apply bg-primary-100 px-1.5 py-0.5 rounded text-sm font-mono text-primary-800;
 }
 
 .markdown-content pre {
-  @apply bg-gray-100 p-4 rounded-lg overflow-x-auto mb-4;
+  @apply bg-primary-900 text-primary-50 p-6 rounded-xl overflow-x-auto mb-6 shadow-medium;
 }
 
 .markdown-content pre code {
-  @apply bg-transparent p-0;
+  @apply bg-transparent p-0 text-primary-50;
 }
 
 .markdown-content blockquote {
-  @apply border-l-4 border-primary-200 pl-4 italic text-gray-600 mb-4;
+  @apply border-l-4 border-primary-900 pl-6 italic text-primary-600 mb-6 py-2;
 }
 
 .markdown-content ul,
 .markdown-content ol {
-  @apply mb-4 ml-6;
+  @apply mb-6 ml-6 space-y-2;
 }
 
 .markdown-content li {
-  @apply mb-1;
+  @apply pl-2;
 }
 
 .markdown-content table {
-  @apply w-full border-collapse border border-gray-300 mb-4;
+  @apply w-full border-collapse border border-primary-200 mb-6 rounded-lg overflow-hidden;
 }
 
 .markdown-content th,
 .markdown-content td {
-  @apply border border-gray-300 px-4 py-2 text-left;
+  @apply border border-primary-200 px-6 py-3 text-left;
 }
 
 .markdown-content th {
-  @apply bg-gray-50 font-semibold;
+  @apply bg-primary-50 font-semibold text-primary-900;
 }
 
-/* Loading animation */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: .5;
-  }
-}
-
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* Fade in animation */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out;
-}

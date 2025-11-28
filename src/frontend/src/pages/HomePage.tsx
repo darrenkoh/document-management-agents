@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, FileText, BarChart3, Clock, Eye, Download } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Search, FileText, Terminal, ArrowRight, Clock } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -115,289 +115,270 @@ export default function HomePage() {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Hero Section with Search */}
-      <div className="text-center">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            My Doc
-            <span className="text-primary-600"> System</span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-8">
-            Search, organize, and manage your documents with AI-powered classification
-          </p>
+    <div className="space-y-20">
+      {/* Hero Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="space-y-8 animate-slide-up">
+          <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-primary-500 uppercase">
+            <span className="w-2 h-2 rounded-full bg-accent-500 animate-pulse"></span>
+            New Announcement on X - Read More
+          </div>
 
-          {/* Search Form */}
-          <div className="max-w-2xl mx-auto">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-primary-900 leading-tight">
+            Autonomous Software <br />
+            Engineering Built for <br />
+            <span className="text-primary-600">Real-World Production</span>
+          </h1>
+
+          <p className="text-lg text-primary-600 max-w-xl leading-relaxed">
+            The first engineering automations that operate everywhere your team ships code.
+            From local dev to CI/CD — offload end-to-end tasks like refactors, migrations, and debugging.
+          </p>
+        </div>
+
+        {/* Hero Visual - Code Window */}
+        <div className="relative animate-fade-in delay-100 hidden lg:block">
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary-200 to-primary-100 rounded-2xl blur opacity-50"></div>
+          <div className="relative bg-white rounded-xl border border-primary-200 shadow-2xl overflow-hidden">
+            {/* Window Header */}
+            <div className="bg-primary-50 border-b border-primary-200 px-4 py-3 flex items-center gap-2">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                <div className="w-3 h-3 rounded-full bg-green-400"></div>
               </div>
-              <Input
-                type="text"
-                placeholder="Search documents, categories, or content..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isSearching && query.trim()) {
-                    handleSearch();
-                  }
-                }}
-                className="pl-12 pr-24 py-4 text-lg h-14"
-                disabled={isSearching}
-              />
-              <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
-                <Button
-                  disabled={!query.trim()}
-                  variant={isSearching ? "destructive" : "default"}
-                  className="h-10 px-6"
-                  onClick={isSearching ? handleCancel : handleSearch}
-                >
-                  {isSearching ? (
-                    'Cancel'
-                  ) : (
-                    'Search'
-                  )}
-                </Button>
+              <div className="ml-4 text-xs text-primary-400 font-mono">search_agent.ts</div>
+            </div>
+
+            {/* Window Content */}
+            <div className="p-6 font-mono text-sm leading-relaxed overflow-hidden">
+              <div className="flex gap-4">
+                <div className="text-primary-300 select-none text-right">
+                  1<br />2<br />3<br />4<br />5<br />6<br />7<br />8<br />9<br />10<br />11<br />12
+                </div>
+                <div className="text-primary-800">
+                  <span className="text-primary-400">// Initialize the semantic search agent</span><br />
+                  <span className="text-accent-600">import</span> <span className="text-primary-900">{`{ Agent }`}</span> <span className="text-accent-600">from</span> <span className="text-green-600">'@forge/sdk'</span>;<br />
+                  <br />
+                  <span className="text-accent-600">const</span> <span className="text-blue-600">searchDocs</span> = <span className="text-accent-600">async</span> (query) ={`>`} <span className="text-primary-900">{`{`}</span><br />
+                  &nbsp;&nbsp;<span className="text-accent-600">const</span> results = <span className="text-accent-600">await</span> Agent.search(<span className="text-primary-900">{`{`}</span><br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;query: query,<br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;mode: <span className="text-green-600">'semantic'</span>,<br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;limit: <span className="text-blue-600">10</span><br />
+                  &nbsp;&nbsp;<span className="text-primary-900">{`}`}</span>);<br />
+                  <br />
+                  &nbsp;&nbsp;<span className="text-accent-600">return</span> results.map(doc ={`>`} <span className="text-primary-900">{`{`}</span><br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;...doc,<br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;relevance: calculateScore(doc)<br />
+                  &nbsp;&nbsp;<span className="text-primary-900">{`}`}</span>);<br />
+                  <span className="text-primary-900">{`}`}</span>;
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Streaming Logs - show during search */}
-          {(isStreaming || streamingLogs.length > 0) && (
-            <div className="mt-6 max-w-2xl mx-auto">
-              <StreamingLogs
-                isVisible={true}
-                logs={streamingLogs}
-                isStreaming={isStreaming}
-              />
+          {/* Floating Command Palette */}
+          <div className="absolute -bottom-6 -right-6 w-3/4 bg-white rounded-lg border border-primary-200 shadow-xl p-4 animate-bounce-in delay-300">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-bold text-primary-500 bg-primary-100 px-1.5 py-0.5 rounded">MACOS / LINUX</span>
+              <span className="text-xs font-bold text-primary-400 border border-primary-200 px-1.5 py-0.5 rounded">WINDOWS</span>
             </div>
-          )}
-
-          {/* Search Examples */}
-          <div className="mt-6 text-sm text-gray-500">
-            <p>Try searching for: "travel documents", "financial statements", or "confirmation"</p>
+            <div className="bg-primary-50 rounded border border-primary-200 p-3 font-mono text-xs text-primary-700 flex items-center justify-between">
+              <span>{`> curl -fsSL https://forge.ai/install | sh`}</span>
+              <Terminal className="w-3 h-3 text-primary-400" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Search Results Section */}
-      {hasSearchResults && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Search Results</h2>
-              <p className="text-gray-600 mt-1">
-                Found {searchResults.length} document{searchResults.length !== 1 ? 's' : ''} matching "{query.trim()}"
-              </p>
+      {/* Search Section */}
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div className="relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary-200 to-primary-100 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
+          <div className="relative flex items-center bg-white rounded-lg border border-primary-300 shadow-sm focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500 transition-all">
+            <div className="pl-4 text-primary-400">
+              <Search className="w-5 h-5" />
             </div>
-            <Button variant="outline" onClick={clearSearchResults}>
-              Clear Results
-            </Button>
+            <Input
+              id="search-input"
+              type="text"
+              placeholder="Search documents, categories, or content..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isSearching && query.trim()) {
+                  handleSearch();
+                }
+              }}
+              className="border-0 shadow-none focus:ring-0 text-lg h-14 bg-transparent"
+              disabled={isSearching}
+            />
+            <div className="pr-2">
+              <Button
+                disabled={!query.trim()}
+                onClick={isSearching ? handleCancel : handleSearch}
+                className={`h-10 px-6 ${isSearching ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-primary-900 text-white hover:bg-primary-800'}`}
+              >
+                {isSearching ? 'Cancel' : 'Search'}
+              </Button>
+            </div>
           </div>
+        </div>
 
-          {searchResults.length > 0 ? (
+        {/* Streaming Logs */}
+        {(isStreaming || streamingLogs.length > 0) && (
+          <div className="bg-primary-900 rounded-xl p-6 shadow-2xl overflow-hidden border border-primary-800">
+            <StreamingLogs
+              isVisible={true}
+              logs={streamingLogs}
+              isStreaming={isStreaming}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Content Section */}
+      <div className="space-y-8">
+        {hasSearchResults ? (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-primary-200 pb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-primary-900">Search Results</h2>
+                <p className="text-primary-500 mt-1">
+                  Found {searchResults.length} document{searchResults.length !== 1 ? 's' : ''} matching "{query.trim()}"
+                </p>
+              </div>
+              <Button variant="outline" onClick={clearSearchResults}>
+                Clear Results
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {searchResults.map((doc) => (
-                <Card key={doc.id} className="hover:shadow-lg transition-all duration-300 border-0 shadow-md bg-white/80 backdrop-blur-sm">
+                <Card key={doc.id} className="group hover:-translate-y-1 transition-all duration-300">
                   <CardContent className="p-6">
                     <div className="flex items-start gap-4 mb-4">
-                      <div className="text-4xl flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center text-2xl group-hover:bg-primary-100 transition-colors">
                         {getFileIcon(doc.metadata.file_extension)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate cursor-pointer hover:text-primary-600 transition-colors mb-2"
-                            onClick={() => navigate(`/document/${doc.id}`)}>
+                        <h3 className="font-semibold text-primary-900 truncate cursor-pointer hover:text-primary-600 transition-colors mb-1"
+                          onClick={() => navigate(`/document/${doc.id}`)}>
                           {doc.filename}
                         </h3>
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-xs bg-primary-100 text-primary-800 px-2 py-1 rounded-full font-medium">
-                            {((doc.similarity || 0) * 100).toFixed(1)}% match
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium border border-green-100">
+                            {((doc.similarity || 0) * 100).toFixed(0)}% Match
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-1 mb-4">
-                      {doc.categories.split('-').map((category, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-primary-50 to-primary-100 text-primary-700 border border-primary-200"
-                        >
-                          {category.trim()}
-                        </span>
-                      ))}
-                    </div>
-
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-3 leading-relaxed">
+                    <p className="text-sm text-primary-600 mb-4 line-clamp-3 leading-relaxed bg-primary-50/50 p-3 rounded-lg border border-primary-100">
                       {truncateContent(doc.content_preview)}
                     </p>
 
-                    <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
+                    <div className="flex items-center justify-between text-xs text-primary-400 pt-4 border-t border-primary-100">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {formatDate(doc.classification_date)}
                       </span>
-                      <span>{formatFileSize(doc.metadata.file_size)}</span>
-                    </div>
-
-                    <div className="flex gap-2">
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={() => navigate(`/document/${doc.id}`)}
-                        className="flex-1 hover:bg-primary-50 hover:border-primary-300 transition-colors"
+                        className="h-auto py-1 px-2 text-primary-600 hover:text-primary-900"
                       >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Details
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // TODO: Implement download
-                          toast.success('Download feature coming soon!');
-                        }}
-                        className="hover:bg-gray-50 transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
+                        View <ArrowRight className="w-3 h-3 ml-1" />
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
-          ) : (
-            <Card className="border-2 border-dashed border-gray-200">
-              <CardContent className="text-center py-12">
-                <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
-                <p className="text-gray-600 mb-4">
-                  Try adjusting your search query or check if documents have been processed with embeddings.
-                </p>
-                <Button onClick={clearSearchResults}>Clear Search</Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* Quick Actions - hide when showing search results */}
-      {!hasSearchResults && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate('/documents')}>
-          <CardHeader>
-            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
-              <FileText className="w-6 h-6 text-primary-600" />
-            </div>
-            <CardTitle className="text-lg">Browse Documents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600">
-              View and manage all your classified documents with advanced filtering options.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate('/stats')}>
-          <CardHeader>
-            <div className="w-12 h-12 bg-success-100 rounded-lg flex items-center justify-center mb-4">
-              <BarChart3 className="w-6 h-6 text-success-600" />
-            </div>
-            <CardTitle className="text-lg">View Statistics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600">
-              Analyze your document collection with detailed statistics and insights.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-medium transition-shadow">
-          <CardHeader>
-            <div className="w-12 h-12 bg-warning-100 rounded-lg flex items-center justify-center mb-4">
-              <Clock className="w-6 h-6 text-warning-600" />
-            </div>
-            <CardTitle className="text-lg">Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600">
-              {recentDocs.length > 0
-                ? `${recentDocs.length} documents processed recently`
-                : 'No recent documents'
-              }
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-      )}
-
-      {/* Recent Documents - hide when showing search results */}
-      {!hasSearchResults && (
-        <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Recent Documents</h2>
-          <Button variant="outline" onClick={() => navigate('/documents')}>
-            View All
-          </Button>
-        </div>
-
-        {isLoadingDocs ? (
-          <div className="flex justify-center py-12">
-            <LoadingSpinner size="lg" />
-          </div>
-        ) : recentDocs.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {recentDocs.map((doc) => (
-              <Card
-                key={doc.id}
-                className="hover:shadow-medium transition-shadow cursor-pointer"
-                onClick={() => navigate(`/document/${doc.id}`)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="text-3xl">
-                      {getFileIcon(doc.metadata.file_extension)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 truncate mb-2">
-                        {doc.filename}
-                      </h3>
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {doc.categories.split('-').map((category, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
-                          >
-                            {category.trim()}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                        {truncateContent(doc.content_preview)}
-                      </p>
-                      <div className="text-xs text-gray-500">
-                        {formatDate(doc.classification_date)}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="text-center py-12">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
-              <p className="text-gray-600">
-                Start by uploading and processing some documents to see them here.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="space-y-12">
+            {/* Recent Documents */}
+            <div>
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-3xl font-bold text-primary-900">Recent Activity</h2>
+                <Button variant="outline" onClick={() => navigate('/documents')}>
+                  View All Documents
+                </Button>
+              </div>
+
+              {isLoadingDocs ? (
+                <div className="flex justify-center py-20">
+                  <LoadingSpinner size="lg" />
+                </div>
+              ) : recentDocs.length > 0 ? (
+                <div className="bg-white rounded-xl border border-primary-200 overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-primary-50 text-primary-900 font-medium border-b border-primary-200">
+                        <tr>
+                          <th className="px-6 py-4">Document</th>
+                          <th className="px-6 py-4">Categories</th>
+                          <th className="px-6 py-4">Date</th>
+                          <th className="px-6 py-4">Size</th>
+                          <th className="px-6 py-4 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-primary-100">
+                        {recentDocs.map((doc) => (
+                          <tr key={doc.id} className="hover:bg-primary-50/50 transition-colors group cursor-pointer" onClick={() => navigate(`/document/${doc.id}`)}>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="text-xl text-primary-400 group-hover:text-primary-600 transition-colors">
+                                  {getFileIcon(doc.metadata.file_extension)}
+                                </div>
+                                <span className="font-medium text-primary-900">{doc.filename}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-wrap gap-1">
+                                {doc.categories.split('-').map((category, index) => (
+                                  <span key={index} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-700">
+                                    {category.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-primary-600">
+                              {formatDate(doc.classification_date)}
+                            </td>
+                            <td className="px-6 py-4 text-primary-600 font-mono text-xs">
+                              {formatFileSize(doc.metadata.file_size)}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <ArrowRight className="w-4 h-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <Card className="bg-primary-50 border-dashed">
+                  <CardContent className="text-center py-16">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                      <FileText className="w-8 h-8 text-primary-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-primary-900 mb-2">No documents found</h3>
+                    <p className="text-primary-600 max-w-md mx-auto">
+                      Start by uploading and processing some documents to see them appear in your recent activity.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
         )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Home,
   FileText,
@@ -7,23 +7,19 @@ import {
   Menu,
   X,
   RefreshCw,
-  Volume2,
-  VolumeX
+  Terminal
 } from 'lucide-react';
 import { NavItem } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { apiClient } from '@/lib/api';
-import toast from 'react-hot-toast';
 
 const navigation: NavItem[] = [
-  { label: 'Home', href: '/', icon: Home },
+  { label: 'Platform', href: '/', icon: Home },
   { label: 'Documents', href: '/documents', icon: FileText },
   { label: 'Statistics', href: '/stats', icon: BarChart3 },
 ];
 
 export default function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isVerbose, setIsVerbose] = useState(false);
   const location = useLocation();
 
   const handleRefresh = async () => {
@@ -37,96 +33,58 @@ export default function Layout() {
     }
   };
 
-  const handleToggleVerbose = async () => {
-    try {
-      const data = await apiClient.setVerboseState(!isVerbose);
-      setIsVerbose(data.verbose);
-      toast.success(data.message);
-    } catch (error) {
-      console.error('Failed to toggle verbose:', error);
-      toast.error('Failed to toggle verbose logging');
-    }
-  };
-
-  // Fetch initial verbose state
-  useEffect(() => {
-    const fetchVerboseState = async () => {
-      try {
-        const data = await apiClient.getVerboseState();
-        setIsVerbose(data.verbose);
-      } catch (error) {
-        console.error('Failed to fetch verbose state:', error);
-      }
-    };
-
-    fetchVerboseState();
-  }, []);
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-primary-50 font-sans text-primary-900 flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-soft">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
+      <header className="sticky top-0 z-50 bg-primary-50/80 backdrop-blur-md border-b border-primary-200">
+        <div className="container mx-auto px-6">
+          <div className="flex items-center justify-between h-20">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center group-hover:bg-primary-700 transition-colors">
-                <FileText className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-primary-900 rounded-lg flex items-center justify-center shadow-lg shadow-primary-900/20 group-hover:scale-105 transition-transform duration-200">
+                <Terminal className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors">
+              <span className="text-xl font-bold tracking-tight text-primary-900">
                 DocAgent
               </span>
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-6">
+            <nav className="hidden md:flex items-center gap-8">
               {navigation.map((item) => {
-                const Icon = item.icon!;
                 const isActive = location.pathname === item.href;
-
                 return (
                   <Link
                     key={item.href}
                     to={item.href}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                    }`}
+                    className={`text-sm font-medium transition-colors duration-200 ${isActive
+                        ? 'text-primary-900'
+                        : 'text-primary-600 hover:text-primary-900'
+                      }`}
                   >
-                    <Icon className="w-4 h-4" />
                     {item.label}
                   </Link>
                 );
               })}
+            </nav>
 
-              {/* Verbose Logging Toggle */}
+            {/* Right Side Actions */}
+            <div className="hidden md:flex items-center gap-4">
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleToggleVerbose}
-                className={`text-gray-600 hover:text-gray-900 ${isVerbose ? 'bg-yellow-50 text-yellow-700' : ''}`}
-                title={isVerbose ? 'Disable Verbose Logging' : 'Enable Verbose Logging'}
-              >
-                {isVerbose ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              </Button>
-
-              {/* Refresh Button */}
-              <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={handleRefresh}
-                className="text-gray-600 hover:text-gray-900"
-                title="Refresh Database"
+                className="font-mono text-xs"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3 h-3 mr-2" />
+                REFRESH
               </Button>
-            </nav>
+            </div>
 
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              className="md:hidden p-2 rounded-lg text-primary-600 hover:bg-primary-100"
             >
               {isMobileMenuOpen ? (
                 <X className="w-6 h-6" />
@@ -135,25 +93,25 @@ export default function Layout() {
               )}
             </button>
           </div>
+        </div>
 
-          {/* Mobile Navigation */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden border-t border-gray-200 py-4">
-              <nav className="flex flex-col gap-2">
+        {/* Mobile Navigation */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden border-t border-primary-200 bg-white/95 backdrop-blur-xl absolute w-full left-0 shadow-xl">
+            <div className="container mx-auto px-6 py-6 space-y-4">
+              <nav className="flex flex-col gap-4">
                 {navigation.map((item) => {
                   const Icon = item.icon!;
                   const isActive = location.pathname === item.href;
-
                   return (
                     <Link
                       key={item.href}
                       to={item.href}
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'bg-primary-50 text-primary-700'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                      }`}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive
+                          ? 'bg-primary-50 text-primary-900'
+                          : 'text-primary-600 hover:bg-primary-50 hover:text-primary-900'
+                        }`}
                     >
                       <Icon className="w-5 h-5" />
                       {item.label}
@@ -161,54 +119,32 @@ export default function Layout() {
                   );
                 })}
 
-                {/* Mobile Verbose Toggle */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    handleToggleVerbose();
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`justify-start ${isVerbose ? 'bg-yellow-50 text-yellow-700' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  {isVerbose ? <Volume2 className="w-5 h-5 mr-3" /> : <VolumeX className="w-5 h-5 mr-3" />}
-                  {isVerbose ? 'Disable Verbose' : 'Enable Verbose'}
-                </Button>
+                <div className="h-px bg-primary-100 my-2" />
 
-                {/* Mobile Refresh Button */}
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => {
                     handleRefresh();
                     setIsMobileMenuOpen(false);
                   }}
-                  className="justify-start text-gray-600 hover:text-gray-900"
+                  className="justify-start"
                 >
                   <RefreshCw className="w-5 h-5 mr-3" />
                   Refresh Database
                 </Button>
               </nav>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
       <main className="flex-1">
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-6 py-12">
           <Outlet />
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-200 bg-white mt-auto">
-        <div className="container mx-auto px-4 py-6">
-          <div className="text-center text-sm text-gray-500">
-            <p>DOCRAG - Powered by AI</p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
