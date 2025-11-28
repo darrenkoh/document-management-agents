@@ -65,7 +65,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:3000", "http://localhost:5173", "http://localhost:5000"],
-        "methods": ["GET", "POST", "OPTIONS"],
+        "methods": ["GET", "POST", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Cache-Control"]
     }
 })
@@ -412,6 +412,52 @@ def api_get_document(doc_id):
 
     except Exception as e:
         app.logger.error(f"Error getting document {doc_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/documents/delete', methods=['POST'])
+def api_delete_documents():
+    """API endpoint to delete multiple documents by IDs.
+    
+    Expects JSON body: { "ids": [1, 2, 3, ...] }
+    Deletes from both SQLite database and vector store.
+    """
+    try:
+        data = request.get_json()
+        if not data or 'ids' not in data:
+            return jsonify({'error': 'Missing "ids" field in request body'}), 400
+        
+        doc_ids = data['ids']
+        if not isinstance(doc_ids, list):
+            return jsonify({'error': '"ids" must be a list of document IDs'}), 400
+        
+        if not doc_ids:
+            return jsonify({'error': 'No document IDs provided'}), 400
+        
+        # Validate all IDs are integers
+        try:
+            doc_ids = [int(id) for id in doc_ids]
+        except (ValueError, TypeError):
+            return jsonify({'error': 'All IDs must be valid integers'}), 400
+        
+        app.logger.info(f"Deleting {len(doc_ids)} documents: {doc_ids}")
+        
+        # Delete documents from database and vector store
+        result = database.delete_documents(doc_ids)
+        
+        # Refresh database after deletion
+        refresh_database()
+        
+        return jsonify({
+            'success': True,
+            'deleted_count': result['deleted_count'],
+            'vector_deleted_count': result['vector_deleted_count'],
+            'errors': result['errors'],
+            'message': f"Successfully deleted {result['deleted_count']} document(s)"
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Error deleting documents: {e}")
         return jsonify({'error': str(e)}), 500
 
 

@@ -351,3 +351,58 @@ class SQLiteDocumentDatabase:
             'embedded_documents': embedded_docs,
             'database_size_mb': self.db_path.stat().st_size / (1024 * 1024) if self.db_path.exists() else 0
         }
+
+    def delete_documents(self, doc_ids: List[int]) -> Dict[str, Any]:
+        """Delete multiple documents by their IDs.
+
+        Args:
+            doc_ids: List of document IDs to delete
+
+        Returns:
+            Dictionary with deletion results:
+            - deleted_count: Number of documents deleted from SQLite
+            - vector_deleted_count: Number of embeddings deleted from vector store
+            - errors: List of any errors encountered
+        """
+        result = {
+            'deleted_count': 0,
+            'vector_deleted_count': 0,
+            'errors': []
+        }
+
+        if not doc_ids:
+            return result
+
+        try:
+            # First, delete from vector store if available
+            if self.vector_store:
+                try:
+                    # Convert doc IDs to strings for vector store
+                    vector_ids = [str(doc_id) for doc_id in doc_ids]
+                    if self.vector_store.delete(vector_ids):
+                        result['vector_deleted_count'] = len(vector_ids)
+                        logger.info(f"Deleted {len(vector_ids)} embeddings from vector store")
+                    else:
+                        result['errors'].append("Failed to delete some embeddings from vector store")
+                except Exception as e:
+                    error_msg = f"Error deleting from vector store: {e}"
+                    logger.error(error_msg)
+                    result['errors'].append(error_msg)
+
+            # Delete from SQLite database
+            with self._get_cursor() as cursor:
+                # Use parameterized query with placeholders
+                placeholders = ','.join('?' * len(doc_ids))
+                cursor.execute(
+                    f'DELETE FROM documents WHERE id IN ({placeholders})',
+                    doc_ids
+                )
+                result['deleted_count'] = cursor.rowcount
+                logger.info(f"Deleted {result['deleted_count']} documents from SQLite database")
+
+        except Exception as e:
+            error_msg = f"Error deleting documents: {e}"
+            logger.error(error_msg)
+            result['errors'].append(error_msg)
+
+        return result

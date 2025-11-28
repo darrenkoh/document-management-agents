@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Search, Filter, Download, Eye, FileText, Brain, ChevronDown, Check } from 'lucide-react';
+import { Search, Filter, Download, Eye, FileText, Brain, ChevronDown, Check, Trash2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -33,6 +33,11 @@ export default function DocumentsPage() {
   const [isSemanticSearch, setIsSemanticSearch] = useState(false);
   const [semanticSearchQuery, setSemanticSearchQuery] = useState('');
   const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Selection state for multi-delete
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Streaming logs
   const { logs, isStreaming, startStreaming, clearLogs } = useStreamingLogs();
@@ -95,6 +100,11 @@ export default function DocumentsPage() {
     if (currentPage > 1) params.set('page', currentPage.toString());
     setSearchParams(params);
   }, [searchQuery, categoryFilter, currentPage, setSearchParams]);
+
+  // Clear selection when documents change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [documents]);
 
   const loadDocuments = async () => {
     setLoading(true);
@@ -193,12 +203,69 @@ export default function DocumentsPage() {
     }
   };
 
-  const truncateContent = (content: string, length = 200) => {
+  const truncateContent = (content: string, length = 80) => {
     if (content.length <= length) return content;
     return content.substring(0, length) + '...';
   };
 
+  // Selection handlers
+  const handleSelectAll = () => {
+    if (selectedIds.size === documents.length) {
+      // Deselect all
+      setSelectedIds(new Set());
+    } else {
+      // Select all
+      setSelectedIds(new Set(documents.map(doc => doc.id)));
+    }
+  };
+
+  const handleSelectRow = (id: number) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsDeleting(true);
+    try {
+      const idsToDelete = Array.from(selectedIds);
+      const result = await apiClient.deleteDocuments(idsToDelete);
+
+      if (result.success) {
+        toast.success(result.message);
+        setSelectedIds(new Set());
+        setShowDeleteConfirm(false);
+        // Reload documents after deletion
+        if (isSemanticSearch) {
+          // For semantic search, filter out deleted documents from current results
+          setDocuments(prev => prev.filter(doc => !selectedIds.has(doc.id)));
+          setTotalDocuments(prev => prev - result.deleted_count);
+        } else {
+          loadDocuments();
+        }
+      } else {
+        toast.error('Failed to delete some documents');
+        if (result.errors.length > 0) {
+          result.errors.forEach(err => console.error(err));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete documents:', error);
+      toast.error('Failed to delete documents');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const hasActiveFilters = searchQuery || categoryFilter || isSemanticSearch;
+  const isAllSelected = documents.length > 0 && selectedIds.size === documents.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < documents.length;
 
   return (
     <div className="space-y-6">
@@ -350,78 +417,200 @@ export default function DocumentsPage() {
         />
       )}
 
-      {/* Documents Grid */}
+      {/* Selection Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 flex items-center justify-between">
+          <span className="text-sm font-medium text-primary-700">
+            {selectedIds.size} document{selectedIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete Selected
+          </Button>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-primary-900">Confirm Deletion</h3>
+            </div>
+            <p className="text-primary-600 mb-6">
+              Are you sure you want to delete {selectedIds.size} document{selectedIds.size !== 1 ? 's' : ''}? 
+              This action cannot be undone and will remove the documents from both the database and vector store.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isDeleting ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Documents Table */}
       {loading ? (
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
       ) : documents.length > 0 ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {documents.map((doc) => (
-              <Card key={doc.id} className="hover:shadow-medium transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="text-3xl flex-shrink-0">
-                      {getFileIcon(doc.metadata.file_extension)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3
-                        className="font-semibold text-primary-900 truncate cursor-pointer hover:text-primary-600 transition-colors"
-                        onClick={() => navigate(`/document/${doc.id}`)}
-                      >
-                        {doc.filename}
-                      </h3>
-                      <p className="text-sm text-primary-500 mt-1">
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-primary-200 bg-primary-50/50">
+                    <th className="px-4 py-3 text-left w-12">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = isSomeSelected;
+                        }}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4 rounded border-primary-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
+                      Filename
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
+                      Categories
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
+                      Size
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-primary-600 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-primary-100">
+                  {documents.map((doc) => (
+                    <tr
+                      key={doc.id}
+                      className={`hover:bg-primary-50/50 transition-colors ${selectedIds.has(doc.id) ? 'bg-primary-50' : ''}`}
+                    >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(doc.id)}
+                          onChange={() => handleSelectRow(doc.id)}
+                          className="w-4 h-4 rounded border-primary-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl flex-shrink-0">
+                            {getFileIcon(doc.metadata.file_extension)}
+                          </span>
+                          <div className="min-w-0">
+                            <p
+                              className="font-medium text-primary-900 truncate cursor-pointer hover:text-primary-600 transition-colors max-w-xs"
+                              onClick={() => navigate(`/document/${doc.id}`)}
+                              title={doc.filename}
+                            >
+                              {doc.filename}
+                            </p>
+                            <p className="text-xs text-primary-500 truncate max-w-xs" title={doc.content_preview}>
+                              {truncateContent(doc.content_preview)}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1 max-w-xs">
+                          {doc.categories.split('-').slice(0, 2).map((category, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-700"
+                            >
+                              {category.trim()}
+                            </span>
+                          ))}
+                          {doc.categories.split('-').length > 2 && (
+                            <span className="text-xs text-primary-500">
+                              +{doc.categories.split('-').length - 2}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-primary-600 whitespace-nowrap">
                         {formatDate(doc.classification_date)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1 mb-4">
-                    {doc.categories.split('-').map((category, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
-                      >
-                        {category.trim()}
-                      </span>
-                    ))}
-                  </div>
-
-                  <p className="text-sm text-primary-600 mb-4 line-clamp-3 bg-primary-50/50 p-3 rounded-lg border border-primary-100">
-                    {truncateContent(doc.content_preview)}
-                  </p>
-
-                  <div className="flex items-center justify-between text-xs text-primary-500 mb-4">
-                    <span>Size: {formatFileSize(doc.metadata.file_size)}</span>
-                    <span>Type: {doc.metadata.file_extension.toUpperCase()}</span>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/document/${doc.id}`)}
-                      className="flex-1"
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      View
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        toast.success('Download feature coming soon!');
-                      }}
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-primary-600 whitespace-nowrap">
+                        {formatFileSize(doc.metadata.file_size)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-700 uppercase">
+                          {doc.metadata.file_extension.replace('.', '')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/document/${doc.id}`)}
+                            className="px-2"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              toast.success('Download feature coming soon!');
+                            }}
+                            className="px-2"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
 
           {/* Pagination */}
           {!isSemanticSearch && totalPages > 1 && (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Eye, FileText, Calendar, Tag, HardDrive } from 'lucide-react';
+import { ArrowLeft, Download, Eye, FileText, Calendar, Tag, HardDrive, Trash2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -14,6 +14,8 @@ export default function DocumentDetailPage() {
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Function to filter out LLM encoding tokens
   const filterLLMEncoding = (content: string): string => {
@@ -61,6 +63,30 @@ export default function DocumentDetailPage() {
   const handleViewOriginal = () => {
     if (!document) return;
     window.open(`/document/${document.id}/file`, '_blank');
+  };
+
+  const handleDelete = async () => {
+    if (!document) return;
+
+    setIsDeleting(true);
+    try {
+      const result = await apiClient.deleteDocuments([document.id]);
+      if (result.success) {
+        toast.success('Document deleted successfully');
+        navigate('/documents');
+      } else {
+        toast.error('Failed to delete document');
+        if (result.errors.length > 0) {
+          result.errors.forEach(err => console.error(err));
+        }
+      }
+    } catch (error) {
+      console.error('Delete failed:', error);
+      toast.error('Failed to delete document');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -118,8 +144,65 @@ export default function DocumentDetailPage() {
             <Download className="w-4 h-4 mr-2" />
             {downloading ? 'Downloading...' : 'Download'}
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete
+          </Button>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-primary-900">Delete Document</h3>
+            </div>
+            <p className="text-primary-600 mb-2">
+              Are you sure you want to delete this document?
+            </p>
+            <p className="text-sm text-primary-500 mb-6 bg-primary-50 p-3 rounded-lg font-medium">
+              {document?.filename}
+            </p>
+            <p className="text-sm text-primary-500 mb-6">
+              This action cannot be undone and will remove the document from both the database and vector store.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isDeleting ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Document Header */}
       <Card>
