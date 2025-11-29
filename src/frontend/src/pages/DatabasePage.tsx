@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Database, Table, Plus, Search, Filter, SortAsc, SortDesc, Edit, Trash2 } from 'lucide-react';
+import { Database, Table, Plus, Search, Filter, SortAsc, SortDesc, Edit, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -364,7 +364,7 @@ export default function DatabasePage() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-primary-200">
-                        <th className="text-left py-2 px-4 font-semibold text-primary-900">Actions</th>
+                        <th className="text-center py-2 px-4 font-semibold text-primary-900 w-20">Actions</th>
                         {tableData.columns.map((column) => {
                           const isContentColumn = column === 'content';
                           return (
@@ -398,22 +398,22 @@ export default function DatabasePage() {
                     <tbody>
                       {tableData.rows.map((row, index) => (
                         <tr key={index} className="border-b border-primary-100 hover:bg-primary-50">
-                          <td className="py-2 px-4">
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
+                          <td className="py-2 px-4 w-20">
+                            <div className="flex gap-1 justify-center">
+                              <button
                                 onClick={() => handleEditRecord(index)}
+                                className="p-1.5 text-primary-600 hover:text-primary-800 hover:bg-primary-100 rounded-md transition-colors duration-150"
+                                title="Edit record"
                               >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
                                 onClick={() => handleDeleteRecord(index)}
+                                className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-md transition-colors duration-150"
+                                title="Delete record"
                               >
-                                Delete
-                              </Button>
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </td>
                           {row.map((cell, cellIndex) => {
@@ -424,31 +424,28 @@ export default function DatabasePage() {
                             // Format timestamp columns
                             let displayValue = cell;
                             if (cell !== null && isTimestampColumn) {
-                              console.log(`Formatting timestamp for ${columnName}:`, cell, typeof cell, 'isTimestampColumn:', isTimestampColumn);
-
-                              // Force formatting for debugging
                               try {
                                 let timestamp: number;
 
-                                // Convert cell to number regardless of type
+                                // Convert cell to number
                                 const numValue = typeof cell === 'number' ? cell : parseFloat(String(cell));
                                 if (isNaN(numValue)) {
                                   throw new Error('Cannot convert to number');
                                 }
                                 timestamp = numValue;
 
-                                console.log(`Parsed timestamp: ${timestamp}`);
-
                                 // SQLite stores Unix timestamps in seconds, convert to milliseconds
                                 timestamp = timestamp * 1000;
 
-                                console.log(`Converted to milliseconds: ${timestamp}`);
-
                                 const date = new Date(timestamp);
-                                console.log(`Date object:`, date);
+
+                                // Validate the date is reasonable
+                                if (date.getFullYear() < 2000 || date.getFullYear() > 2100) {
+                                  throw new Error('Invalid date range');
+                                }
 
                                 // Format as ISO-like string in PST timezone
-                                const formatted = date.toLocaleString('en-US', {
+                                displayValue = date.toLocaleString('en-US', {
                                   timeZone: 'America/Los_Angeles',
                                   year: 'numeric',
                                   month: '2-digit',
@@ -459,12 +456,10 @@ export default function DatabasePage() {
                                   hour12: false
                                 });
 
-                                console.log(`Final formatted result: ${formatted}`);
-                                displayValue = formatted;
-
                               } catch (error) {
-                                console.error(`Failed to format timestamp for ${columnName}:`, cell, error);
-                                displayValue = `ERROR: ${String(cell)}`;
+                                // Fallback to original value if parsing fails
+                                console.warn(`Failed to format timestamp for ${columnName}:`, cell, error);
+                                displayValue = String(cell);
                               }
                             }
 
