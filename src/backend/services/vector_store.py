@@ -82,6 +82,15 @@ class VectorStore(ABC):
         pass
 
     @abstractmethod
+    def get_all_embeddings(self) -> List[Dict[str, Any]]:
+        """Get all embeddings and metadata.
+        
+        Returns:
+            List of dictionaries containing embedding and metadata
+        """
+        pass
+
+    @abstractmethod
     def count(self) -> int:
         """Get total number of stored embeddings.
 
@@ -277,6 +286,48 @@ class ChromaVectorStore(VectorStore):
             logger.error(f"Error getting document by ID from ChromaDB: {e}")
             return None
 
+    def get_all_embeddings(self) -> List[Dict[str, Any]]:
+        """Get all embeddings and metadata from ChromaDB."""
+        try:
+            # Get all data from collection
+            result = self.collection.get(
+                include=['embeddings', 'metadatas']
+            )
+            
+            if result['embeddings'] is None:
+                return []
+            
+            # Check for empty embeddings list which might be returned as None or empty list
+            # Use explicit length check to avoid numpy ambiguity
+            if len(result['embeddings']) == 0:
+                return []
+
+                
+            all_data = []
+            for i, (doc_id, embedding, metadata) in enumerate(zip(
+                result['ids'], 
+                result['embeddings'], 
+                result['metadatas']
+            )):
+                # Ensure metadata is a dictionary
+                meta = metadata if metadata else {}
+                
+                # Add ID to metadata if not present
+                if 'id' not in meta:
+                    meta['id'] = doc_id
+                    
+                all_data.append({
+                    'id': doc_id,
+                    'embedding': embedding,
+                    'metadata': meta
+                })
+                
+            return all_data
+            
+        except Exception as e:
+            logger.error(f"Error getting all embeddings from ChromaDB: {e}")
+            return []
+
     def count(self) -> int:
         """Get total number of embeddings in ChromaDB."""
         try:
@@ -461,6 +512,52 @@ class FAISSVectorStore(VectorStore):
     def get_by_id(self, doc_id: str) -> Optional[Dict[str, Any]]:
         """Get document metadata by ID."""
         return self.metadata_store.get(doc_id)
+
+    def get_all_embeddings(self) -> List[Dict[str, Any]]:
+        """Get all embeddings and metadata from FAISS.
+        
+        Note: This is a partial implementation since FAISS index doesn't strictly store 
+        original vectors in a retrieveable way for all index types, but for IndexFlatIP it does.
+        """
+        try:
+            # For IndexFlatIP, we can reconstruct vectors
+            # But for simplicity and safety, we'll rely on what we might have stored or return empty
+            # A proper implementation would require storing original vectors alongside the index
+            # if the index type is lossy (like IVFPQ).
+            # Since we're using IndexFlatIP, we could technically reconstruct:
+            
+            if not hasattr(self.index, 'reconstruct'):
+                 logger.warning("FAISS index does not support reconstruction, returning empty")
+                 return []
+                 
+            ntotal = self.index.ntotal
+            all_data = []
+            
+            for i in range(ntotal):
+                try:
+                    embedding = self.index.reconstruct(i)
+                    # Convert numpy array to list
+                    embedding_list = embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
+                    
+                    doc_id = self.idx_to_id.get(i)
+                    if doc_id:
+                        metadata = self.metadata_store.get(doc_id, {})
+                        if 'id' not in metadata:
+                            metadata['id'] = doc_id
+                            
+                        all_data.append({
+                            'id': doc_id,
+                            'embedding': embedding_list,
+                            'metadata': metadata
+                        })
+                except Exception:
+                    continue
+                    
+            return all_data
+            
+        except Exception as e:
+            logger.error(f"Error getting all embeddings from FAISS: {e}")
+            return []
 
     def count(self) -> int:
         """Get total number of embeddings."""

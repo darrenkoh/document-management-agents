@@ -143,3 +143,21 @@ export interface CrudResponse {
   message: string;
   error?: string;
 }
+
+// Embedding types
+export interface EmbeddingPoint {
+  id: number;
+  x: number;
+  y: number;
+  z: number;
+  filename: string;
+  categories: string;
+  metadata: DocumentMetadata;
+}
+
+export interface EmbeddingResponse {
+  points: EmbeddingPoint[];
+  count: number;
+  explained_variance?: number[];
+  error?: string;
+}

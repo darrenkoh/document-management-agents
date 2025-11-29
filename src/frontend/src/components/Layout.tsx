@@ -8,7 +8,8 @@ import {
   Menu,
   X,
   RefreshCw,
-  Terminal
+  Terminal,
+  ScatterChart
 } from 'lucide-react';
 import { NavItem } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -17,6 +18,7 @@ const navigation: NavItem[] = [
   { label: 'Ask', href: '/', icon: Home },
   { label: 'Documents', href: '/documents', icon: FileText },
   { label: 'Database', href: '/database', icon: Database },
+  { label: 'Embeddings', href: '/embeddings', icon: ScatterChart },
   { label: 'Statistics', href: '/stats', icon: BarChart3 },
 ];
 
@@ -142,8 +144,8 @@ export default function Layout() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1">
-        <div className="container mx-auto px-6 py-3">
+      <main className="flex-1 flex flex-col">
+        <div className={`flex-1 flex flex-col ${location.pathname === '/embeddings' ? '' : 'container mx-auto px-6 py-3'}`}>
           <Outlet />
         </div>
       </main>

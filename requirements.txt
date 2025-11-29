@@ -16,6 +16,9 @@ pdf2image>=1.17.0
 chromadb>=0.4.0
 faiss-cpu>=1.7.0
 
+# Machine Learning for dimensionality reduction
+scikit-learn>=1.3.0
+
 # React frontend build dependencies (optional, for development)
 # These are not needed for runtime, only for building the React app
 # nodejs>=18.0.0

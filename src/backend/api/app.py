@@ -461,6 +461,104 @@ def api_delete_documents():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/embeddings')
+def api_get_embeddings():
+    """Get all document embeddings projected to 3D space using PCA."""
+    try:
+        # Check if vector store is available
+        if not agent.database.vector_store:
+            return jsonify({'error': 'Vector store not available'}), 503
+
+        # Get all embeddings
+        all_data = agent.database.vector_store.get_all_embeddings()
+        
+        if not all_data:
+            return jsonify({'points': [], 'count': 0})
+
+        # Extract embeddings and metadata
+        embeddings = []
+        metadata_list = []
+        ids = []
+        
+        for item in all_data:
+            embeddings.append(item['embedding'])
+            metadata_list.append(item['metadata'])
+            ids.append(item['id'])
+            
+        # Perform PCA to reduce to 3 dimensions
+        # Import here to avoid dependency if endpoint is not used
+        from sklearn.decomposition import PCA
+        import numpy as np
+        
+        # Convert to numpy array
+        X = np.array(embeddings)
+        
+        # We need at least 3 samples for 3 components, or min(n_samples, n_features)
+        n_samples, n_features = X.shape
+        n_components = min(3, n_samples, n_features)
+        
+        if n_components < 2:
+             # Not enough data for meaningful visualization
+             # Just return some dummy coordinates or handle gracefully
+             points = []
+             for i, meta in enumerate(metadata_list):
+                 points.append({
+                     'id': ids[i],
+                     'x': 0,
+                     'y': 0,
+                     'z': 0,
+                     'filename': meta.get('filename', 'Unknown'),
+                     'categories': meta.get('categories', 'Unknown'),
+                     'metadata': meta
+                 })
+             return jsonify({'points': points, 'count': len(points)})
+             
+        # Fit PCA
+        pca = PCA(n_components=3) # Always try for 3, will handle fewer components if needed
+        
+        if n_samples < 3:
+            # If we have fewer than 3 samples, we can't do 3D PCA properly with sklearn default
+            # But since we handled n_components logic above, let's see.
+            # Actually PCA(n_components=3) on 2 samples will result in 2 components.
+            pass
+            
+        X_pca = pca.fit_transform(X)
+        
+        # Prepare result points
+        points = []
+        for i, coords in enumerate(X_pca):
+            # Pad with zeros if we have fewer than 3 dimensions
+            x = float(coords[0]) if len(coords) > 0 else 0.0
+            y = float(coords[1]) if len(coords) > 1 else 0.0
+            z = float(coords[2]) if len(coords) > 2 else 0.0
+            
+            meta = metadata_list[i]
+            points.append({
+                'id': ids[i],
+                'x': x,
+                'y': y,
+                'z': z,
+                'filename': meta.get('filename', 'Unknown'),
+                'categories': meta.get('categories', 'Unknown'),
+                'metadata': meta
+            })
+            
+        return jsonify({
+            'points': points, 
+            'count': len(points),
+            'explained_variance': pca.explained_variance_ratio_.tolist() if hasattr(pca, 'explained_variance_ratio_') else []
+        })
+
+    except ImportError:
+        app.logger.error("scikit-learn not installed")
+        return jsonify({'error': 'scikit-learn not installed on server'}), 500
+    except Exception as e:
+        app.logger.error(f"Error generating embedding visualization: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/refresh')
 def refresh_data():
     """Refresh database data from disk."""
