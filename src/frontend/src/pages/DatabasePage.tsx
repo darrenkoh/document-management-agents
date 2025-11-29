@@ -300,48 +300,43 @@ export default function DatabasePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Tables Sidebar */}
-        <div className="lg:col-span-1">
-          <Card className="p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Table className="w-5 h-5 text-primary-600" />
-              <h2 className="text-lg font-semibold text-primary-900">Tables</h2>
-            </div>
-
-            {/* Search */}
-            <div className="relative mb-4">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-400" />
-              <Input
-                placeholder="Search tables..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            {/* Tables List */}
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredTables.map((table) => (
-                <button
-                  key={table.name}
-                  onClick={() => setSelectedTable(table.name)}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${
-                    selectedTable === table.name
-                      ? 'bg-primary-100 text-primary-900'
-                      : 'hover:bg-primary-50 text-primary-700'
-                  }`}
-                >
-                  <div className="font-medium">{table.name}</div>
-                  <div className="text-sm text-primary-500">{table.rowCount} rows</div>
-                </button>
-              ))}
-            </div>
-          </Card>
+      {/* Table Selection - Horizontal Layout */}
+      <Card className="p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Table className="w-5 h-5 text-primary-600" />
+          <h2 className="text-lg font-semibold text-primary-900">Tables</h2>
+          <div className="relative ml-4">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-400" />
+            <Input
+              placeholder="Search tables..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-64"
+            />
+          </div>
         </div>
 
-        {/* Table Data */}
-        <div className="lg:col-span-3">
+        {/* Tables List - Horizontal */}
+        <div className="flex flex-wrap gap-3">
+          {filteredTables.map((table) => (
+            <button
+              key={table.name}
+              onClick={() => setSelectedTable(table.name)}
+              className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all min-w-[120px] ${
+                selectedTable === table.name
+                  ? 'bg-primary-100 border-primary-300 text-primary-900 shadow-md'
+                  : 'bg-white border-primary-200 text-primary-700 hover:bg-primary-50 hover:border-primary-300'
+              }`}
+            >
+              <div className="font-medium text-center">{table.name}</div>
+              <div className="text-sm text-primary-500 mt-1">{table.rowCount} rows</div>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Table Data */}
+      <div>
           {selectedTable ? (
             <Card className="p-4">
               <div className="flex items-center justify-between mb-4">
@@ -370,28 +365,34 @@ export default function DatabasePage() {
                     <thead>
                       <tr className="border-b border-primary-200">
                         <th className="text-left py-2 px-4 font-semibold text-primary-900">Actions</th>
-                        {tableData.columns.map((column) => (
-                          <th key={column} className="text-left py-2 px-4 font-semibold text-primary-900">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleSort(column)}
-                                className="flex items-center gap-1 hover:text-primary-600"
-                              >
-                                {column}
-                                {sortColumn === column && (
-                                  sortDirection === 'asc' ? <SortAsc className="w-4 h-4" /> : <SortDesc className="w-4 h-4" />
-                                )}
-                              </button>
-                            </div>
-                            {/* Filter input */}
-                            <Input
-                              placeholder={`Filter ${column}...`}
-                              value={filters[column] || ''}
-                              onChange={(e) => handleFilterChange(column, e.target.value)}
-                              className="mt-1 text-sm h-8"
-                            />
-                          </th>
-                        ))}
+                        {tableData.columns.map((column) => {
+                          const isContentColumn = column === 'content';
+                          return (
+                            <th
+                              key={column}
+                              className={`text-left py-2 px-4 font-semibold text-primary-900 ${isContentColumn ? 'w-[20vw] max-w-[20vw]' : ''}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleSort(column)}
+                                  className="flex items-center gap-1 hover:text-primary-600"
+                                >
+                                  {column}
+                                  {sortColumn === column && (
+                                    sortDirection === 'asc' ? <SortAsc className="w-4 h-4" /> : <SortDesc className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                              {/* Filter input */}
+                              <Input
+                                placeholder={`Filter ${column}...`}
+                                value={filters[column] || ''}
+                                onChange={(e) => handleFilterChange(column, e.target.value)}
+                                className="mt-1 text-sm h-8"
+                              />
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
@@ -415,15 +416,73 @@ export default function DatabasePage() {
                               </Button>
                             </div>
                           </td>
-                          {row.map((cell, cellIndex) => (
-                            <td key={cellIndex} className="py-2 px-4 text-sm">
-                              {cell === null ? (
-                                <span className="text-primary-400 italic">NULL</span>
-                              ) : (
-                                String(cell)
-                              )}
-                            </td>
-                          ))}
+                          {row.map((cell, cellIndex) => {
+                            const columnName = tableData.columns[cellIndex];
+                            const isContentColumn = columnName === 'content';
+                            const isTimestampColumn = columnName === 'created_at' || columnName === 'updated_at' || columnName === 'deleted_at';
+
+                            // Format timestamp columns
+                            let displayValue = cell;
+                            if (cell !== null && isTimestampColumn) {
+                              console.log(`Formatting timestamp for ${columnName}:`, cell, typeof cell, 'isTimestampColumn:', isTimestampColumn);
+
+                              // Force formatting for debugging
+                              try {
+                                let timestamp: number;
+
+                                // Convert cell to number regardless of type
+                                const numValue = typeof cell === 'number' ? cell : parseFloat(String(cell));
+                                if (isNaN(numValue)) {
+                                  throw new Error('Cannot convert to number');
+                                }
+                                timestamp = numValue;
+
+                                console.log(`Parsed timestamp: ${timestamp}`);
+
+                                // SQLite stores Unix timestamps in seconds, convert to milliseconds
+                                timestamp = timestamp * 1000;
+
+                                console.log(`Converted to milliseconds: ${timestamp}`);
+
+                                const date = new Date(timestamp);
+                                console.log(`Date object:`, date);
+
+                                // Format as ISO-like string in PST timezone
+                                const formatted = date.toLocaleString('en-US', {
+                                  timeZone: 'America/Los_Angeles',
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  hour12: false
+                                });
+
+                                console.log(`Final formatted result: ${formatted}`);
+                                displayValue = formatted;
+
+                              } catch (error) {
+                                console.error(`Failed to format timestamp for ${columnName}:`, cell, error);
+                                displayValue = `ERROR: ${String(cell)}`;
+                              }
+                            }
+
+                            return (
+                              <td
+                                key={cellIndex}
+                                className={`py-2 px-4 text-sm ${isContentColumn ? 'w-[20vw] max-w-[20vw]' : ''}`}
+                              >
+                                {cell === null ? (
+                                  <span className="text-primary-400 italic">NULL</span>
+                                ) : (
+                                  <div className={isContentColumn ? 'truncate max-w-full' : ''}>
+                                    {String(displayValue)}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))}
                     </tbody>
@@ -470,7 +529,6 @@ export default function DatabasePage() {
             </Card>
           )}
         </div>
-      </div>
 
       {/* Create Record Modal */}
       {showCreateModal && selectedTableInfo && (
