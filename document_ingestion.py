@@ -171,12 +171,15 @@ def main():
                 print(f"\nProcessing complete:")
                 print(f"  Total files: {stats['total']}")
                 print(f"  Processed: {stats['processed']}")
+                print(f"  Skipped (duplicates): {stats.get('skipped', 0)}")
+                print(f"  Skipped (deleted): {stats.get('skipped_deleted', 0)}")
                 print(f"  Failed: {stats['failed']}")
 
                 # Display and log performance metrics
-                if 'performance' in stats and stats['processed'] > 0:
+                processed_or_skipped = stats['processed'] + stats.get('skipped', 0) + stats.get('skipped_deleted', 0)
+                if 'performance' in stats and processed_or_skipped > 0:
                     perf = stats['performance']
-                    print(f"\nPerformance metrics (per file averages):")
+                    print(f"\nPerformance metrics (per file averages, including skipped files):")
                     print(f"  SHA256 hash: {format_duration(perf['avg_hash_duration'])}")
                     print(f"  OCR: {format_duration(perf['avg_ocr_duration'])}")
                     print(f"  Classification: {format_duration(perf['avg_classification_duration'])}")
@@ -188,7 +191,7 @@ def main():
                     print(f"  Total per file: {format_duration(total_avg)}")
 
                     # Log performance metrics
-                    logger.info(f"Performance metrics - Processed {stats['processed']} files:")
+                    logger.info(f"Performance metrics - Processed {processed_or_skipped} files (including skipped):")
                     logger.info(f"  SHA256 hash: {format_duration(perf['avg_hash_duration'])}")
                     logger.info(f"  OCR: {format_duration(perf['avg_ocr_duration'])}")
                     logger.info(f"  Classification: {format_duration(perf['avg_classification_duration'])}")

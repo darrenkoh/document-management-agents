@@ -65,11 +65,25 @@ class SQLiteDocumentDatabase:
                 )
             ''')
 
+            # Deleted files table to track previously deleted files by hash
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS deleted_files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_hash TEXT UNIQUE NOT NULL,
+                    original_filename TEXT,
+                    deleted_at REAL,
+                    deleted_doc_id INTEGER
+                )
+            ''')
+
             # Indexes for fast lookups (critical for performance)
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_file_hash ON documents(file_hash)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_file_path ON documents(file_path)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_categories ON documents(categories)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_embedding_stored ON documents(embedding_stored)')
+
+            # Index for deleted files lookup
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_deleted_file_hash ON deleted_files(file_hash)')
 
     @contextmanager
     def _get_cursor(self):
@@ -165,6 +179,20 @@ class SQLiteDocumentDatabase:
             cursor.execute('SELECT * FROM documents WHERE file_hash = ?', (file_hash,))
             row = cursor.fetchone()
             return self._row_to_dict(row) if row else None
+
+    def is_file_hash_deleted(self, file_hash: str) -> bool:
+        """Check if a file hash exists in the deleted_files table (FAST - uses index).
+
+        Args:
+            file_hash: SHA-256 hash of the file content
+
+        Returns:
+            True if the file hash was previously deleted, False otherwise
+        """
+        with self._get_cursor() as cursor:
+            cursor.execute('SELECT 1 FROM deleted_files WHERE file_hash = ? LIMIT 1', (file_hash,))
+            row = cursor.fetchone()
+            return row is not None
 
     def _row_to_dict(self, row) -> Dict:
         """Convert SQLite Row to dictionary with proper JSON parsing."""
@@ -374,6 +402,35 @@ class SQLiteDocumentDatabase:
             return result
 
         try:
+            # First, get document information for recording in deleted_files table
+            doc_info = []
+            with self._get_cursor() as cursor:
+                placeholders = ','.join('?' * len(doc_ids))
+                cursor.execute(
+                    f'SELECT id, file_hash, filename FROM documents WHERE id IN ({placeholders})',
+                    doc_ids
+                )
+                doc_info = cursor.fetchall()
+
+            # Record deleted file hashes before deletion
+            if doc_info:
+                with self._get_cursor() as cursor:
+                    current_time = datetime.now().timestamp()
+                    for doc in doc_info:
+                        try:
+                            cursor.execute('''
+                                INSERT INTO deleted_files (file_hash, original_filename, deleted_at, deleted_doc_id)
+                                VALUES (?, ?, ?, ?)
+                            ''', (doc['file_hash'], doc['filename'], current_time, doc['id']))
+                        except sqlite3.IntegrityError:
+                            # Hash already exists in deleted_files, just update the timestamp
+                            cursor.execute('''
+                                UPDATE deleted_files
+                                SET deleted_at = ?, deleted_doc_id = ?
+                                WHERE file_hash = ?
+                            ''', (current_time, doc['id'], doc['file_hash']))
+                logger.info(f"Recorded {len(doc_info)} file hashes in deleted_files table")
+
             # First, delete from vector store if available
             if self.vector_store:
                 try:
