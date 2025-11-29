@@ -98,3 +98,48 @@ export interface NavItem {
   icon?: React.ComponentType<{ className?: string }>;
   badge?: string | number;
 }
+
+// Database types
+export interface ColumnInfo {
+  name: string;
+  type: string;
+  nullable: boolean;
+  primaryKey: boolean;
+}
+
+export interface TableInfo {
+  name: string;
+  rowCount: number;
+  columns: ColumnInfo[];
+}
+
+export interface TableData {
+  columns: string[];
+  rows: any[][];
+  totalRows: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+}
+
+export interface DatabaseTablesResponse {
+  tables: TableInfo[];
+}
+
+export interface DatabaseTableDataResponse extends TableData {}
+
+// CRUD operation types
+export interface CreateRecordRequest {
+  [key: string]: any;
+}
+
+export interface UpdateRecordRequest {
+  [key: string]: any;
+}
+
+export interface CrudResponse {
+  success: boolean;
+  id?: number;
+  message: string;
+  error?: string;
+}

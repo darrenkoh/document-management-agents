@@ -512,6 +512,293 @@ def api_get_stats():
         return jsonify({'error': str(e)}), 500
 
 
+# Database management endpoints
+@app.route('/api/database/tables')
+def api_get_tables():
+    """Get list of all tables in the database with their metadata."""
+    try:
+        cursor = database.connection.cursor()
+
+        # Get all table names
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        tables = cursor.fetchall()
+
+        table_info = []
+        for table_row in tables:
+            table_name = table_row['name']
+
+            # Get row count
+            cursor.execute(f'SELECT COUNT(*) as count FROM "{table_name}"')
+            row_count = cursor.fetchone()['count']
+
+            # Get column information
+            cursor.execute(f'PRAGMA table_info("{table_name}")')
+            columns = cursor.fetchall()
+
+            column_info = []
+            for col in columns:
+                column_info.append({
+                    'name': col['name'],
+                    'type': col['type'],
+                    'nullable': not col['notnull'],
+                    'primaryKey': bool(col['pk'])
+                })
+
+            table_info.append({
+                'name': table_name,
+                'rowCount': row_count,
+                'columns': column_info
+            })
+
+        cursor.close()
+        return jsonify({'tables': table_info})
+
+    except Exception as e:
+        app.logger.error(f"Error getting tables: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/database/tables/<table_name>/data')
+def api_get_table_data(table_name):
+    """Get paginated data from a specific table with optional sorting and filtering."""
+    try:
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 50, type=int)
+        sort = request.args.get('sort', '')
+        direction = request.args.get('direction', 'asc')
+
+        # Validate inputs
+        if page < 1:
+            page = 1
+        if limit < 1 or limit > 1000:
+            limit = 50
+        if direction not in ['asc', 'desc']:
+            direction = 'asc'
+
+        cursor = database.connection.cursor()
+
+        # Get column information to validate sort column
+        cursor.execute(f'PRAGMA table_info("{table_name}")')
+        columns = cursor.fetchall()
+        column_names = [col['name'] for col in columns]
+
+        # Validate sort column exists
+        if sort and sort not in column_names:
+            app.logger.warning(f"Invalid sort column '{sort}' for table '{table_name}', resetting to default")
+            sort = None
+
+        # Validate filter columns exist
+        for key, value in request.args.items():
+            if key.startswith('filter_') and value.strip():
+                column = key[7:]  # Remove 'filter_' prefix
+                if column not in column_names:
+                    app.logger.warning(f"Invalid filter column '{column}' for table '{table_name}', ignoring")
+                    # Remove the invalid filter from request args
+                    # We can't modify request.args directly, so we'll skip it in the loop below
+
+        # Build WHERE clause from filters
+        where_conditions = []
+        where_params = []
+        for key, value in request.args.items():
+            if key.startswith('filter_') and value.strip():
+                column = key[7:]  # Remove 'filter_' prefix
+                if column in column_names:  # Only include valid columns
+                    where_conditions.append(f'"{column}" LIKE ?')
+                    where_params.append(f"%{value}%")
+
+        where_clause = " AND ".join(where_conditions) if where_conditions else ""
+
+        # Get total count
+        count_query = f'SELECT COUNT(*) as count FROM "{table_name}"'
+        if where_clause:
+            count_query += f" WHERE {where_clause}"
+
+        cursor.execute(count_query, where_params)
+        total_rows = cursor.fetchone()['count']
+
+        # Build ORDER BY clause
+        order_clause = ""
+        if sort:
+            order_clause = f' ORDER BY "{sort}" {direction.upper()}'
+
+        # Build LIMIT clause
+        offset = (page - 1) * limit
+        limit_clause = f" LIMIT {limit} OFFSET {offset}"
+
+        # Get data
+        data_query = f'SELECT * FROM "{table_name}"'
+        if where_clause:
+            data_query += f" WHERE {where_clause}"
+        data_query += order_clause + limit_clause
+
+        cursor.execute(data_query, where_params)
+        rows = cursor.fetchall()
+
+        # Convert rows to lists (we already have columns from PRAGMA)
+        row_data = [list(row) for row in rows]
+
+        cursor.close()
+
+        total_pages = math.ceil(total_rows / limit)
+
+        return jsonify({
+            'columns': column_names,
+            'rows': row_data,
+            'totalRows': total_rows,
+            'page': page,
+            'totalPages': total_pages,
+            'limit': limit
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error getting table data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/database/tables/<table_name>/record', methods=['POST'])
+def api_create_record(table_name):
+    """Create a new record in the specified table."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        cursor = database.connection.cursor()
+
+        # Get column info to validate data types
+        cursor.execute(f'PRAGMA table_info("{table_name}")')
+        columns = cursor.fetchall()
+        column_names = [col['name'] for col in columns]
+
+        # Filter data to only include valid columns
+        insert_data = {k: v for k, v in data.items() if k in column_names}
+
+        if not insert_data:
+            return jsonify({'error': 'No valid columns provided'}), 400
+
+        # Build INSERT query
+        columns_str = ', '.join(f'"{col}"' for col in insert_data.keys())
+        placeholders = ', '.join('?' for _ in insert_data.values())
+        values = list(insert_data.values())
+
+        query = f'INSERT INTO "{table_name}" ({columns_str}) VALUES ({placeholders})'
+        cursor.execute(query, values)
+
+        # Get the ID of the inserted record
+        record_id = cursor.lastrowid
+
+        database.connection.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'id': record_id,
+            'message': 'Record created successfully'
+        })
+
+    except Exception as e:
+        database.connection.rollback()
+        app.logger.error(f"Error creating record: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/database/tables/<table_name>/record/<int:record_id>', methods=['PUT'])
+def api_update_record(table_name, record_id):
+    """Update a record in the specified table."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        cursor = database.connection.cursor()
+
+        # Get column info to validate data types
+        cursor.execute(f'PRAGMA table_info("{table_name}")')
+        columns = cursor.fetchall()
+        column_names = [col['name'] for col in columns]
+
+        # Find primary key column
+        pk_column = None
+        for col in columns:
+            if col['pk']:
+                pk_column = col['name']
+                break
+
+        if not pk_column:
+            return jsonify({'error': 'Table must have a primary key for updates'}), 400
+
+        # Filter data to only include valid columns (exclude primary key)
+        update_data = {k: v for k, v in data.items() if k in column_names and k != pk_column}
+
+        if not update_data:
+            return jsonify({'error': 'No valid columns to update'}), 400
+
+        # Build UPDATE query
+        set_clause = ', '.join(f'"{col}" = ?' for col in update_data.keys())
+        values = list(update_data.values()) + [record_id]
+
+        query = f'UPDATE "{table_name}" SET {set_clause} WHERE "{pk_column}" = ?'
+        cursor.execute(query, values)
+
+        if cursor.rowcount == 0:
+            cursor.close()
+            return jsonify({'error': 'Record not found'}), 404
+
+        database.connection.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Record updated successfully'
+        })
+
+    except Exception as e:
+        database.connection.rollback()
+        app.logger.error(f"Error updating record: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/database/tables/<table_name>/record/<int:record_id>', methods=['DELETE'])
+def api_delete_record(table_name, record_id):
+    """Delete a record from the specified table."""
+    try:
+        cursor = database.connection.cursor()
+
+        # Get column info to find primary key
+        cursor.execute(f'PRAGMA table_info("{table_name}")')
+        columns = cursor.fetchall()
+
+        pk_column = None
+        for col in columns:
+            if col['pk']:
+                pk_column = col['name']
+                break
+
+        if not pk_column:
+            return jsonify({'error': 'Table must have a primary key for deletion'}), 400
+
+        # Delete the record
+        query = f'DELETE FROM "{table_name}" WHERE "{pk_column}" = ?'
+        cursor.execute(query, [record_id])
+
+        if cursor.rowcount == 0:
+            cursor.close()
+            return jsonify({'error': 'Record not found'}), 404
+
+        database.connection.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Record deleted successfully'
+        })
+
+    except Exception as e:
+        database.connection.rollback()
+        app.logger.error(f"Error deleting record: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/verbose', methods=['GET', 'POST'])
 def toggle_verbose():
     """Get or set verbose logging state."""

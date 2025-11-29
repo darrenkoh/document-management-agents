@@ -4,6 +4,7 @@ import Layout from '@/components/Layout';
 import HomePage from '@/pages/HomePage';
 import DocumentsPage from '@/pages/DocumentsPage';
 import DocumentDetailPage from '@/pages/DocumentDetailPage';
+import DatabasePage from '@/pages/DatabasePage';
 import StatsPage from '@/pages/StatsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 
@@ -15,6 +16,7 @@ function App() {
           <Route index element={<HomePage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/document/:id" element={<DocumentDetailPage />} />
+          <Route path="/database" element={<DatabasePage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

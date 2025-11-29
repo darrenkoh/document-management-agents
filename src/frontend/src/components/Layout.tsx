@@ -4,6 +4,7 @@ import {
   Home,
   FileText,
   BarChart3,
+  Database,
   Menu,
   X,
   RefreshCw,
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 const navigation: NavItem[] = [
   { label: 'Ask', href: '/', icon: Home },
   { label: 'Documents', href: '/documents', icon: FileText },
+  { label: 'Database', href: '/database', icon: Database },
   { label: 'Statistics', href: '/stats', icon: BarChart3 },
 ];
 
