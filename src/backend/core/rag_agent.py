@@ -34,6 +34,26 @@ class RAGAgent:
         self.num_predict = num_predict
         self.client = ollama.Client(host=endpoint, timeout=timeout)
 
+    def _clean_llm_response(self, response: str) -> str:
+        """Clean LLM response by removing encoding tokens and unwanted markup.
+
+        Args:
+            response: Raw LLM response
+
+        Returns:
+            Cleaned response string
+        """
+        # Remove DeepSeek-style encoding tokens like <|ref|>content<|/ref|><|det|>[[...]]<|/det|>
+        response = re.sub(r'<\|[^>]+\|>.*?<\|/[^>]+\|>', '', response, flags=re.DOTALL)
+
+        # Remove any remaining standalone tokens like <|ref|>, <|det|>, etc.
+        response = re.sub(r'<\|[^>]+\|>', '', response)
+
+        # Remove any remaining encoding artifacts that might be left
+        response = re.sub(r'\[\[.*?\]\]', '', response)  # Remove coordinate-like arrays
+
+        return response.strip()
+
     def analyze_relevance(self, query: str, documents: List[Dict], verbose: bool = False) -> List[Dict]:
         """Analyze retrieved documents and determine their relevance to the query.
 
@@ -195,6 +215,10 @@ Reasoning: This document contains flight confirmation details matching the query
         Returns:
             Dictionary with parsed analysis
         """
+        # Clean LLM responses before parsing
+        response = self._clean_llm_response(response)
+        thinking = self._clean_llm_response(thinking)
+
         # Use response if available, otherwise try to extract from thinking
         text_to_parse = response.strip() if response.strip() else thinking.strip()
 

@@ -62,24 +62,36 @@ ollama:
 
 # Optional: Predefined classification categories
 # If empty, the agent will auto-detect categories
-categories: []
+categories:
+  - "Finance"
+  - "Shopping"
+  - "Travel"
+  - "Home"
+  - "School"
+  - "Other"
 
 # Classification prompt template
 # Use {filename} and {content} as placeholders
 # If not specified, a default prompt will be used
-# prompt_template: |
-#   Analyze the following document content and classify it into up to 3 specific categories.
- 
-#   Common categories include but should be be limited to: invoice, contract, receipt, letter, report, resume, certificate, form, statement, manual, article, email, memo, note, presentation, spreadsheet, confirmation, booking, ticket, itinerary, image, other.
- 
-#   Filename: {filename}
- 
-#   Content:
-#   {content}
- 
-#   Based on the content above, classify this document into up to 3 categories. Respond with ONLY the category names separated by commas, nothing else. Use lowercase and single words or short phrases (e.g., "invoice", "contract", "receipt", "confirmation", "booking"). If uncertain, use "other". Examples: "invoice", "confirmation,booking", "contract,legal,agreement".
- 
-#   Categories:
+prompt_template: |
+  Analyze the following document content and classify it into ONE of these categories: Finance, Shopping, Travel, Home, School, or Other. If you think the document is related to multiple categories, choose up to 3 categories.
+
+  Classification Rules:
+  - Finance: Documents related to bank statements, investments, 401K, W2 forms, car registration, car insurance, financial statements, tax documents, or any financial transactions
+  - Shopping: Documents related to purchases, receipts, invoices, or buying goods and services
+  - Travel: Documents related to bookings, tickets, itineraries, reservations, or travel plans
+  - Home: Documents related to home improvement, property tax, home loan, home insurance, utility bills, or home maintenance
+  - School: Documents related to education, courses, grades, transcripts, or academic materials
+  - Other: Anything that doesn't fit the above categories
+
+  Filename: {filename}
+
+  Content:
+  {content}
+
+  Based on the content above, classify this document into ONE category. Respond with ONLY the category name, nothing else. Use title case (e.g., "Finance", "Shopping", "Travel", "Home", "School", "Other"). If uncertain, use "Other".
+
+  Category:
 
 # Watch mode settings
 watch:

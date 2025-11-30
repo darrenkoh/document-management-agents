@@ -33,7 +33,27 @@ class EmbeddingGenerator:
         self.summarizer_model = summarizer_model
         self.timeout = timeout
         self.client = ollama.Client(host=endpoint, timeout=timeout)
-    
+
+    def _clean_llm_response(self, response: str) -> str:
+        """Clean LLM response by removing encoding tokens and unwanted markup.
+
+        Args:
+            response: Raw LLM response
+
+        Returns:
+            Cleaned response string
+        """
+        # Remove DeepSeek-style encoding tokens like <|ref|>content<|/ref|><|det|>[[...]]<|/det|>
+        response = re.sub(r'<\|[^>]+\|>.*?<\|/[^>]+\|>', '', response, flags=re.DOTALL)
+
+        # Remove any remaining standalone tokens like <|ref|>, <|det|>, etc.
+        response = re.sub(r'<\|[^>]+\|>', '', response)
+
+        # Remove any remaining encoding artifacts that might be left
+        response = re.sub(r'\[\[.*?\]\]', '', response)  # Remove coordinate-like arrays
+
+        return response.strip()
+
     def generate_embedding(self, text: str) -> Optional[List[float]]:
         """Generate embedding vector for text.
 
@@ -171,6 +191,8 @@ Summary:"""
 
             summary = response.get('response', '').strip()
             if summary:
+                # Clean up LLM encoding tokens and other artifacts
+                summary = self._clean_llm_response(summary)
                 # Clean up and truncate if needed
                 summary = summary.replace('Summary:', '').strip()
                 if len(summary) > max_length:

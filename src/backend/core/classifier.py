@@ -256,17 +256,37 @@ Categories:"""
 
         return prompt
     
-    def _extract_category(self, response: str) -> str:
-        """Extract category names from LLM response (up to 3 categories).
-        
+    def _clean_llm_response(self, response: str) -> str:
+        """Clean LLM response by removing encoding tokens and unwanted markup.
+
         Args:
             response: Raw LLM response
-        
+
+        Returns:
+            Cleaned response string
+        """
+        # Remove DeepSeek-style encoding tokens like <|ref|>content<|/ref|><|det|>[[...]]<|/det|>
+        response = re.sub(r'<\|[^>]+\|>.*?<\|/[^>]+\|>', '', response, flags=re.DOTALL)
+
+        # Remove any remaining standalone tokens like <|ref|>, <|det|>, etc.
+        response = re.sub(r'<\|[^>]+\|>', '', response)
+
+        # Remove any remaining encoding artifacts that might be left
+        response = re.sub(r'\[\[.*?\]\]', '', response)  # Remove coordinate-like arrays
+
+        return response.strip()
+
+    def _extract_category(self, response: str) -> str:
+        """Extract category names from LLM response (up to 3 categories).
+
+        Args:
+            response: Raw LLM response
+
         Returns:
             Extracted category names joined with "-" and sorted ascendingly
         """
         # Clean the response
-        response = response.strip().lower()
+        response = self._clean_llm_response(response).strip().lower()
         
         # Remove common prefixes/suffixes
         response = re.sub(r'^(category|categories|classification|type|class):\s*', '', response)
