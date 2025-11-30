@@ -53,6 +53,8 @@ ollama:
   num_predict: 6000
   # Embedding model for semantic search (default: qwen3-embedding:8b)
   embedding_model: "qwen3-embedding:8b"
+  # Summarizer model for document summaries (default: deepseek-r1:8b)
+  summarizer_model: "deepseek-r1:8b"
   # OCR model for fallback text extraction from images/PDFs
   ocr_model: "deepseek-ocr:3b"
   # Timeout for OCR operations (can be longer than regular models)
@@ -112,6 +114,15 @@ semantic_search:
   # Minimum relevance score threshold for RAG filtering (0.0 to 1.0)
   # Documents below this score may be filtered out
   rag_relevance_threshold: 0.3
+
+# Document chunking configuration for embeddings
+chunking:
+  # Maximum characters per chunk
+  chunk_size: 4000
+  # Characters to overlap between chunks
+  chunk_overlap: 200
+  # Whether to generate summary embeddings for documents
+  enable_summary_embedding: true
 
 # Logging
 logging:

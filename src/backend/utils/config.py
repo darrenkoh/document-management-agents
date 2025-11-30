@@ -171,6 +171,12 @@ class Config:
         return ollama_config.get('embedding_model', 'qwen3-embedding:8b')
 
     @property
+    def ollama_summarizer_model(self) -> str:
+        """Get the summarizer model name."""
+        ollama_config = self._config.get('ollama', {})
+        return ollama_config.get('summarizer_model', 'deepseek-r1:8b')
+
+    @property
     def ollama_ocr_model(self) -> str:
         """Get the OCR model name."""
         ollama_config = self._config.get('ollama', {})
@@ -216,6 +222,24 @@ class Config:
         db_config = self._config.get('database', {})
         vector_config = db_config.get('vector_store', {})
         return vector_config.get('distance_metric', 'l2')
+
+    @property
+    def chunk_size(self) -> int:
+        """Get the document chunk size for embeddings."""
+        chunking_config = self._config.get('chunking', {})
+        return chunking_config.get('chunk_size', 4000)
+
+    @property
+    def chunk_overlap(self) -> int:
+        """Get the chunk overlap size."""
+        chunking_config = self._config.get('chunking', {})
+        return chunking_config.get('chunk_overlap', 200)
+
+    @property
+    def enable_summary_embedding(self) -> bool:
+        """Get whether to generate summary embeddings."""
+        chunking_config = self._config.get('chunking', {})
+        return chunking_config.get('enable_summary_embedding', True)
 
     @property
     def semantic_search_top_k(self) -> int:

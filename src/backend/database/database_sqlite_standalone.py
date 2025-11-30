@@ -242,11 +242,27 @@ class SQLiteDocumentDatabase:
             self.vector_store.close()
 
     def store_embedding(self, file_path: str, embedding: List[float]) -> bool:
-        """Store embedding vector for a document.
+        """Store single embedding vector for a document (backward compatibility).
 
         Args:
             file_path: Path to the document
             embedding: Embedding vector
+
+        Returns:
+            True if successful
+        """
+        # For backward compatibility, treat single embedding as summary
+        return self.store_document_embeddings(file_path, [], embedding)
+
+    def store_document_embeddings(self, file_path: str,
+                                chunk_embeddings: List[List[float]],
+                                summary_embedding: Optional[List[float]] = None) -> bool:
+        """Store multiple embeddings for a document (chunks + summary).
+
+        Args:
+            file_path: Path to the document
+            chunk_embeddings: List of chunk embedding vectors
+            summary_embedding: Summary embedding vector (optional)
 
         Returns:
             True if successful
@@ -261,35 +277,71 @@ class SQLiteDocumentDatabase:
                 logger.warning(f"Document not found for embedding: {file_path}")
                 return False
 
-            doc_id_str = str(doc['id'])
-            metadata = {
-                'file_path': doc['file_path'],
-                'filename': doc['filename'],
-                'categories': doc['categories'],
-                'content_preview': doc['content_preview'],
-                'file_hash': doc['file_hash']
-            }
+            doc_id = doc['id']
+            doc_id_str = str(doc_id)
+
+            # Prepare embeddings and metadata
+            all_embeddings = []
+            all_metadata = []
+            all_ids = []
+
+            # Add chunk embeddings
+            for i, chunk_emb in enumerate(chunk_embeddings):
+                chunk_metadata = {
+                    'file_path': doc['file_path'],
+                    'filename': doc['filename'],
+                    'categories': doc['categories'],
+                    'content_preview': doc['content_preview'],
+                    'file_hash': doc['file_hash'],
+                    'embedding_type': 'chunk',
+                    'chunk_index': i,
+                    'total_chunks': len(chunk_embeddings)
+                }
+                all_embeddings.append(chunk_emb)
+                all_metadata.append(chunk_metadata)
+                all_ids.append(f"{doc_id_str}_chunk_{i}")
+
+            # Add summary embedding
+            if summary_embedding:
+                summary_metadata = {
+                    'file_path': doc['file_path'],
+                    'filename': doc['filename'],
+                    'categories': doc['categories'],
+                    'content_preview': doc['content_preview'],
+                    'file_hash': doc['file_hash'],
+                    'embedding_type': 'summary',
+                    'chunk_index': -1,
+                    'total_chunks': len(chunk_embeddings)
+                }
+                all_embeddings.append(summary_embedding)
+                all_metadata.append(summary_metadata)
+                all_ids.append(f"{doc_id_str}_summary")
+
+            if not all_embeddings:
+                logger.warning(f"No embeddings to store for {file_path}")
+                return False
 
             success = self.vector_store.add_embeddings(
-                embeddings=[embedding],
-                metadata=[metadata],
-                ids=[doc_id_str]
+                embeddings=all_embeddings,
+                metadata=all_metadata,
+                ids=all_ids
             )
 
             if success:
                 with self._get_cursor() as cursor:
                     cursor.execute(
                         'UPDATE documents SET embedding_stored = TRUE, updated_at = ? WHERE id = ?',
-                        (datetime.now().timestamp(), doc['id'])
+                        (datetime.now().timestamp(), doc_id)
                     )
-                logger.debug(f"Stored embedding in vector store for {Path(file_path).name}")
+                logger.debug(f"Stored {len(all_embeddings)} embeddings for document {doc_id_str} "
+                           f"({len(chunk_embeddings)} chunks, {'with' if summary_embedding else 'no'} summary)")
                 return True
             else:
-                logger.error(f"Failed to store embedding in vector store for {file_path}")
+                logger.error(f"Failed to store embeddings in vector store for {file_path}")
                 return False
 
         except Exception as e:
-            logger.error(f"Error storing embedding: {e}")
+            logger.error(f"Error storing embeddings: {e}")
             return False
 
     def search_semantic(self, query_embedding: List[float], top_k: int = 10,
@@ -325,24 +377,56 @@ class SQLiteDocumentDatabase:
         logger.debug(f"Using vector store for semantic search (top_k={top_k}, threshold={threshold}, max_candidates={max_candidates}, debug={debug_enabled})")
 
         # Request more results from vector store to ensure we get good matches
-        vector_results = self.vector_store.search_similar(query_embedding, top_k=max_candidates, threshold=threshold)
+        vector_results = self.vector_store.search_similar(query_embedding, top_k=max_candidates * 3, threshold=threshold)  # Get more results since we have multiple embeddings per doc
 
+        # Group results by document ID and find the best similarity for each document
+        doc_similarities = {}
+        doc_metadata = {}
+
+        for embedding_id, similarity, metadata in vector_results:
+            try:
+                # Parse embedding ID: "doc_id_chunk_N" or "doc_id_summary"
+                if '_chunk_' in embedding_id:
+                    doc_id_str = embedding_id.split('_chunk_')[0]
+                elif '_summary' in embedding_id:
+                    doc_id_str = embedding_id.split('_summary')[0]
+                else:
+                    # Fallback for old format (single embedding per document)
+                    doc_id_str = embedding_id
+
+                doc_id = int(doc_id_str)
+
+                # Keep track of the best similarity for each document
+                if doc_id not in doc_similarities or similarity > doc_similarities[doc_id]:
+                    doc_similarities[doc_id] = similarity
+                    doc_metadata[doc_id] = metadata
+
+            except (ValueError, TypeError, IndexError) as e:
+                logger.error(f"Error processing vector search result for ID {embedding_id}: {e}")
+                continue
+
+        # Get document details for the top results
         results = []
         with self._get_cursor() as cursor:
-            for doc_id_str, similarity, metadata in vector_results:
+            # Sort by similarity and take top_k
+            sorted_docs = sorted(doc_similarities.items(), key=lambda x: x[1], reverse=True)[:top_k]
+
+            for doc_id, similarity in sorted_docs:
                 try:
-                    doc_id = int(doc_id_str)
                     cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
                     row = cursor.fetchone()
                     if row:
                         doc_copy = self._row_to_dict(row)
                         doc_copy['similarity'] = similarity
+                        # Add embedding type info for debugging
+                        embedding_type = doc_metadata[doc_id].get('embedding_type', 'unknown')
+                        doc_copy['matched_embedding_type'] = embedding_type
                         results.append(doc_copy)
-                except (ValueError, TypeError) as e:
-                    logger.error(f"Error processing vector search result for ID {doc_id_str}: {e}")
+                except Exception as e:
+                    logger.error(f"Error retrieving document {doc_id}: {e}")
                     continue
 
-        logger.debug(f"Vector store search returned {len(results)} results")
+        logger.debug(f"Vector store search returned {len(results)} unique documents from {len(doc_similarities)} total matches")
         return results
 
     def get_document_by_id(self, doc_id: int) -> Optional[Dict]:

@@ -56,6 +56,7 @@ class DocumentAgent:
         self.embedding_generator = EmbeddingGenerator(
             endpoint=config.ollama_endpoint,
             model=config.ollama_embedding_model,
+            summarizer_model=config.ollama_summarizer_model,
             timeout=config.ollama_timeout
         )
 
@@ -264,16 +265,26 @@ class DocumentAgent:
 
             categories, perf_metrics['classification_duration'] = classification_result
             
-            # Generate embedding for semantic search
-            logger.info(f"Generating embedding for {file_path.name}...")
-            embedding = self.embedding_generator.generate_embedding(content)
+            # Generate embeddings using semantic chunking and summary
+            logger.info(f"Generating embeddings for {file_path.name}...")
+            embedding_result = self.embedding_generator.generate_document_embeddings(
+                content,
+                chunk_size=self.config.chunk_size,
+                overlap=self.config.chunk_overlap,
+                generate_summary=self.config.enable_summary_embedding
+            )
 
-            if not embedding:
-                logger.error(f"Failed to generate embedding for {file_path.name}")
+            # Check if we have at least one embedding (chunks or summary)
+            if not embedding_result['chunks'] and not embedding_result['summary']:
+                logger.error(f"Failed to generate any embeddings for {file_path.name}")
                 # Add missing metrics for early returns
                 perf_metrics.update({'db_lookup_duration': perf_metrics.get('db_lookup_duration', 0.0),
                                    'db_insert_duration': 0.0})
                 return ('failed', perf_metrics)
+
+            # For backward compatibility, use the first chunk or summary as the main embedding
+            # (We'll store all embeddings separately)
+            main_embedding = embedding_result['chunks'][0] if embedding_result['chunks'] else embedding_result['summary']
 
             # Prepare metadata
             metadata = {
@@ -292,8 +303,12 @@ class DocumentAgent:
                 file_hash=file_hash
             )
 
-            # Store embedding
-            self.database.store_embedding(str(file_path), embedding)
+            # Store embeddings (chunks and summary)
+            self.database.store_document_embeddings(
+                str(file_path),
+                embedding_result['chunks'],
+                embedding_result['summary']
+            )
             perf_metrics['db_insert_duration'] = time.time() - db_insert_start
 
             logger.info(f"Successfully processed {file_path.name} -> {categories} (DB ID: {doc_id})")
