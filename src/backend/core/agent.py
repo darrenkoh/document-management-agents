@@ -149,7 +149,7 @@ class DocumentAgent:
         # Process files in batches
         for i in range(0, len(file_paths), batch_size):
             batch = file_paths[i:i + batch_size]
-            logger.debug(f"Processing batch {i//batch_size + 1}/{(len(file_paths) + batch_size - 1)//batch_size}")
+            logger.info(f"Processing batch {i//batch_size + 1}/{(len(file_paths) + batch_size - 1)//batch_size}")
 
             # Process batch
             for file_path in batch:
@@ -254,8 +254,8 @@ class DocumentAgent:
             perf_metrics['db_lookup_duration'] = time.time() - db_lookup_start
 
             if existing:
-                logger.debug(f"Skipping already processed file (duplicate content): {file_path.name}")
-                logger.debug(f"Original file: {existing.get('filename', 'Unknown')}")
+                logger.info(f"Skipping already processed file (duplicate content): {file_path.name}")
+                logger.info(f"Original file: {existing.get('filename', 'Unknown')}")
 
                 # Log performance metrics for skipped files
                 total_duration = perf_metrics['hash_duration'] + perf_metrics['db_lookup_duration']
@@ -336,7 +336,8 @@ class DocumentAgent:
                 metadata=metadata,
                 file_hash=file_hash,
                 deepseek_ocr_used=ocr_used,
-                sub_categories=sub_categories
+                sub_categories=sub_categories,
+                summary=embedding_result.get('summary_text')
             )
 
             # Store embeddings (chunks and summary)
@@ -399,7 +400,7 @@ class DocumentAgent:
                         if self.file_handler._is_included(item, self.config.file_extensions if self.config.file_extensions else None):
                             files_in_dir.append(item)
                         else:
-                            logger.debug(f"Skipping file with disallowed extension: {item}")
+                            logger.info(f"Skipping file with disallowed extension: {item}")
             except PermissionError:
                 logger.warning(f"Permission denied accessing directory: {current_dir}")
                 continue
@@ -410,7 +411,7 @@ class DocumentAgent:
             # Store files for this directory
             if files_in_dir:
                 files_by_directory[current_dir] = files_in_dir
-                logger.debug(f"Collected {len(files_in_dir)} file(s) from directory {current_dir}")
+                logger.info(f"Collected {len(files_in_dir)} file(s) from directory {current_dir}")
 
             # Add subdirectories to queue for BFS traversal
             if self.config.watch_recursive:
@@ -830,7 +831,7 @@ class DocumentAgent:
                     file_path = Path(event.src_path)
                     # Check if file is excluded before processing
                     if self.agent.file_handler._is_excluded(file_path):
-                        logger.debug(f"Skipping excluded file in watch mode: {file_path}")
+                        logger.info(f"Skipping excluded file in watch mode: {file_path}")
                         return
                     # Wait a bit for file to be fully written
                     time.sleep(1)

@@ -68,7 +68,7 @@ class EmbeddingGenerator:
             # Using 30K chars (~7.5K tokens) to stay well within limits and ensure quality
             truncated_text = text[:30000] if len(text) > 30000 else text
 
-            logger.debug(f"Generating embedding for text (length: {len(truncated_text)} chars)")
+            logger.info(f"Generating embedding for text (length: {len(truncated_text)} chars)")
 
             response = self.client.embeddings(
                 model=self.model,
@@ -77,7 +77,7 @@ class EmbeddingGenerator:
 
             embedding = response.get('embedding', [])
             if embedding:
-                logger.debug(f"Generated embedding of dimension {len(embedding)}")
+                logger.info(f"Generated embedding of dimension {len(embedding)}")
                 return embedding
             else:
                 logger.warning("No embedding returned from model")
@@ -220,9 +220,10 @@ Summary:"""
             generate_summary: Whether to generate a summary embedding
 
         Returns:
-            Dictionary with 'chunks' (list of chunk embeddings) and 'summary' (summary embedding or None)
+            Dictionary with 'chunks' (list of chunk embeddings), 'summary' (summary embedding or None),
+            and 'summary_text' (summary text or None)
         """
-        result = {'chunks': [], 'summary': None}
+        result = {'chunks': [], 'summary': None, 'summary_text': None}
 
         # Generate chunk embeddings
         chunks = self.semantic_chunk_text(text, chunk_size, overlap)
@@ -242,6 +243,7 @@ Summary:"""
             summary_text = self.generate_document_summary(text)
             if summary_text:
                 logger.info(f"Generated summary (length: {len(summary_text)} chars)")
+                result['summary_text'] = summary_text
                 summary_embedding = self.generate_embedding(summary_text)
                 if summary_embedding:
                     result['summary'] = summary_embedding

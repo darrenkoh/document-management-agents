@@ -19,6 +19,7 @@ export interface Document {
   metadata: DocumentMetadata;
   embedding?: number[];
   deepseek_ocr_used?: boolean;
+  summary?: string;
 }
 
 export interface DocumentMetadata {

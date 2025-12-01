@@ -116,7 +116,7 @@ class DocumentDatabase:
                 if success:
                     # Mark as stored in vector DB (no embedding stored in JSON)
                     self.documents.update({'embedding_stored': True}, doc_ids=[doc_id])
-                    logger.debug(f"Stored embedding in vector store for {Path(file_path).name}")
+                    logger.info(f"Stored embedding in vector store for {Path(file_path).name}")
                     return True
                 else:
                     logger.error(f"Failed to store embedding in vector store for {file_path}")
@@ -180,7 +180,7 @@ class DocumentDatabase:
             max_candidates = 50
             debug_enabled = logger.isEnabledFor(logging.DEBUG)
 
-        logger.debug(f"Using vector store for semantic search (top_k={top_k}, threshold={threshold}, max_candidates={max_candidates}, debug={debug_enabled})")
+        logger.info(f"Using vector store for semantic search (top_k={top_k}, threshold={threshold}, max_candidates={max_candidates}, debug={debug_enabled})")
 
         # Request more results from vector store to ensure we get good matches
         vector_results = self.vector_store.search_similar(query_embedding, top_k=max_candidates, threshold=threshold)
@@ -200,7 +200,7 @@ class DocumentDatabase:
                 logger.error(f"Error processing vector search result for ID {doc_id_str}: {e}")
                 continue
 
-        logger.debug(f"Vector store search returned {len(results)} results")
+        logger.info(f"Vector store search returned {len(results)} results")
         return results
     
     def search_by_category(self, category: str) -> List[Dict]:

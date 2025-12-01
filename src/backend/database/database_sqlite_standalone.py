@@ -62,6 +62,7 @@ class SQLiteDocumentDatabase:
                     file_hash TEXT,
                     embedding_stored BOOLEAN DEFAULT FALSE,
                     deepseek_ocr_used BOOLEAN DEFAULT FALSE,
+                    summary TEXT,  -- Document summary text
                     created_at REAL,
                     updated_at REAL
                 )
@@ -77,6 +78,13 @@ class SQLiteDocumentDatabase:
             # Add the sub_categories column to existing tables (migration)
             try:
                 cursor.execute("ALTER TABLE documents ADD COLUMN sub_categories TEXT")
+            except sqlite3.OperationalError:
+                # Column already exists, skip
+                pass
+
+            # Add the summary column to existing tables (migration)
+            try:
+                cursor.execute("ALTER TABLE documents ADD COLUMN summary TEXT")
             except sqlite3.OperationalError:
                 # Column already exists, skip
                 pass
@@ -117,7 +125,8 @@ class SQLiteDocumentDatabase:
 
     def store_classification(self, file_path: str, content: str, categories: str,
                            metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None,
-                           deepseek_ocr_used: bool = False, sub_categories: Optional[List[str]] = None) -> int:
+                           deepseek_ocr_used: bool = False, sub_categories: Optional[List[str]] = None,
+                           summary: Optional[str] = None) -> int:
         """Store a document classification in the database.
 
         Args:
@@ -128,6 +137,7 @@ class SQLiteDocumentDatabase:
             file_hash: Optional file hash for duplicate detection
             deepseek_ocr_used: Whether DeepSeek OCR was used for text extraction
             sub_categories: Optional list of sub-categories
+            summary: Optional document summary text
 
         Returns:
             Document ID in the database
@@ -151,6 +161,7 @@ class SQLiteDocumentDatabase:
                 'file_hash': file_hash,
                 'embedding_stored': False,
                 'deepseek_ocr_used': deepseek_ocr_used,
+                'summary': summary,
                 'updated_at': now
             }
 
@@ -362,7 +373,7 @@ class SQLiteDocumentDatabase:
                         'UPDATE documents SET embedding_stored = TRUE, updated_at = ? WHERE id = ?',
                         (datetime.now().timestamp(), doc_id)
                     )
-                logger.debug(f"Stored {len(all_embeddings)} embeddings for document {doc_id_str} "
+                logger.info(f"Stored {len(all_embeddings)} embeddings for document {doc_id_str} "
                            f"({len(chunk_embeddings)} chunks, {'with' if summary_embedding else 'no'} summary)")
                 return True
             else:
@@ -403,7 +414,7 @@ class SQLiteDocumentDatabase:
                 max_candidates = 50
             debug_enabled = logger.isEnabledFor(logging.DEBUG)
 
-        logger.debug(f"Using vector store for semantic search (top_k={top_k}, threshold={threshold}, max_candidates={max_candidates}, debug={debug_enabled})")
+        logger.info(f"Using vector store for semantic search (top_k={top_k}, threshold={threshold}, max_candidates={max_candidates}, debug={debug_enabled})")
 
         # Request more results from vector store to ensure we get good matches
         vector_results = self.vector_store.search_similar(query_embedding, top_k=max_candidates * 3, threshold=threshold)  # Get more results since we have multiple embeddings per doc
@@ -455,7 +466,7 @@ class SQLiteDocumentDatabase:
                     logger.error(f"Error retrieving document {doc_id}: {e}")
                     continue
 
-        logger.debug(f"Vector store search returned {len(results)} unique documents from {len(doc_similarities)} total matches")
+        logger.info(f"Vector store search returned {len(results)} unique documents from {len(doc_similarities)} total matches")
         return results
 
     def get_document_by_id(self, doc_id: int) -> Optional[Dict]:

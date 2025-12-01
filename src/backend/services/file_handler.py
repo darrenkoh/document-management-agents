@@ -103,7 +103,7 @@ class FileHandler:
                     if self._is_included(file_path, extensions):
                         files.append(file_path)
                     else:
-                        logger.debug(f"Skipping file with disallowed extension: {file_path}")
+                        logger.info(f"Skipping file with disallowed extension: {file_path}")
         
         return files
     
@@ -227,7 +227,7 @@ class FileHandler:
                 logger.warning(f"No text content found in DOCX file {file_path}. File may be empty, corrupted, or contain only images.")
                 return ""
 
-            logger.debug(f"Successfully extracted {len(extracted_text)} characters from DOCX file {file_path}")
+            logger.info(f"Successfully extracted {len(extracted_text)} characters from DOCX file {file_path}")
             return extracted_text
 
         except Exception as e:

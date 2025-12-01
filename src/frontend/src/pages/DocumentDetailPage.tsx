@@ -178,7 +178,7 @@ export default function DocumentDetailPage() {
         <div className="flex flex-col gap-8">
           
           {/* 1. Extracted Content Section */}
-          <motion.section 
+          <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -191,7 +191,7 @@ export default function DocumentDetailPage() {
               </h2>
                <div className="relative z-10">
                 <CoolTooltip content="Copy text to clipboard" side="left">
-                  <button 
+                  <button
                     onClick={handleCopyContent}
                     className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:text-primary-600 hover:border-primary-200 hover:bg-primary-50 transition-all shadow-sm"
                   >
@@ -233,7 +233,34 @@ export default function DocumentDetailPage() {
             </div>
           </motion.section>
 
-          {/* 2. Original File Preview Section */}
+          {/* 2. Summary Section */}
+          {document.summary && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center justify-between px-1">
+                <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                  <span className="w-2 h-6 rounded-full bg-blue-500" />
+                  Summary
+                </h2>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-8">
+                  <div className="prose prose-gray max-w-none prose-p:text-gray-700 prose-strong:text-gray-900">
+                    <p className="text-base leading-relaxed font-normal text-gray-700 whitespace-pre-wrap">
+                      {filterLLMEncoding(document.summary)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.section>
+          )}
+
+          {/* 3. Original File Preview Section */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

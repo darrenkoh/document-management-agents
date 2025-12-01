@@ -196,7 +196,7 @@ class ChromaVectorStore(VectorStore):
                 ids=ids
             )
 
-            logger.debug(f"Added {len(embeddings)} normalized embeddings to ChromaDB")
+            logger.info(f"Added {len(embeddings)} normalized embeddings to ChromaDB")
             return True
 
         except Exception as e:
@@ -224,7 +224,7 @@ class ChromaVectorStore(VectorStore):
                 include=['metadatas', 'distances']
             )
 
-            logger.debug(f"ChromaDB query returned {len(results['ids'][0])} results")
+            logger.info(f"ChromaDB query returned {len(results['ids'][0])} results")
 
             # Convert distances to absolute similarities
             # ChromaDB returns cosine distances (0-2 range), convert to similarity (1 to -1)
@@ -247,7 +247,7 @@ class ChromaVectorStore(VectorStore):
                         # For other metrics (like 'ip'), use L2-style conversion as fallback
                         similarity = 1.0 / (1.0 + distance)
 
-                    logger.debug(f"Result {i}: ID={doc_id}, distance={distance:.3f}, similarity={similarity:.3f}")
+                    logger.info(f"Result {i}: ID={doc_id}, distance={distance:.3f}, similarity={similarity:.3f}")
                     search_results.append((doc_id, similarity, metadata))
 
                 # Sort by similarity (highest first) and apply threshold
@@ -256,7 +256,7 @@ class ChromaVectorStore(VectorStore):
             else:
                 filtered_results = []
 
-            logger.debug(f"ChromaDB search: {len(search_results)} total, {len(filtered_results)} after threshold {threshold}")
+            logger.info(f"ChromaDB search: {len(search_results)} total, {len(filtered_results)} after threshold {threshold}")
             return filtered_results[:top_k]
 
         except Exception as e:
@@ -269,7 +269,7 @@ class ChromaVectorStore(VectorStore):
         """Delete embeddings from ChromaDB."""
         try:
             self.collection.delete(ids=ids)
-            logger.debug(f"Deleted {len(ids)} embeddings from ChromaDB")
+            logger.info(f"Deleted {len(ids)} embeddings from ChromaDB")
             return True
         except Exception as e:
             logger.error(f"Error deleting from ChromaDB: {e}")
@@ -447,7 +447,7 @@ class FAISSVectorStore(VectorStore):
             # Save to disk
             self._save_index()
 
-            logger.debug(f"Added {len(embeddings)} embeddings to FAISS index")
+            logger.info(f"Added {len(embeddings)} embeddings to FAISS index")
             return True
 
         except Exception as e:
@@ -475,7 +475,7 @@ class FAISSVectorStore(VectorStore):
                     if doc_id and doc_id in self.metadata_store:
                         results.append((doc_id, float(score), self.metadata_store[doc_id]))
 
-            logger.debug(f"FAISS search returned {len(results)} results")
+            logger.info(f"FAISS search returned {len(results)} results")
             return results
 
         except Exception as e:
