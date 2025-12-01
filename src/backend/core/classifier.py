@@ -102,25 +102,23 @@ class Classifier:
             done_reason = response.get('done_reason', '')
             
             # Log full response if verbose
-            if verbose:
-                logger.info("LLM RESPONSE:")
-                logger.info("-" * 80)
-                logger.info(f"Response field: '{raw_response}'")
-                if thinking:
-                    logger.info(f"Thinking field (length: {len(thinking)}):")
-                    logger.info(f"  First 500 chars: {thinking[:500]}")
-                    if len(thinking) > 500:
-                        logger.info(f"  Last 200 chars: {thinking[-200:]}")
-                logger.info(f"Done reason: {done_reason}")
-                logger.info(f"Eval count: {response.get('eval_count', 'N/A')}")
-                logger.info("-" * 80)
-                logger.info("=" * 80)
+            logger.info("LLM RESPONSE:")
+            logger.info("-" * 80)
+            logger.info(f"Response field: '{raw_response}'")
+            if thinking:
+                logger.info(f"Thinking field (length: {len(thinking)}):")
+                logger.info(f"  First 500 chars: {thinking[:500]}")
+                if len(thinking) > 500:
+                    logger.info(f"  Last 200 chars: {thinking[-200:]}")
+            logger.info(f"Done reason: {done_reason}")
+            logger.info(f"Eval count: {response.get('eval_count', 'N/A')}")
+            logger.info("-" * 80)
+            logger.info("=" * 80)
             
             # If response is empty but thinking exists, try to extract from thinking
             # This happens with reasoning models that use thinking tokens
             if not raw_response and thinking:
-                if verbose:
-                    logger.info(f"Response field empty, attempting to extract from thinking field")
+                logger.info(f"Response field empty, attempting to extract from thinking field")
                 # For reasoning models, try to find the category in the thinking text
                 # Look for common category words
                 thinking_lower = thinking.strip().lower()

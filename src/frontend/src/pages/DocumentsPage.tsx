@@ -467,7 +467,7 @@ export default function DocumentsPage() {
                               >
                                 {doc.filename}
                               </p>
-                              {doc.deepseek_ocr_used && (
+                              {!!doc.deepseek_ocr_used && (
                                 <div
                                   className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium"
                                   title="Processed with DeepSeek-OCR"

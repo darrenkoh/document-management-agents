@@ -36,7 +36,7 @@ export const FileInfoBar = ({ document }: FileInfoBarProps) => {
               </span>
             </div>
 
-            {document.deepseek_ocr_used && (
+            {!!document.deepseek_ocr_used && (
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
                   OCR: DeepSeek
