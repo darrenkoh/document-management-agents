@@ -3,7 +3,7 @@ import logging
 import time
 import sys
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Generator, Tuple
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -630,6 +630,125 @@ class DocumentAgent:
 
         logger.info("Semantic search completed")
         return results
+
+    def answer_question(self, query: str, top_k: int = None, progress_callback=None) -> Generator[Tuple[str, Optional[List[Dict]]], None, None]:
+        """Answer a question using semantic search and RAG generation with streaming support.
+
+        Args:
+            query: User's question
+            top_k: Number of documents to retrieve for context (uses config default if None)
+            progress_callback: Optional callback function to report progress (message, type)
+
+        Yields:
+            Tuples of (chunk, None) for answer chunks during streaming, and (full_answer, citations) at the end
+        """
+        # Use config values if not specified
+        if top_k is None:
+            top_k = self.config.semantic_search_top_k
+
+        debug_enabled = self.config.semantic_search_debug or logger.isEnabledFor(logging.DEBUG)
+
+        # Step 1: Perform semantic search to find relevant documents
+        if progress_callback:
+            progress_callback(f"Searching for relevant documents to answer: '{query}'", "log")
+        logger.info(f"Answering question: '{query}'")
+
+        # Preprocess query
+        processed_query = self._preprocess_query(query)
+
+        # Check if embedding generator is available
+        if not hasattr(self, 'embedding_generator') or self.embedding_generator is None:
+            logger.error("Embedding generator not available")
+            if progress_callback:
+                progress_callback("Error: Embedding generator not available", "error")
+            yield ("I'm unable to answer questions right now due to a configuration issue.", None)
+            return
+
+        # Generate query embedding
+        if progress_callback:
+            progress_callback("Generating query embedding...", "log")
+        try:
+            query_embedding = self.embedding_generator.generate_query_embedding(processed_query)
+        except Exception as e:
+            logger.error(f"Exception during query embedding generation: {e}")
+            if progress_callback:
+                progress_callback(f"Error generating embedding: {str(e)}", "error")
+            yield ("I encountered an error while processing your question.", None)
+            return
+
+        if not query_embedding:
+            logger.error("Failed to generate query embedding")
+            if progress_callback:
+                progress_callback("Error: Failed to generate query embedding", "error")
+            yield ("I couldn't process your question. Please try again.", None)
+            return
+
+        # Search database
+        if progress_callback:
+            progress_callback("Searching document database...", "log")
+        try:
+            threshold = self.config.semantic_search_min_threshold
+            max_candidates = self.config.semantic_search_max_candidates
+            results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold, max_candidates=max_candidates)
+        except Exception as e:
+            logger.error(f"Exception during database search: {e}")
+            if progress_callback:
+                progress_callback(f"Error searching database: {str(e)}", "error")
+            yield ("I encountered an error while searching for relevant documents.", None)
+            return
+
+        logger.info(f"Found {len(results)} matching documents")
+        if progress_callback:
+            progress_callback(f"Found {len(results)} relevant document(s)", "log")
+
+        # Check if we have any documents
+        if not results:
+            if progress_callback:
+                progress_callback("No relevant documents found", "log")
+            yield ("I couldn't find any relevant documents to answer your question. Please try rephrasing or asking about a different topic.", None)
+            return
+
+        # Step 2: Generate answer using RAG agent
+        if progress_callback:
+            progress_callback(f"Generating answer from {len(results)} document(s)...", "log")
+        logger.info(f"Generating answer using {len(results)} documents")
+
+        try:
+            # Use RAG agent to generate answer with streaming
+            answer_generator = self.rag_agent.generate_answer(query, results, verbose=debug_enabled)
+            
+            full_answer = ""
+            citations = None
+            
+            for chunk, chunk_citations in answer_generator:
+                if chunk_citations is not None:
+                    # This is the final yield with citations
+                    citations = chunk_citations
+                    full_answer = chunk
+                    break
+                else:
+                    # This is a streaming chunk
+                    full_answer += chunk
+                    yield (chunk, None)
+
+            # Yield final answer with citations
+            if citations is not None:
+                if progress_callback:
+                    progress_callback("Answer generated successfully", "complete")
+                yield (full_answer, citations)
+            else:
+                # Fallback if citations weren't extracted
+                if progress_callback:
+                    progress_callback("Answer generated (extracting citations...)", "log")
+                # Try to extract citations from the full answer
+                citations = self.rag_agent._extract_citations(full_answer, results)
+                yield (full_answer, citations)
+
+        except Exception as e:
+            logger.error(f"Error generating answer: {e}")
+            if progress_callback:
+                progress_callback(f"Error generating answer: {str(e)}", "error")
+            yield (f"I encountered an error while generating an answer: {str(e)}", None)
     
     def search_by_category(self, category: str) -> List[Dict]:
         """Search documents by category.

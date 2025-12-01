@@ -285,6 +285,122 @@ def api_search_stream():
     return response
 
 
+@app.route('/api/search/answer', methods=['POST'])
+def api_search_answer():
+    """API endpoint for streaming question answering with real-time answer generation."""
+    data = request.get_json()
+    query = data.get('query', '').strip()
+
+    if not query:
+        return jsonify({'error': 'Query required'}), 400
+
+    def generate():
+        import json
+        import queue
+        import threading
+
+        # Thread-safe queue for real-time message passing
+        message_queue = queue.Queue()
+        answer_completed = threading.Event()
+        answer_result = {}
+        answer_error = {}
+        citations_result = {}
+
+        def progress_callback(message, message_type='log'):
+            """Callback that immediately queues messages for streaming"""
+            message_queue.put({'type': message_type, 'message': message})
+
+        def answer_worker():
+            """Background thread that generates the answer"""
+            try:
+                app.logger.info(f"Starting answer generation for query: {query}")
+                answer_text = ""
+                citations = None
+                
+                # Use agent.answer_question which yields (chunk, citations) tuples
+                for chunk, chunk_citations in agent.answer_question(query, top_k=10, progress_callback=progress_callback):
+                    if chunk_citations is not None:
+                        # Final chunk with citations
+                        answer_text = chunk
+                        citations = chunk_citations
+                        break
+                    else:
+                        # Streaming chunk
+                        answer_text += chunk
+                        # Stream answer chunks to frontend
+                        message_queue.put({'type': 'answer_chunk', 'chunk': chunk})
+                
+                answer_result['answer'] = answer_text
+                citations_result['citations'] = citations or []
+                app.logger.info(f"Answer generation completed. Answer length: {len(answer_text)}, Citations: {len(citations_result['citations'])}")
+            except Exception as e:
+                app.logger.error(f"Answer generation error: {e}")
+                answer_error['error'] = str(e)
+            finally:
+                answer_completed.set()
+
+        # Start the answer generation in a background thread
+        answer_thread = threading.Thread(target=answer_worker, daemon=True)
+        answer_thread.start()
+
+        try:
+            # Send initial message immediately
+            start_data = json.dumps({'type': 'start', 'message': f'Generating answer for: "{query}"'})
+            yield f"data: {start_data}\n\n"
+
+            # Stream messages as they become available
+            while not answer_completed.is_set():
+                try:
+                    # Wait for a message with timeout
+                    message = message_queue.get(timeout=0.1)
+                    data = json.dumps(message)
+                    yield f"data: {data}\n\n"
+                except queue.Empty:
+                    # No message available, continue checking
+                    continue
+
+            # Send any remaining messages
+            while not message_queue.empty():
+                try:
+                    message = message_queue.get_nowait()
+                    data = json.dumps(message)
+                    yield f"data: {data}\n\n"
+                except queue.Empty:
+                    break
+
+            # Check for errors
+            if answer_error:
+                error_data = json.dumps({'type': 'error', 'message': answer_error['error']})
+                yield f"data: {error_data}\n\n"
+                return
+
+            # Send citations if available
+            citations = citations_result.get('citations', [])
+            if citations:
+                citations_data = json.dumps({'type': 'citations', 'citations': citations})
+                yield f"data: {citations_data}\n\n"
+
+            # Send completion message with full answer
+            answer = answer_result.get('answer', '')
+            complete_data = json.dumps({
+                'type': 'complete',
+                'answer': answer,
+                'citations': citations,
+                'message': 'Answer generated successfully'
+            })
+            yield f"data: {complete_data}\n\n"
+
+        except Exception as e:
+            error_data = json.dumps({'type': 'error', 'message': str(e)})
+            yield f"data: {error_data}\n\n"
+
+    response = Response(generate(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Connection'] = 'keep-alive'
+    response.headers['X-Accel-Buffering'] = 'no'  # Disable nginx buffering if used
+    return response
+
+
 @app.route('/debug/search')
 def debug_search():
     """Debug endpoint to check search functionality."""

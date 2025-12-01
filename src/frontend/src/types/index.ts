@@ -161,3 +161,25 @@ export interface EmbeddingResponse {
   explained_variance?: number[];
   error?: string;
 }
+
+// Answer types
+export interface AnswerCitation {
+  id: number;
+  filename: string;
+  categories: string;
+  similarity?: number;
+  content_preview?: string;
+}
+
+export interface AnswerResponse {
+  answer: string;
+  citations: AnswerCitation[];
+}
+
+export interface AnswerStreamEvent {
+  type: 'start' | 'log' | 'answer_chunk' | 'citations' | 'complete' | 'error';
+  message?: string;
+  chunk?: string;
+  answer?: string;
+  citations?: AnswerCitation[];
+}

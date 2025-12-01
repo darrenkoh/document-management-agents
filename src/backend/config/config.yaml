@@ -7,7 +7,9 @@
 #   - "./documents"
 #   - "/path/to/other/folder"
 source_paths:
-  - "/Volumes/1TB/Private"
+#  - "/Volumes/1TB/Private"
+  - "/Volumes/Documents/Private"
+  
 
 # File extensions to process (REQUIRED - only files with these extensions will be processed)
 # Empty list means NO files will be processed - you must specify extensions

@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Search, Filter, Download, Eye, FileText, Brain, ChevronDown, Check, Trash2, AlertTriangle } from 'lucide-react';
+import { Download, Eye, FileText, Trash2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StreamingLogs, useStreamingLogs } from '@/components/ui/StreamingLogs';
-import { Document, DocumentsResponse } from '@/types';
+import { DocumentSearchAndQuestion } from '@/components/DocumentSearchAndQuestion';
+import { Document, DocumentsResponse, AnswerCitation, AnswerStreamEvent } from '@/types';
 import { apiClient, getFileIcon, formatFileSize } from '@/lib/api';
 import toast from 'react-hot-toast';
 
@@ -24,10 +24,6 @@ export default function DocumentsPage() {
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
-  // Combobox state
-  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
-  const [categorySearch, setCategorySearch] = useState('');
-  const categoryRef = useRef<HTMLDivElement>(null);
 
   // Semantic search state
   const [isSemanticSearch, setIsSemanticSearch] = useState(false);
@@ -42,18 +38,13 @@ export default function DocumentsPage() {
   // Streaming logs
   const { logs, isStreaming, startStreaming, clearLogs } = useStreamingLogs();
 
-  // Close combobox when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
-        setIsCategoryOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+  // Question answering state
+  const [questionQuery, setQuestionQuery] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [answerCitations, setAnswerCitations] = useState<AnswerCitation[]>([]);
+  const [isAnswering, setIsAnswering] = useState(false);
+  const [answerError, setAnswerError] = useState<string | undefined>();
+
 
   // Load all categories on mount
   useEffect(() => {
@@ -154,19 +145,6 @@ export default function DocumentsPage() {
     return cleanup;
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (searchQuery.trim()) {
-      // Always perform semantic search if there is a query
-      await performSemanticSearch(searchQuery.trim());
-    } else {
-      // If empty, switch back to regular list
-      setIsSemanticSearch(false);
-      setCurrentPage(1);
-      loadDocuments();
-    }
-  };
 
   const handleCategoryChange = (category: string) => {
     setCategoryFilter(category);
@@ -190,6 +168,7 @@ export default function DocumentsPage() {
     clearLogs();
     loadDocuments();
   };
+
 
   const formatDate = (dateString: string) => {
     try {
@@ -289,126 +268,64 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      {/* Search and Filter */}
-      <Card>
-        <CardContent className="p-6">
-          <form onSubmit={handleSearch} className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1 relative">
-              {isSemanticSearch ? (
-                <Brain className="absolute left-3 top-1/2 transform -translate-y-1/2 text-accent-500 w-5 h-5" />
-              ) : (
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-400 w-5 h-5" />
-              )}
-              <Input
-                type="text"
-                placeholder="Search documents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+      {/* Combined Search and Question Component */}
+      <DocumentSearchAndQuestion
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        onSearch={performSemanticSearch}
+        isSearching={isStreaming}
+        categoryFilter={categoryFilter}
+        onCategoryFilterChange={handleCategoryChange}
+        availableCategories={availableCategories}
+        showCategoryFilter={true}
+        searchPlaceholder="Search documents..."
+        showClearFilters={!!hasActiveFilters}
+        onClearFilters={clearFilters}
+        isSemanticSearch={isSemanticSearch}
+        showQuestionAnswering={true}
+        questionQuery={questionQuery}
+        onQuestionQueryChange={setQuestionQuery}
+        answer={answer}
+        answerCitations={answerCitations}
+        isAnswering={isAnswering}
+        answerError={answerError}
+        onAnswerQuestion={async (query) => {
+          setIsAnswering(true);
+          setAnswer('');
+          setAnswerCitations([]);
+          setAnswerError(undefined);
 
-            {/* Category Combobox */}
-            <div className="min-w-0 lg:min-w-[250px] relative" ref={categoryRef}>
-              <div
-                className="flex items-center justify-between w-full h-11 px-3 py-2 border border-primary-300 rounded-lg bg-white cursor-pointer hover:border-primary-400 transition-colors"
-                onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-              >
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <Filter className="text-primary-400 w-4 h-4 flex-shrink-0" />
-                  <span className={`truncate text-sm ${categoryFilter ? 'text-primary-900 font-medium' : 'text-primary-500'}`}>
-                    {categoryFilter || 'All Categories'}
-                  </span>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-primary-400 transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`} />
-              </div>
-
-              {isCategoryOpen && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-primary-200 rounded-lg shadow-lg max-h-80 overflow-hidden flex flex-col animate-fade-in">
-                  <div className="p-2 border-b border-primary-100 bg-primary-50/50">
-                    <Input
-                      placeholder="Filter categories..."
-                      value={categorySearch}
-                      onChange={(e) => setCategorySearch(e.target.value)}
-                      className="h-9 text-sm"
-                      autoFocus
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  <div className="overflow-y-auto flex-1 p-1">
-                    <div
-                      className={`px-3 py-2 rounded-md cursor-pointer text-sm flex items-center justify-between ${!categoryFilter ? 'bg-primary-100 text-primary-900' : 'text-primary-700 hover:bg-primary-50'}`}
-                      onClick={() => {
-                        handleCategoryChange('');
-                        setIsCategoryOpen(false);
-                      }}
-                    >
-                      <span>All Categories</span>
-                      {!categoryFilter && <Check className="w-4 h-4 text-primary-600" />}
-                    </div>
-                    {availableCategories
-                      .filter(c => c.toLowerCase().includes(categorySearch.toLowerCase()))
-                      .map(category => (
-                        <div
-                          key={category}
-                          className={`px-3 py-2 rounded-md cursor-pointer text-sm flex items-center justify-between ${categoryFilter === category ? 'bg-primary-100 text-primary-900' : 'text-primary-700 hover:bg-primary-50'}`}
-                          onClick={() => {
-                            handleCategoryChange(category);
-                            setIsCategoryOpen(false);
-                          }}
-                        >
-                          <span>{category}</span>
-                          {categoryFilter === category && <Check className="w-4 h-4 text-primary-600" />}
-                        </div>
-                      ))}
-                    {availableCategories.length === 0 && (
-                      <div className="px-3 py-4 text-center text-sm text-primary-400">
-                        No categories found
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Clear Filters */}
-            {hasActiveFilters && (
-              <Button variant="outline" onClick={clearFilters} type="button">
-                Clear Filters
-              </Button>
-            )}
-          </form>
-
-          {/* Active Filters Display */}
-          {hasActiveFilters && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {searchQuery && (
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${isSemanticSearch ? 'bg-accent-50 text-accent-800 border border-accent-200' : 'bg-primary-100 text-primary-800 border border-primary-200'
-                  }`}>
-                  {isSemanticSearch ? 'AI Search' : 'Search'}: "{searchQuery}"
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className={`ml-2 ${isSemanticSearch ? 'text-accent-600 hover:text-accent-800' : 'text-primary-600 hover:text-primary-800'}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              )}
-              {categoryFilter && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary-100 text-primary-800 border border-primary-200">
-                  Category: {categoryFilter}
-                  <button
-                    onClick={() => setCategoryFilter('')}
-                    className="ml-2 text-primary-600 hover:text-primary-800"
-                  >
-                    ×
-                  </button>
-                </span>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          try {
+            await apiClient.answerQuestion(
+              query,
+              (chunk) => {
+                setAnswer(prev => prev + chunk);
+              },
+              (event: AnswerStreamEvent) => {
+                if (event.type === 'citations' && event.citations) {
+                  setAnswerCitations(event.citations);
+                } else if (event.type === 'complete') {
+                  if (event.answer) {
+                    setAnswer(event.answer);
+                  }
+                  if (event.citations) {
+                    setAnswerCitations(event.citations);
+                  }
+                  setIsAnswering(false);
+                } else if (event.type === 'error') {
+                  setAnswerError(event.message || 'An error occurred while generating the answer');
+                  setIsAnswering(false);
+                }
+              }
+            );
+          } catch (error) {
+            console.error('Failed to answer question:', error);
+            setAnswerError(error instanceof Error ? error.message : 'Failed to generate answer');
+            setIsAnswering(false);
+            toast.error('Failed to generate answer');
+          }
+        }}
+      />
 
       {/* Streaming Logs */}
       {(isStreaming || logs.length > 0) && (

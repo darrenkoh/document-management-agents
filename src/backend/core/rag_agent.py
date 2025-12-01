@@ -3,7 +3,7 @@ import logging
 import ollama
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Generator, Tuple
 import time
 import re
 
@@ -277,3 +277,152 @@ Reasoning: This document contains flight confirmation details matching the query
             return (relevance_score, similarity)
 
         return sorted(documents, key=sort_key, reverse=True)
+
+    def generate_answer(self, query: str, documents: List[Dict], verbose: bool = False) -> Generator[Tuple[str, Optional[List[Dict]]], None, None]:
+        """Generate an answer to a question using retrieved documents with streaming support.
+
+        Args:
+            query: The user's question
+            documents: List of retrieved documents with content
+            verbose: If True, log detailed LLM interactions
+
+        Yields:
+            Tuples of (chunk, None) for answer chunks, and (full_answer, citations) at the end
+        """
+        if not documents:
+            yield ("I couldn't find any relevant documents to answer your question.", None)
+            return
+
+        # Build answer generation prompt
+        prompt = self._build_answer_prompt(query, documents)
+
+        if verbose:
+            logger.info("=" * 80)
+            logger.info(f"Generating answer for query: {query}")
+            logger.info(f"Using {len(documents)} documents as context")
+            logger.info("=" * 80)
+
+        try:
+            # Use streaming generation
+            stream = self.client.generate(
+                model=self.model,
+                prompt=prompt,
+                stream=True,
+                options={
+                    'temperature': 0.7,  # Slightly higher for more natural answers
+                    'num_predict': self.num_predict,
+                }
+            )
+
+            full_answer = ""
+            for chunk in stream:
+                if 'response' in chunk:
+                    chunk_text = chunk['response']
+                    full_answer += chunk_text
+                    yield (chunk_text, None)
+
+            # Clean the answer
+            full_answer = self._clean_llm_response(full_answer)
+
+            # Extract citations from the answer
+            citations = self._extract_citations(full_answer, documents)
+
+            if verbose:
+                logger.info(f"Generated answer (length: {len(full_answer)})")
+                logger.info(f"Extracted {len(citations)} citations")
+
+            # Yield final answer with citations
+            yield (full_answer, citations)
+
+        except Exception as e:
+            logger.error(f"Error generating answer: {e}")
+            error_msg = f"I encountered an error while generating an answer: {str(e)}"
+            yield (error_msg, None)
+
+    def _build_answer_prompt(self, query: str, documents: List[Dict]) -> str:
+        """Build the answer generation prompt with document context.
+
+        Args:
+            query: User's question
+            documents: List of retrieved documents
+
+        Returns:
+            Formatted prompt for LLM
+        """
+        # Build document context section
+        doc_contexts = []
+        for i, doc in enumerate(documents[:10], 1):  # Limit to top 10 documents
+            filename = doc.get('filename', 'unknown')
+            doc_id = doc.get('id') or doc.get('doc_id', 'unknown')
+            content_preview = doc.get('content_preview', '')
+            categories = doc.get('categories', '')
+            
+            # Truncate content to reasonable length (keep first 3000 chars per doc)
+            if len(content_preview) > 3000:
+                content_preview = content_preview[:3000] + "..."
+            
+            doc_context = f"""
+[Document {i}]
+- ID: {doc_id}
+- Filename: {filename}
+- Categories: {categories}
+- Content:
+{content_preview}
+"""
+            doc_contexts.append(doc_context)
+
+        documents_text = "\n".join(doc_contexts)
+
+        prompt = f"""You are an expert assistant that answers questions based on provided documents. Use only the information from the documents below to answer the question. If the information is not available in the documents, clearly state that.
+
+QUESTION: {query}
+
+DOCUMENTS:
+{documents_text}
+
+INSTRUCTIONS:
+1. Answer the question comprehensively using information from the documents above
+2. When referencing information, cite the source using [Document N] format (e.g., [Document 1], [Document 2])
+3. If information is not available in the documents, clearly state "Based on the provided documents, I cannot find information about..."
+4. Provide a well-structured, clear answer
+5. Include specific details and examples from the documents when relevant
+
+ANSWER:"""
+
+        return prompt
+
+    def _extract_citations(self, answer: str, documents: List[Dict]) -> List[Dict]:
+        """Extract cited documents from the answer text.
+
+        Args:
+            answer: Generated answer text
+            documents: List of source documents
+
+        Returns:
+            List of cited document dictionaries with metadata
+        """
+        citations = []
+        cited_indices = set()
+
+        # Find all [Document N] references in the answer
+        citation_pattern = r'\[Document\s+(\d+)\]'
+        matches = re.finditer(citation_pattern, answer, re.IGNORECASE)
+
+        for match in matches:
+            doc_index = int(match.group(1)) - 1  # Convert to 0-based index
+            if 0 <= doc_index < len(documents):
+                cited_indices.add(doc_index)
+
+        # Build citation list with document metadata
+        for idx in sorted(cited_indices):
+            doc = documents[idx]
+            citation = {
+                'id': doc.get('id') or doc.get('doc_id'),
+                'filename': doc.get('filename', 'unknown'),
+                'categories': doc.get('categories', ''),
+                'similarity': doc.get('similarity', 0.0),
+                'content_preview': doc.get('content_preview', '')[:200] + '...' if len(doc.get('content_preview', '')) > 200 else doc.get('content_preview', '')
+            }
+            citations.append(citation)
+
+        return citations

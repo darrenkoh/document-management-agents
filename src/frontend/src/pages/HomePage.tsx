@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, FileText, ArrowRight, Clock } from 'lucide-react';
+import { FileText, ArrowRight, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StreamingLogs, useStreamingLogs, StreamingLogMessage } from '@/components/ui/StreamingLogs';
-import { Document, SearchResult } from '@/types';
+import { DocumentSearchAndQuestion } from '@/components/DocumentSearchAndQuestion';
+import { Document, SearchResult, AnswerCitation, AnswerStreamEvent } from '@/types';
 import { apiClient, getFileIcon, formatFileSize } from '@/lib/api';
 import toast from 'react-hot-toast';
 
@@ -18,10 +18,18 @@ export default function HomePage() {
   const [streamingLogs, setStreamingLogs] = useState<StreamingLogMessage[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [hasSearchResults, setHasSearchResults] = useState(false);
+  
+  // Question answering state
+  const [questionQuery, setQuestionQuery] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [answerCitations, setAnswerCitations] = useState<AnswerCitation[]>([]);
+  const [isAnswering, setIsAnswering] = useState(false);
+  const [answerError, setAnswerError] = useState<string | undefined>();
+  
   const navigate = useNavigate();
 
   // Streaming logs hook with callback
-  const { isStreaming, startStreaming, clearLogs, cancelSearch } = useStreamingLogs((log) => {
+  const { isStreaming, startStreaming, clearLogs } = useStreamingLogs((log) => {
     setStreamingLogs(prev => [...prev, log]);
   });
 
@@ -76,16 +84,6 @@ export default function HomePage() {
     );
   };
 
-  const handleCancel = () => {
-    console.log('Cancelling search...');
-    cancelSearch();
-    setIsSearching(false);
-    setStreamingLogs([]);
-    setHasSearchResults(false);
-    setSearchResults([]);
-    clearLogs();
-    toast('Search cancelled');
-  };
 
   const formatDate = (dateString: string) => {
     try {
@@ -114,44 +112,69 @@ export default function HomePage() {
     clearLogs();
   };
 
+
   return (
     <div className="space-y-5">
-      {/* Search Section */}
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-primary-200 to-primary-100 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
-          <div className="relative flex items-center bg-white rounded-lg border border-primary-300 shadow-sm focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500 transition-all">
-            <div className="pl-4 text-primary-400">
-              <Search className="w-5 h-5" />
-            </div>
-            <Input
-              id="search-input"
-              type="text"
-              placeholder="Search documents, categories, or content..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !isSearching && query.trim()) {
-                  handleSearch();
-                }
-              }}
-              className="border-0 shadow-none focus:ring-0 text-lg h-14 bg-transparent"
-              disabled={isSearching}
-            />
-            <div className="pr-2">
-              <Button
-                disabled={!query.trim()}
-                onClick={isSearching ? handleCancel : handleSearch}
-                className={`h-10 px-6 ${isSearching ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-primary-900 text-white hover:bg-primary-800'}`}
-              >
-                {isSearching ? 'Cancel' : 'Search'}
-              </Button>
-            </div>
-          </div>
-        </div>
+      {/* Combined Search and Question Component */}
+      <div className="max-w-4xl mx-auto">
+        <DocumentSearchAndQuestion
+          searchQuery={query}
+          onSearchQueryChange={setQuery}
+          onSearch={handleSearch}
+          isSearching={isSearching}
+          showCategoryFilter={false}
+          searchPlaceholder="Search documents, categories, or content..."
+          showClearFilters={false}
+          isSemanticSearch={false}
+          showQuestionAnswering={true}
+          questionQuery={questionQuery}
+          onQuestionQueryChange={setQuestionQuery}
+          answer={answer}
+          answerCitations={answerCitations}
+          isAnswering={isAnswering}
+          answerError={answerError}
+          onAnswerQuestion={async (query) => {
+            setIsAnswering(true);
+            setAnswer('');
+            setAnswerCitations([]);
+            setAnswerError(undefined);
 
-        {/* Streaming Logs */}
-        {(isStreaming || streamingLogs.length > 0) && (
+            try {
+              await apiClient.answerQuestion(
+                query,
+                (chunk) => {
+                  setAnswer(prev => prev + chunk);
+                },
+                (event: AnswerStreamEvent) => {
+                  if (event.type === 'citations' && event.citations) {
+                    setAnswerCitations(event.citations);
+                  } else if (event.type === 'complete') {
+                    if (event.answer) {
+                      setAnswer(event.answer);
+                    }
+                    if (event.citations) {
+                      setAnswerCitations(event.citations);
+                    }
+                    setIsAnswering(false);
+                  } else if (event.type === 'error') {
+                    setAnswerError(event.message || 'An error occurred while generating the answer');
+                    setIsAnswering(false);
+                  }
+                }
+              );
+            } catch (error) {
+              console.error('Failed to answer question:', error);
+              setAnswerError(error instanceof Error ? error.message : 'Failed to generate answer');
+              setIsAnswering(false);
+              toast.error('Failed to generate answer');
+            }
+          }}
+        />
+      </div>
+
+      {/* Streaming Logs */}
+      {(isStreaming || streamingLogs.length > 0) && (
+        <div className="max-w-3xl mx-auto">
           <div className="bg-primary-900 rounded-xl p-6 shadow-2xl overflow-hidden border border-primary-800">
             <StreamingLogs
               isVisible={true}
@@ -159,8 +182,8 @@ export default function HomePage() {
               isStreaming={isStreaming}
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Content Section */}
       <div className="space-y-8">
