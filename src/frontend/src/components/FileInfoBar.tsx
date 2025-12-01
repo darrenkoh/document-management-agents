@@ -1,7 +1,6 @@
 import { Document } from '@/types';
 import { CoolTooltip } from '@/components/ui/CoolTooltip';
 import { formatFileSize } from '@/lib/api';
-import { Calendar, HardDrive, FileText, Layers, Hash, ScanText, Folder } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface FileInfoBarProps {
@@ -9,33 +8,7 @@ interface FileInfoBarProps {
 }
 
 export const FileInfoBar = ({ document }: FileInfoBarProps) => {
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateString;
-    }
-  };
 
-  const InfoItem = ({ icon: Icon, label, value, detail }: { icon: any, label: string, value: string | number, detail?: string }) => (
-    <CoolTooltip content={detail || `${label}: ${value}`}>
-      <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/50 border border-gray-200 hover:bg-white hover:shadow-md hover:border-primary-200 transition-all duration-200 cursor-default group w-full">
-        <div className="p-2 rounded-lg bg-primary-50 text-primary-500 group-hover:bg-primary-100 transition-colors">
-           <Icon className="w-4 h-4" />
-        </div>
-        <div className="flex flex-col min-w-0">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
-          <span className="text-sm font-semibold text-gray-800 truncate">{value}</span>
-        </div>
-      </div>
-    </CoolTooltip>
-  );
 
   return (
     <motion.div 
@@ -44,99 +17,60 @@ export const FileInfoBar = ({ document }: FileInfoBarProps) => {
       transition={{ duration: 0.5, delay: 0.2 }}
       className="w-full bg-gray-50/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-20 shadow-sm"
     >
-      <div className="max-w-7xl mx-auto px-6 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          {/* Left Column: File Details */}
-          <div className="flex flex-col gap-4">
-            {/* Main file details grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <InfoItem
-                icon={FileText}
-                label="Type"
-                value={document.metadata.file_extension.toUpperCase()}
-                detail={`MIME Type: ${document.metadata.mime_type || 'Unknown'}`}
-              />
+      <div className="max-w-7xl mx-auto px-6 py-3">
+        <div className="flex items-center gap-6">
 
-              <InfoItem
-                icon={HardDrive}
-                label="Size"
-                value={formatFileSize(document.metadata.file_size)}
-              />
-
-              {document.metadata.page_count && (
-                <InfoItem
-                  icon={Layers}
-                  label="Pages"
-                  value={document.metadata.page_count}
-                  detail={`${document.metadata.page_count} Pages`}
-                />
-              )}
-
-              {document.deepseek_ocr_used && (
-                <InfoItem
-                  icon={ScanText}
-                  label="OCR"
-                  value="DeepSeek"
-                  detail="Document was processed using DeepSeek-OCR for text extraction"
-                />
-              )}
+          {/* Left: Compact File Info */}
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Type</span>
+              <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs font-semibold border">
+                {document.metadata.file_extension.toUpperCase()}
+              </span>
             </div>
 
-            {/* File path in its own row */}
-            <div className="w-full">
-              <CoolTooltip content={`Full path: ${document.file_path}`}>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/50 border border-gray-200 hover:bg-white hover:shadow-md hover:border-primary-200 transition-all duration-200 cursor-default group w-full">
-                  <div className="p-2 rounded-lg bg-primary-50 text-primary-500 group-hover:bg-primary-100 transition-colors flex-shrink-0">
-                    <Folder className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Path</span>
-                    <span className="text-sm font-semibold text-gray-800 break-all">{document.file_path}</span>
-                  </div>
-                </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Size</span>
+              <span className="text-xs font-semibold text-gray-800">
+                {formatFileSize(document.metadata.file_size)}
+              </span>
+            </div>
+
+            {document.deepseek_ocr_used && (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                  OCR: DeepSeek
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Categories */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {document.categories.split('-').slice(0, 6).map((category, index) => (
+              <CoolTooltip key={index} content={`Category: ${category.trim()}`}>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-700 border border-primary-200/50">
+                  {category.trim()}
+                </span>
               </CoolTooltip>
-            </div>
+            ))}
+            {document.categories.split('-').length > 6 && (
+              <span className="text-xs font-medium text-gray-500">
+                +{document.categories.split('-').length - 6} more
+              </span>
+            )}
           </div>
 
-          {/* Right Column: Classification & ID */}
-          <div className="flex flex-col justify-center gap-3">
-             <div className="flex items-center gap-3 w-full">
-                <div className="flex-1">
-                  <InfoItem 
-                    icon={Calendar} 
-                    label="Classified" 
-                    value={formatDate(document.classification_date)}
-                    detail={`Classified on ${formatDate(document.classification_date)}`}
-                  />
-                </div>
-                 <div className="flex-1">
-                   <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/50 border border-gray-200 hover:bg-white hover:shadow-md hover:border-primary-200 transition-all duration-200 cursor-default group w-full h-full">
-                      <div className="p-2 rounded-lg bg-primary-50 text-primary-500 group-hover:bg-primary-100 transition-colors">
-                         <Hash className="w-4 h-4" />
-                      </div>
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Categories</span>
-                         <div className="flex flex-wrap gap-1">
-                          {document.categories.split('-').slice(0, 2).map((category, index) => (
-                            <CoolTooltip key={index} content={`Category: ${category.trim()}`}>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary-100 text-primary-700 border border-primary-200/50">
-                                {category.trim()}
-                              </span>
-                            </CoolTooltip>
-                          ))}
-                           {document.categories.split('-').length > 2 && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                                +{document.categories.split('-').length - 2}
-                              </span>
-                           )}
-                        </div>
-                      </div>
-                   </div>
-                 </div>
-             </div>
+          {/* File Path - Takes remaining space */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:inline flex-shrink-0">Path</span>
+            <CoolTooltip content={`Full path: ${document.file_path}`}>
+              <div className="px-3 py-1 bg-gray-50 border border-gray-200 rounded text-xs font-mono text-gray-700 truncate flex-1 min-w-0">
+                {document.file_path}
+              </div>
+            </CoolTooltip>
           </div>
-          
+
         </div>
       </div>
     </motion.div>
