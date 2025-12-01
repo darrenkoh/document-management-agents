@@ -171,6 +171,61 @@ def serve_original_file(doc_id: int):
         return 'Error serving file', 500
 
 
+@app.route('/api/document/<int:doc_id>/file')
+def api_get_document_file(doc_id: int):
+    """API endpoint to download the original file as a blob."""
+    # Get the document by SQLite ID
+    try:
+        cursor = database.connection.cursor()
+        cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
+        row = cursor.fetchone()
+        cursor.close()
+
+        if row:
+            doc = database._row_to_dict(row)
+        else:
+            doc = None
+    except Exception as e:
+        app.logger.error(f"Error fetching document {doc_id}: {e}")
+        doc = None
+
+    # Fallback: search through all documents
+    if not doc:
+        all_docs = database.get_all_documents()
+        for d in all_docs:
+            if d.get('id') == doc_id or d.get('doc_id') == doc_id:
+                doc = d
+                break
+
+    if not doc:
+        return jsonify({'error': 'Document not found'}), 404
+
+    file_path = Path(doc['file_path'])
+    if not file_path.exists():
+        return jsonify({'error': 'File not found'}), 404
+
+    # Determine MIME type
+    file_extension = doc['metadata'].get('file_extension', '').lower()
+    mime_types = {
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.doc': 'application/msword'
+    }
+
+    mime_type = mime_types.get(file_extension, 'application/octet-stream')
+
+    try:
+        return send_file(file_path, mimetype=mime_type, as_attachment=True, download_name=doc['filename'])
+    except Exception as e:
+        app.logger.error(f"Error serving file {file_path}: {e}")
+        return jsonify({'error': 'Error serving file'}), 500
+
+
 @app.route('/api/search', methods=['POST'])
 def api_search():
     """API endpoint for semantic search (returns JSON)."""
