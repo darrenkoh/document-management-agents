@@ -111,11 +111,13 @@ class DocumentAgent:
                 'total_hash_duration': 0.0,
                 'total_ocr_duration': 0.0,
                 'total_classification_duration': 0.0,
+                'total_embedding_duration': 0.0,
                 'total_db_lookup_duration': 0.0,
                 'total_db_insert_duration': 0.0,
                 'avg_hash_duration': 0.0,
                 'avg_ocr_duration': 0.0,
                 'avg_classification_duration': 0.0,
+                'avg_embedding_duration': 0.0,
                 'avg_db_lookup_duration': 0.0,
                 'avg_db_insert_duration': 0.0
             }
@@ -144,10 +146,11 @@ class DocumentAgent:
                     elif status == 'failed':
                         stats['failed'] += 1
 
-                    # Accumulate performance metrics
+                            # Accumulate performance metrics
                     stats['performance']['total_hash_duration'] += perf_metrics['hash_duration']
                     stats['performance']['total_ocr_duration'] += perf_metrics['ocr_duration']
                     stats['performance']['total_classification_duration'] += perf_metrics['classification_duration']
+                    stats['performance']['total_embedding_duration'] += perf_metrics['embedding_duration']
                     stats['performance']['total_db_lookup_duration'] += perf_metrics['db_lookup_duration']
                     stats['performance']['total_db_insert_duration'] += perf_metrics['db_insert_duration']
 
@@ -167,6 +170,7 @@ class DocumentAgent:
             stats['performance']['avg_hash_duration'] = stats['performance']['total_hash_duration'] / processed_files_count
             stats['performance']['avg_ocr_duration'] = stats['performance']['total_ocr_duration'] / processed_files_count
             stats['performance']['avg_classification_duration'] = stats['performance']['total_classification_duration'] / processed_files_count
+            stats['performance']['avg_embedding_duration'] = stats['performance']['total_embedding_duration'] / processed_files_count
             stats['performance']['avg_db_lookup_duration'] = stats['performance']['total_db_lookup_duration'] / processed_files_count
             stats['performance']['avg_db_insert_duration'] = stats['performance']['total_db_insert_duration'] / processed_files_count
 
@@ -195,6 +199,7 @@ class DocumentAgent:
                 'hash_duration': 0.0,
                 'ocr_duration': 0.0,
                 'classification_duration': 0.0,
+                'embedding_duration': 0.0,
                 'db_lookup_duration': 0.0,
                 'db_insert_duration': 0.0
             }
@@ -204,7 +209,7 @@ class DocumentAgent:
             if not hash_result:
                 logger.error(f"Failed to generate hash for {file_path.name}, skipping")
                 return ('failed', {'hash_duration': 0.0, 'ocr_duration': 0.0, 'classification_duration': 0.0,
-                               'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
+                               'embedding_duration': 0.0, 'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
 
             file_hash, perf_metrics['hash_duration'] = hash_result
 
@@ -221,7 +226,7 @@ class DocumentAgent:
                            f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
                            f"total={total_duration:.3f}s")
 
-                return ('skipped_deleted', {**perf_metrics, 'ocr_duration': 0.0, 'classification_duration': 0.0, 'db_insert_duration': 0.0})
+                return ('skipped_deleted', {**perf_metrics, 'ocr_duration': 0.0, 'classification_duration': 0.0, 'embedding_duration': 0.0, 'db_insert_duration': 0.0})
 
             # Check if already processed by hash (content-based duplicate detection)
             existing = self.database.get_document_by_hash(file_hash)
@@ -238,7 +243,7 @@ class DocumentAgent:
                            f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
                            f"total={total_duration:.3f}s")
 
-                return ('skipped_duplicate', {**perf_metrics, 'ocr_duration': 0.0, 'classification_duration': 0.0, 'db_insert_duration': 0.0})
+                return ('skipped_duplicate', {**perf_metrics, 'ocr_duration': 0.0, 'classification_duration': 0.0, 'embedding_duration': 0.0, 'db_insert_duration': 0.0})
 
             logger.info(f"Processing file: {file_path.name} (hash: {file_hash[:16]}...)")
 
@@ -264,15 +269,17 @@ class DocumentAgent:
                 return ('failed', perf_metrics)
 
             categories, perf_metrics['classification_duration'] = classification_result
-            
+
             # Generate embeddings using semantic chunking and summary
             logger.info(f"Generating embeddings for {file_path.name}...")
+            embedding_start = time.time()
             embedding_result = self.embedding_generator.generate_document_embeddings(
                 content,
                 chunk_size=self.config.chunk_size,
                 overlap=self.config.chunk_overlap,
                 generate_summary=self.config.enable_summary_embedding
             )
+            perf_metrics['embedding_duration'] = time.time() - embedding_start
 
             # Check if we have at least one embedding (chunks or summary)
             if not embedding_result['chunks'] and not embedding_result['summary']:
@@ -315,11 +322,12 @@ class DocumentAgent:
 
             # Log performance metrics for this file
             total_duration = (perf_metrics['hash_duration'] + perf_metrics['ocr_duration'] +
-                            perf_metrics['classification_duration'] + perf_metrics['db_lookup_duration'] +
-                            perf_metrics['db_insert_duration'])
+                            perf_metrics['classification_duration'] + perf_metrics['embedding_duration'] +
+                            perf_metrics['db_lookup_duration'] + perf_metrics['db_insert_duration'])
             logger.info(f"Performance for {file_path.name}: hash={perf_metrics['hash_duration']:.3f}s, "
                        f"ocr={perf_metrics['ocr_duration']:.3f}s, "
                        f"classify={perf_metrics['classification_duration']:.3f}s, "
+                       f"embedding={perf_metrics['embedding_duration']:.3f}s, "
                        f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
                        f"db_insert={perf_metrics['db_insert_duration']:.3f}s, "
                        f"total={total_duration:.3f}s")
@@ -329,7 +337,7 @@ class DocumentAgent:
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {e}")
             return ('failed', {'hash_duration': 0.0, 'ocr_duration': 0.0, 'classification_duration': 0.0,
-                           'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
+                           'embedding_duration': 0.0, 'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
 
     def _collect_all_files(self) -> Dict[Path, List[Path]]:
         """Collect all files from all directories using BFS traversal.
@@ -413,11 +421,13 @@ class DocumentAgent:
                 'total_hash_duration': 0.0,
                 'total_ocr_duration': 0.0,
                 'total_classification_duration': 0.0,
+                'total_embedding_duration': 0.0,
                 'total_db_lookup_duration': 0.0,
                 'total_db_insert_duration': 0.0,
                 'avg_hash_duration': 0.0,
                 'avg_ocr_duration': 0.0,
                 'avg_classification_duration': 0.0,
+                'avg_embedding_duration': 0.0,
                 'avg_db_lookup_duration': 0.0,
                 'avg_db_insert_duration': 0.0
             }
@@ -460,6 +470,7 @@ class DocumentAgent:
             total_stats['performance']['avg_hash_duration'] = total_stats['performance']['total_hash_duration'] / total_stats['processed']
             total_stats['performance']['avg_ocr_duration'] = total_stats['performance']['total_ocr_duration'] / total_stats['processed']
             total_stats['performance']['avg_classification_duration'] = total_stats['performance']['total_classification_duration'] / total_stats['processed']
+            total_stats['performance']['avg_embedding_duration'] = total_stats['performance']['total_embedding_duration'] / total_stats['processed']
             total_stats['performance']['avg_db_lookup_duration'] = total_stats['performance']['total_db_lookup_duration'] / total_stats['processed']
             total_stats['performance']['avg_db_insert_duration'] = total_stats['performance']['total_db_insert_duration'] / total_stats['processed']
 

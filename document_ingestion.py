@@ -183,11 +183,12 @@ def main():
                     print(f"  SHA256 hash: {format_duration(perf['avg_hash_duration'])}")
                     print(f"  OCR: {format_duration(perf['avg_ocr_duration'])}")
                     print(f"  Classification: {format_duration(perf['avg_classification_duration'])}")
+                    print(f"  Embeddings: {format_duration(perf['avg_embedding_duration'])}")
                     print(f"  DB lookup: {format_duration(perf['avg_db_lookup_duration'])}")
                     print(f"  DB insert: {format_duration(perf['avg_db_insert_duration'])}")
                     total_avg = (perf['avg_hash_duration'] + perf['avg_ocr_duration'] +
-                               perf['avg_classification_duration'] + perf['avg_db_lookup_duration'] +
-                               perf['avg_db_insert_duration'])
+                               perf['avg_classification_duration'] + perf['avg_embedding_duration'] +
+                               perf['avg_db_lookup_duration'] + perf['avg_db_insert_duration'])
                     print(f"  Total per file: {format_duration(total_avg)}")
 
                     # Log performance metrics
@@ -195,6 +196,7 @@ def main():
                     logger.info(f"  SHA256 hash: {format_duration(perf['avg_hash_duration'])}")
                     logger.info(f"  OCR: {format_duration(perf['avg_ocr_duration'])}")
                     logger.info(f"  Classification: {format_duration(perf['avg_classification_duration'])}")
+                    logger.info(f"  Embeddings: {format_duration(perf['avg_embedding_duration'])}")
                     logger.info(f"  DB lookup: {format_duration(perf['avg_db_lookup_duration'])}")
                     logger.info(f"  DB insert: {format_duration(perf['avg_db_insert_duration'])}")
                     logger.info(f"  Total per file: {format_duration(total_avg)}")
