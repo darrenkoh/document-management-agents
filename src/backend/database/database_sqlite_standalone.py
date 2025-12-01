@@ -60,10 +60,18 @@ class SQLiteDocumentDatabase:
                     metadata TEXT,  -- JSON field
                     file_hash TEXT,
                     embedding_stored BOOLEAN DEFAULT FALSE,
+                    deepseek_ocr_used BOOLEAN DEFAULT FALSE,
                     created_at REAL,
                     updated_at REAL
                 )
             ''')
+
+            # Add the deepseek_ocr_used column to existing tables (migration)
+            try:
+                cursor.execute("ALTER TABLE documents ADD COLUMN deepseek_ocr_used BOOLEAN DEFAULT FALSE")
+            except sqlite3.OperationalError:
+                # Column already exists, skip
+                pass
 
             # Deleted files table to track previously deleted files by hash
             cursor.execute('''
@@ -100,7 +108,8 @@ class SQLiteDocumentDatabase:
             cursor.close()
 
     def store_classification(self, file_path: str, content: str, categories: str,
-                           metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None) -> int:
+                           metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None,
+                           deepseek_ocr_used: bool = False) -> int:
         """Store a document classification in the database.
 
         Args:
@@ -130,6 +139,7 @@ class SQLiteDocumentDatabase:
                 'metadata': json.dumps(metadata or {}),
                 'file_hash': file_hash,
                 'embedding_stored': False,
+                'deepseek_ocr_used': deepseek_ocr_used,
                 'updated_at': now
             }
 

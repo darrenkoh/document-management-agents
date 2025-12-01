@@ -107,26 +107,18 @@ class FileHandler:
         
         return files
     
-    def extract_text(self, file_path: Path) -> tuple[Optional[str], float]:
+    def extract_text(self, file_path: Path) -> tuple[Optional[str], float, bool]:
         """Extract text content from a file.
 
         Args:
             file_path: Path to the file
 
         Returns:
-            Tuple of (extracted text content or None if extraction fails, OCR duration in seconds)
+            Tuple of (extracted text content or None if extraction fails, OCR duration in seconds, whether DeepSeek-OCR was used)
         """
         # Ensure file_path is a Path object
         if isinstance(file_path, str):
             file_path = Path(file_path)
-        """Extract text content from a file.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            Extracted text content or None if extraction fails
-        """
         try:
             suffix = file_path.suffix.lower()
 
@@ -140,13 +132,13 @@ class FileHandler:
                         if ocr_result:
                             ocr_text, ocr_duration = ocr_result
                             logger.info(f"DeepSeek-OCR successfully extracted text from {file_path}")
-                            return (ocr_text, ocr_duration)
+                            return (ocr_text, ocr_duration, True)
                         else:
-                            return (text, 0.0)
+                            return (text, 0.0, False)
                     else:
                         logger.warning(f"DeepSeek-OCR not available, skipping OCR for {file_path}")
-                        return (text, 0.0)
-                return (text, 0.0)
+                        return (text, 0.0, False)
+                return (text, 0.0, False)
             elif suffix == '.docx':
                 text = self._extract_from_docx(file_path)
                 # If DOCX text extraction returns minimal content, try OCR as fallback
@@ -157,35 +149,35 @@ class FileHandler:
                         if ocr_result:
                             ocr_text, ocr_duration = ocr_result
                             logger.info(f"DeepSeek-OCR successfully extracted text from DOCX {file_path}")
-                            return (ocr_text, ocr_duration)
+                            return (ocr_text, ocr_duration, True)
                         else:
-                            return (text, 0.0)
+                            return (text, 0.0, False)
                     else:
                         logger.warning(f"DeepSeek-OCR not available, skipping OCR fallback for {file_path}")
-                        return (text, 0.0)
-                return (text, 0.0)
+                        return (text, 0.0, False)
+                return (text, 0.0, False)
             elif suffix == '.doc':
-                return (self._extract_from_doc(file_path), 0.0)
+                return (self._extract_from_doc(file_path), 0.0, False)
             elif suffix == '.txt':
-                return (self._extract_from_txt(file_path), 0.0)
+                return (self._extract_from_txt(file_path), 0.0, False)
             elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
                 if self.ocr_available:
                     text, ocr_duration = self._extract_from_image(file_path)
                     if text is not None:
-                        return (text, ocr_duration)
+                        return (text, ocr_duration, True)
                     else:
                         logger.info(f"Skipping image {file_path} - no meaningful text content found")
-                        return (None, ocr_duration)
+                        return (None, ocr_duration, True)
                 else:
                     logger.warning(f"DeepSeek-OCR not available, skipping image {file_path}")
-                    return (None, 0.0)
+                    return (None, 0.0, False)
             else:
                 logger.warning(f"Unsupported file type: {suffix}")
-                return (None, 0.0)
+                return (None, 0.0, False)
 
         except Exception as e:
             logger.error(f"Error extracting text from {file_path}: {e}")
-            return (None, 0.0)
+            return (None, 0.0, False)
     
     def _extract_from_pdf(self, file_path: Path) -> str:
         """Extract text from PDF file."""

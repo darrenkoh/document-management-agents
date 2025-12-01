@@ -254,7 +254,7 @@ class DocumentAgent:
             logger.info(f"Processing file: {file_path.name} (hash: {file_hash[:16]}...)")
 
             # Extract text content
-            content, ocr_duration = self.file_handler.extract_text(file_path)
+            content, ocr_duration, ocr_used = self.file_handler.extract_text(file_path)
             perf_metrics['ocr_duration'] = ocr_duration
 
             if not content or not content.strip():
@@ -313,7 +313,8 @@ class DocumentAgent:
                 content=content,
                 categories=categories,
                 metadata=metadata,
-                file_hash=file_hash
+                file_hash=file_hash,
+                deepseek_ocr_used=ocr_used
             )
 
             # Store embeddings (chunks and summary)

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Download, Eye, FileText, Trash2, AlertTriangle } from 'lucide-react';
+import { Download, Eye, FileText, Trash2, AlertTriangle, ScanText } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -459,13 +459,24 @@ export default function DocumentsPage() {
                             {getFileIcon(doc.metadata.file_extension)}
                           </span>
                           <div className="min-w-0">
-                            <p
-                              className="font-medium text-primary-900 truncate cursor-pointer hover:text-primary-600 transition-colors max-w-xs"
-                              onClick={() => navigate(`/document/${doc.id}`)}
-                              title={doc.filename}
-                            >
-                              {doc.filename}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p
+                                className="font-medium text-primary-900 truncate cursor-pointer hover:text-primary-600 transition-colors max-w-xs"
+                                onClick={() => navigate(`/document/${doc.id}`)}
+                                title={doc.filename}
+                              >
+                                {doc.filename}
+                              </p>
+                              {doc.deepseek_ocr_used && (
+                                <div
+                                  className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium"
+                                  title="Processed with DeepSeek-OCR"
+                                >
+                                  <ScanText className="w-3 h-3" />
+                                  <span>OCR</span>
+                                </div>
+                              )}
+                            </div>
                             <p className="text-xs text-primary-500 truncate max-w-xs" title={doc.content_preview}>
                               {truncateContent(doc.content_preview)}
                             </p>

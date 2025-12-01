@@ -17,6 +17,7 @@ export interface Document {
   classification_date: string;
   metadata: DocumentMetadata;
   embedding?: number[];
+  deepseek_ocr_used?: boolean;
 }
 
 export interface DocumentMetadata {
