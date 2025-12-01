@@ -57,7 +57,7 @@ class Classifier:
         # Check cache
         cache_key = f"{filename}:{hash(content[:1000])}" if filename else str(hash(content[:1000]))
         if cache_key in self._cache:
-            logger.debug(f"Using cached classification for {filename}")
+            logger.info(f"Using cached classification for {filename}")
             cached_result = self._cache[cache_key]
             if isinstance(cached_result, tuple) and len(cached_result) == 2:
                 # Backward compatibility for old cache entries
@@ -223,12 +223,12 @@ class Classifier:
         """
         # Prepare content for classification - use summary for long documents if available
         if len(content) > 3000 and self.summarizer:
-            logger.debug(f"Document too long ({len(content)} chars), generating summary for classification")
+            logger.info(f"Document too long ({len(content)} chars), generating summary for classification")
             try:
                 summarized_content = self.summarizer(content, max_length=1500)  # Longer summary for classification
                 if summarized_content:
                     content_for_classification = summarized_content
-                    logger.debug(f"Using document summary for classification ({len(summarized_content)} chars)")
+                    logger.info(f"Using document summary for classification ({len(summarized_content)} chars)")
                 else:
                     # Fallback to truncation if summarization fails
                     content_for_classification = content[:3000]
@@ -500,5 +500,5 @@ Use lowercase for sub-categories and separate with commas."""
     def clear_cache(self):
         """Clear the classification cache."""
         self._cache.clear()
-        logger.debug("Classification cache cleared")
+        logger.info("Classification cache cleared")
 

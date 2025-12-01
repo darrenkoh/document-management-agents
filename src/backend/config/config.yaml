@@ -76,7 +76,9 @@ categories:
 # Use {filename} and {content} as placeholders
 # If not specified, a default prompt will be used
 prompt_template: |
-  Analyze the following document content and classify it into ONE of these categories: Finance, Shopping, Travel, Home, School, or Other. If you think the document is related to multiple categories, choose up to 3 categories.
+  Analyze the following document content and classify it into ONE main category and optionally up to 3 sub-categories.
+
+  Main categories: Finance, Shopping, Travel, Home, School, Other
 
   Classification Rules:
   - Finance: Documents related to bank statements, investments, 401K, W2 forms, car registration, car insurance, financial statements, tax documents, or any financial transactions
@@ -91,9 +93,23 @@ prompt_template: |
   Content:
   {content}
 
-  Based on the content above, classify this document into ONE category. Respond with ONLY the category name, nothing else. Use title case (e.g., "Finance", "Shopping", "Travel", "Home", "School", "Other"). If uncertain, use "Other".
+  First, classify this document into ONE main category from the list above. Then, if the document would benefit from additional context beyond the main category (especially if the main category is "Other"), suggest up to 3 specific sub-categories that describe the document's content more precisely.
 
-  Category:
+  Respond in this exact format:
+  MAIN: [main category]
+  SUB: [sub-category1, sub-category2, sub-category3] (or leave empty if no sub-categories needed)
+
+  Examples:
+  MAIN: Finance
+  SUB: invoice, tax, quarterly
+
+  MAIN: Other
+  SUB: medical, prescription, pharmacy
+
+  MAIN: Travel
+  SUB: (leave empty)
+
+  Use lowercase for sub-categories and separate with commas.
 
 # Watch mode settings
 watch:
