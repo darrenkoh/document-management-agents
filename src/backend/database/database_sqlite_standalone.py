@@ -56,6 +56,7 @@ class SQLiteDocumentDatabase:
                     content TEXT NOT NULL,
                     content_preview TEXT,
                     categories TEXT,
+                    sub_categories TEXT,  -- JSON array of sub-categories
                     classification_date TEXT,
                     metadata TEXT,  -- JSON field
                     file_hash TEXT,
@@ -69,6 +70,13 @@ class SQLiteDocumentDatabase:
             # Add the deepseek_ocr_used column to existing tables (migration)
             try:
                 cursor.execute("ALTER TABLE documents ADD COLUMN deepseek_ocr_used BOOLEAN DEFAULT FALSE")
+            except sqlite3.OperationalError:
+                # Column already exists, skip
+                pass
+
+            # Add the sub_categories column to existing tables (migration)
+            try:
+                cursor.execute("ALTER TABLE documents ADD COLUMN sub_categories TEXT")
             except sqlite3.OperationalError:
                 # Column already exists, skip
                 pass
@@ -109,7 +117,7 @@ class SQLiteDocumentDatabase:
 
     def store_classification(self, file_path: str, content: str, categories: str,
                            metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None,
-                           deepseek_ocr_used: bool = False) -> int:
+                           deepseek_ocr_used: bool = False, sub_categories: Optional[List[str]] = None) -> int:
         """Store a document classification in the database.
 
         Args:
@@ -118,6 +126,8 @@ class SQLiteDocumentDatabase:
             categories: Classification categories
             metadata: Optional additional metadata
             file_hash: Optional file hash for duplicate detection
+            deepseek_ocr_used: Whether DeepSeek OCR was used for text extraction
+            sub_categories: Optional list of sub-categories
 
         Returns:
             Document ID in the database
@@ -135,6 +145,7 @@ class SQLiteDocumentDatabase:
                 'content': content,
                 'content_preview': content[:500] if len(content) > 500 else content,
                 'categories': categories,
+                'sub_categories': json.dumps(sub_categories or []),
                 'classification_date': datetime.now().isoformat(),
                 'metadata': json.dumps(metadata or {}),
                 'file_hash': file_hash,
@@ -213,6 +224,14 @@ class SQLiteDocumentDatabase:
                 doc_dict['metadata'] = json.loads(doc_dict['metadata'])
             except json.JSONDecodeError:
                 doc_dict['metadata'] = {}
+        # Parse JSON sub_categories
+        if doc_dict.get('sub_categories'):
+            try:
+                doc_dict['sub_categories'] = json.loads(doc_dict['sub_categories'])
+            except json.JSONDecodeError:
+                doc_dict['sub_categories'] = []
+        else:
+            doc_dict['sub_categories'] = []
         return doc_dict
 
     def search_by_category(self, category: str) -> List[Dict]:

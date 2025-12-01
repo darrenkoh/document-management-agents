@@ -47,16 +47,28 @@ export const FileInfoBar = ({ document }: FileInfoBarProps) => {
 
           {/* Categories */}
           <div className="flex items-center gap-2 flex-wrap">
-            {document.categories.split('-').slice(0, 6).map((category, index) => (
-              <CoolTooltip key={index} content={`Category: ${category.trim()}`}>
+            {document.categories.split('-').slice(0, 4).map((category, index) => (
+              <CoolTooltip key={`main-${index}`} content={`Main Category: ${category.trim()}`}>
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-700 border border-primary-200/50">
                   {category.trim()}
                 </span>
               </CoolTooltip>
             ))}
-            {document.categories.split('-').length > 6 && (
+            {document.categories.split('-').length > 4 && (
               <span className="text-xs font-medium text-gray-500">
-                +{document.categories.split('-').length - 6} more
+                +{document.categories.split('-').length - 4} main
+              </span>
+            )}
+            {document.sub_categories && document.sub_categories.slice(0, 4).map((subCategory, index) => (
+              <CoolTooltip key={`sub-${index}`} content={`Sub-category: ${subCategory}`}>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                  {subCategory}
+                </span>
+              </CoolTooltip>
+            ))}
+            {document.sub_categories && document.sub_categories.length > 4 && (
+              <span className="text-xs font-medium text-gray-500">
+                +{document.sub_categories.length - 4} sub
               </span>
             )}
           </div>

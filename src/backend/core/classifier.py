@@ -1,7 +1,7 @@
 """LLM-based file classification using Ollama."""
 import logging
 import ollama
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import re
 import time
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class Classifier:
     """Classifies file content using Ollama LLM."""
 
-    def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None, existing_categories_getter=None, summarizer=None):
+    def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None, existing_categories_getter=None, existing_sub_categories_getter=None, summarizer=None):
         """Initialize classifier.
 
         Args:
@@ -29,6 +29,7 @@ class Classifier:
             num_predict: Maximum number of tokens to predict
             prompt_template: Optional custom prompt template with {filename} and {content} placeholders
             existing_categories_getter: Optional callable that returns list of existing categories from database
+            existing_sub_categories_getter: Optional callable that returns list of existing sub-categories from database
             summarizer: Optional callable that takes text and returns a summary string
         """
         self.endpoint = endpoint
@@ -37,12 +38,13 @@ class Classifier:
         self.num_predict = num_predict
         self.prompt_template = prompt_template
         self.existing_categories_getter = existing_categories_getter
+        self.existing_sub_categories_getter = existing_sub_categories_getter
         self.summarizer = summarizer
         self.client = ollama.Client(host=endpoint, timeout=timeout)
         self._cache: Dict[str, str] = {}
     
-    def classify(self, content: str, filename: Optional[str] = None, verbose: bool = False) -> Optional[tuple[str, float]]:
-        """Classify file content into a category.
+    def classify(self, content: str, filename: Optional[str] = None, verbose: bool = False) -> Optional[tuple[str, float, Optional[List[str]]]]:
+        """Classify file content into a category and optional sub-categories.
 
         Args:
             content: Text content of the file
@@ -50,13 +52,20 @@ class Classifier:
             verbose: If True, log detailed LLM request and response
 
         Returns:
-            Tuple of (category name, duration in seconds) or None if classification fails
+            Tuple of (category name, duration in seconds, sub_categories list) or None if classification fails
         """
         # Check cache
         cache_key = f"{filename}:{hash(content[:1000])}" if filename else str(hash(content[:1000]))
         if cache_key in self._cache:
             logger.debug(f"Using cached classification for {filename}")
-            return (self._cache[cache_key], 0.0)  # Cached result, no timing
+            cached_result = self._cache[cache_key]
+            if isinstance(cached_result, tuple) and len(cached_result) == 2:
+                # Backward compatibility for old cache entries
+                category, duration = cached_result
+                return (category, duration, [])
+            else:
+                # New format: (category, duration, sub_categories)
+                return cached_result
         
         try:
             # Build prompt
@@ -172,20 +181,20 @@ class Classifier:
                                 if raw_response:
                                     break
             
-            # Extract category from response
-            category = self._extract_category(raw_response)
-            
+            # Extract category and sub-categories from response
+            category, sub_categories = self._extract_category_and_subcategories(raw_response)
+
             if verbose:
-                logger.info(f"Extracted category: '{category}' (from raw response: '{raw_response}')")
-            
+                logger.info(f"Extracted category: '{category}', sub-categories: {sub_categories} (from raw response: '{raw_response}')")
+
             if category:
                 # Cache the result
-                self._cache[cache_key] = category
-                logger.info(f"Classified as: {category}")
-                return (category, classification_duration)
+                self._cache[cache_key] = (category, classification_duration, sub_categories)
+                logger.info(f"Classified as: {category}" + (f" with sub-categories: {sub_categories}" if sub_categories else ""))
+                return (category, classification_duration, sub_categories)
             else:
                 logger.warning(f"Could not extract category from LLM response. Raw response: '{raw_response}'")
-                return ("uncategorized", classification_duration)
+                return ("uncategorized", classification_duration, [])
         
         except CONNECTION_EXCEPTIONS as e:
             # Connection/timeout errors should be treated as failures
@@ -200,7 +209,7 @@ class Classifier:
             if verbose:
                 import traceback
                 logger.error(f"Full traceback:\n{traceback.format_exc()}")
-            return ("uncategorized", 0.0)  # Return tuple with 0 duration for errors
+            return ("uncategorized", 0.0, [])  # Return tuple with 0 duration for errors
     
     def _build_prompt(self, content: str, filename: Optional[str] = None) -> str:
         """Build classification prompt for LLM.
@@ -231,8 +240,9 @@ class Classifier:
             # Use truncated content for short documents or when no summarizer available
             content_for_classification = content[:3000] if len(content) > 3000 else content
 
-        # Get existing categories from database if available
+        # Get existing categories and sub-categories from database if available
         existing_categories_str = ""
+        existing_sub_categories_str = ""
         if self.existing_categories_getter:
             try:
                 existing_categories = self.existing_categories_getter()
@@ -248,6 +258,24 @@ class Classifier:
             except Exception as e:
                 logger.warning(f"Failed to get existing categories: {e}")
 
+        if self.existing_sub_categories_getter:
+            try:
+                existing_sub_categories = self.existing_sub_categories_getter()
+                if existing_sub_categories:
+                    # Flatten sub-categories from all documents
+                    unique_sub_categories = set()
+                    for sub_cat_list in existing_sub_categories:
+                        if sub_cat_list:
+                            if isinstance(sub_cat_list, list):
+                                unique_sub_categories.update(sub_cat.strip() for sub_cat in sub_cat_list if sub_cat and sub_cat.strip())
+                            else:
+                                # Handle old format if needed
+                                pass
+                    if unique_sub_categories:
+                        existing_sub_categories_str = f"\n\nExisting sub-categories in your database (prefer these when possible): {', '.join(sorted(unique_sub_categories))}"
+            except Exception as e:
+                logger.warning(f"Failed to get existing sub-categories: {e}")
+
         # Use custom template if provided, otherwise use default
         if self.prompt_template:
             prompt = self.prompt_template.format(
@@ -259,18 +287,34 @@ class Classifier:
                 prompt += existing_categories_str
         else:
             # Default prompt
-            prompt = f"""Analyze the following document content and classify it into up to 3 specific categories.
+            prompt = f"""Analyze the following document content and classify it into ONE main category and optionally up to 3 sub-categories.
 
-Common categories include but should be be limited to: invoice, contract, receipt, letter, report, resume, certificate, form, statement, manual, article, email, memo, note, presentation, spreadsheet, confirmation, booking, ticket, itinerary, image, other, {existing_categories_str}.
+Main categories include: Finance, Shopping, Travel, Home, School, Other{existing_categories_str}.
 
 Filename: {filename if filename else 'unknown'}
 
 Content:
 {content_for_classification}
 
-Based on the content above, classify this document into up to 3 categories. Respond with ONLY the category names separated by commas, nothing else. Use lowercase and single words or short phrases (e.g., "invoice", "contract", "receipt", "confirmation", "booking"). If uncertain, use "other". Examples: "invoice", "confirmation,booking", "contract,legal,agreement".
+First, classify this document into ONE main category from the list above. Then, if the document would benefit from additional context beyond the main category (especially if the main category is "Other"), suggest up to 3 specific sub-categories that describe the document's content more precisely.
 
-Categories:"""
+{existing_sub_categories_str}
+
+Respond in this exact format:
+MAIN: [main category]
+SUB: [sub-category1, sub-category2, sub-category3] (or leave empty if no sub-categories needed)
+
+Examples:
+MAIN: Finance
+SUB: invoice, tax, quarterly
+
+MAIN: Other
+SUB: medical, prescription, pharmacy
+
+MAIN: Travel
+SUB: (leave empty)
+
+Use lowercase for sub-categories and separate with commas."""
 
         return prompt
     
@@ -294,36 +338,103 @@ Categories:"""
 
         return response.strip()
 
-    def _extract_category(self, response: str) -> str:
-        """Extract category names from LLM response (up to 3 categories).
+    def _extract_category_and_subcategories(self, response: str) -> tuple[str, List[str]]:
+        """Extract main category and sub-categories from LLM response.
 
         Args:
             response: Raw LLM response
 
         Returns:
-            Extracted category names joined with "-" and sorted ascendingly
+            Tuple of (main_category, sub_categories_list)
+        """
+        # Clean the response
+        response = self._clean_llm_response(response).strip()
+
+        # Initialize defaults
+        main_category = "uncategorized"
+        sub_categories = []
+
+        # Look for MAIN: and SUB: patterns
+        main_match = re.search(r'MAIN:\s*([^\n]+)', response, re.IGNORECASE)
+        sub_match = re.search(r'SUB:\s*([^\n]+)', response, re.IGNORECASE)
+
+        # Extract main category
+        if main_match:
+            main_cat = main_match.group(1).strip()
+            if main_cat:
+                # Clean and normalize main category
+                main_category = self._normalize_category(main_cat)
+
+        # Extract sub-categories
+        if sub_match:
+            sub_text = sub_match.group(1).strip()
+            if sub_text and sub_text.lower() not in ['(leave empty)', 'leave empty', 'none', '']:
+                # Split by commas and clean
+                sub_cats = [cat.strip() for cat in sub_text.split(',') if cat.strip()]
+                # Normalize and limit to 3
+                sub_categories = [self._normalize_sub_category(cat) for cat in sub_cats[:3] if cat]
+
+        # If no main category found, try fallback parsing (backward compatibility)
+        if main_category == "uncategorized":
+            # Try to extract from the whole response as before
+            fallback_category = self._extract_category_fallback(response)
+            if fallback_category and fallback_category != "uncategorized":
+                main_category = fallback_category
+
+        return main_category, sub_categories
+
+    def _normalize_category(self, category: str) -> str:
+        """Normalize main category name."""
+        category = category.strip().lower()
+        # Map to our standard categories
+        category_map = {
+            'finance': 'Finance',
+            'shopping': 'Shopping',
+            'travel': 'Travel',
+            'home': 'Home',
+            'school': 'School',
+            'other': 'Other',
+            'uncategorized': 'Other'
+        }
+        return category_map.get(category, category.title())
+
+    def _normalize_sub_category(self, sub_category: str) -> str:
+        """Normalize sub-category name."""
+        sub_category = sub_category.strip().lower()
+        # Remove special chars and normalize
+        sub_category = re.sub(r'[^\w\s-]', '', sub_category)
+        return sub_category.replace(' ', '_')
+
+    def _extract_category_fallback(self, response: str) -> str:
+        """Extract category names from LLM response (fallback for old format).
+
+        Args:
+            response: Raw LLM response
+
+        Returns:
+            Extracted category name
         """
         # Clean the response
         response = self._clean_llm_response(response).strip().lower()
-        
+
         # Remove common prefixes/suffixes
         response = re.sub(r'^(category|categories|classification|type|class):\s*', '', response)
-        
+
         # Extract categories - they might be separated by commas, semicolons, or newlines
         # First, try to split by common separators
         categories = []
-        
+
         # Split by comma, semicolon, or newline
         parts = re.split(r'[,;\n]', response)
-        
+
         for part in parts:
             part = part.strip()
             if not part:
                 continue
-            
+
             # Remove special chars except hyphens and spaces
             part = re.sub(r'[^\w\s-]', '', part)
-            
+
             # Extract words/phrases
             # Match words separated by spaces or hyphens
             words = re.findall(r'\b[a-z]+(?:\s+[a-z]+)?\b', part)
@@ -332,7 +443,7 @@ Categories:"""
                 category = '_'.join(word.strip() for word in words if word.strip())
                 if category and category not in categories:
                     categories.append(category)
-        
+
         # If no categories found with separators, try to extract from the whole response
         if not categories:
             # Remove special chars except hyphens and spaces
@@ -344,18 +455,48 @@ Categories:"""
                 for word in words[:3]:
                     if word and word not in categories:
                         categories.append(word)
-        
-        # Limit to 3 categories
+
+        # Limit to 3 categories and map to main category
         categories = categories[:3]
-        
+
         # If no categories found, return uncategorized
         if not categories:
             return "uncategorized"
-        
-        # Sort categories ascendingly and join with "-"
-        categories.sort()
-        return "-".join(categories)
-    
+
+        # For backward compatibility, try to map to main categories
+        main_category_map = {
+            'invoice': 'Finance',
+            'contract': 'Finance',
+            'receipt': 'Shopping',
+            'letter': 'Other',
+            'report': 'Other',
+            'resume': 'Other',
+            'certificate': 'Other',
+            'form': 'Other',
+            'statement': 'Finance',
+            'manual': 'Other',
+            'article': 'Other',
+            'email': 'Other',
+            'memo': 'Other',
+            'note': 'Other',
+            'presentation': 'Other',
+            'spreadsheet': 'Other',
+            'confirmation': 'Other',
+            'booking': 'Travel',
+            'ticket': 'Travel',
+            'itinerary': 'Travel',
+            'image': 'Other',
+            'other': 'Other'
+        }
+
+        # Try to find a main category from the extracted categories
+        for cat in categories:
+            if cat in main_category_map:
+                return main_category_map[cat]
+
+        # Default to Other if no mapping found
+        return "Other"
+
     def clear_cache(self):
         """Clear the classification cache."""
         self._cache.clear()

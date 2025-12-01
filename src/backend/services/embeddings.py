@@ -226,10 +226,10 @@ Summary:"""
 
         # Generate chunk embeddings
         chunks = self.semantic_chunk_text(text, chunk_size, overlap)
-        logger.debug(f"Split document into {len(chunks)} chunks")
+        logger.info(f"Split document into {len(chunks)} chunks")
 
         for i, chunk in enumerate(chunks):
-            logger.debug(f"Generating embedding for chunk {i+1}/{len(chunks)} (length: {len(chunk)} chars)")
+            logger.info(f"Generating embedding for chunk {i+1}/{len(chunks)} (length: {len(chunk)} chars)")
             embedding = self.generate_embedding(chunk)
             if embedding:
                 result['chunks'].append(embedding)
@@ -238,14 +238,14 @@ Summary:"""
 
         # Generate summary embedding if requested
         if generate_summary and len(text) > chunk_size:
-            logger.debug("Generating document summary...")
+            logger.info("Generating document summary...")
             summary_text = self.generate_document_summary(text)
             if summary_text:
-                logger.debug(f"Generated summary (length: {len(summary_text)} chars)")
+                logger.info(f"Generated summary (length: {len(summary_text)} chars)")
                 summary_embedding = self.generate_embedding(summary_text)
                 if summary_embedding:
                     result['summary'] = summary_embedding
-                    logger.debug("Generated summary embedding")
+                    logger.info("Generated summary embedding")
                 else:
                     logger.warning("Failed to generate summary embedding")
             else:

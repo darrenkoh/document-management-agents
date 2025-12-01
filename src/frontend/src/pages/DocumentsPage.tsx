@@ -487,7 +487,7 @@ export default function DocumentsPage() {
                         <div className="flex flex-wrap gap-1 max-w-xs">
                           {doc.categories.split('-').slice(0, 2).map((category, index) => (
                             <span
-                              key={index}
+                              key={`main-${index}`}
                               className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-700"
                             >
                               {category.trim()}
@@ -496,6 +496,19 @@ export default function DocumentsPage() {
                           {doc.categories.split('-').length > 2 && (
                             <span className="text-xs text-primary-500">
                               +{doc.categories.split('-').length - 2}
+                            </span>
+                          )}
+                          {doc.sub_categories && doc.sub_categories.slice(0, 2).map((subCategory, index) => (
+                            <span
+                              key={`sub-${index}`}
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200"
+                            >
+                              {subCategory}
+                            </span>
+                          ))}
+                          {doc.sub_categories && doc.sub_categories.length > 2 && (
+                            <span className="text-xs text-primary-500">
+                              +{doc.sub_categories.length - 2} more
                             </span>
                           )}
                         </div>

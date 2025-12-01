@@ -71,6 +71,20 @@ class DocumentAgent:
                 logger.warning(f"Failed to get existing categories: {e}")
                 return []
 
+        def get_existing_sub_categories():
+            """Get all existing sub-categories from documents."""
+            try:
+                all_docs = self.database.get_all_documents()
+                sub_categories = []
+                for doc in all_docs:
+                    sub_cats = doc.get('sub_categories', [])
+                    if sub_cats:
+                        sub_categories.append(sub_cats)
+                return sub_categories
+            except Exception as e:
+                logger.warning(f"Failed to get existing sub-categories: {e}")
+                return []
+
         # Create summarizer function for classifier
         def summarize_for_classification(text: str, max_length: int = 1500) -> str:
             """Summarize document text for classification purposes."""
@@ -83,6 +97,7 @@ class DocumentAgent:
             num_predict=config.ollama_num_predict,
             prompt_template=config.prompt_template,
             existing_categories_getter=get_existing_categories,
+            existing_sub_categories_getter=get_existing_sub_categories,
             summarizer=summarize_for_classification
         )
 
@@ -274,7 +289,13 @@ class DocumentAgent:
                                    'db_insert_duration': 0.0})
                 return ('failed', perf_metrics)
 
-            categories, perf_metrics['classification_duration'] = classification_result
+            if len(classification_result) == 3:
+                # New format with sub-categories
+                categories, perf_metrics['classification_duration'], sub_categories = classification_result
+            else:
+                # Backward compatibility for old format
+                categories, perf_metrics['classification_duration'] = classification_result
+                sub_categories = []
 
             # Generate embeddings using semantic chunking and summary
             logger.info(f"Generating embeddings for {file_path.name}...")
@@ -314,7 +335,8 @@ class DocumentAgent:
                 categories=categories,
                 metadata=metadata,
                 file_hash=file_hash,
-                deepseek_ocr_used=ocr_used
+                deepseek_ocr_used=ocr_used,
+                sub_categories=sub_categories
             )
 
             # Store embeddings (chunks and summary)
@@ -443,12 +465,12 @@ class DocumentAgent:
         # Phase 2: Process files folder by folder
         logger.info("Phase 2: Processing files folder by folder...")
 
-        current_processed = 0
-        def progress_callback(batch_processed_count, batch_total_count):
+        current_file_index = 0
+        def progress_callback(processed_in_batch, batch_total):
             """Progress callback to show current progress across all files."""
-            nonlocal current_processed
-            current_processed += 1
-            logger.info(f"Total files processed: {current_processed}/{total_files}")
+            nonlocal current_file_index
+            current_file_index += 1
+            print(f"\rProgress: {current_file_index}/{total_files} files processed", end='', flush=True)
 
         # Process each directory's files
         for directory_path, files_in_dir in files_by_directory.items():
@@ -480,6 +502,9 @@ class DocumentAgent:
             total_stats['performance']['avg_embedding_duration'] = total_stats['performance']['total_embedding_duration'] / total_stats['processed']
             total_stats['performance']['avg_db_lookup_duration'] = total_stats['performance']['total_db_lookup_duration'] / total_stats['processed']
             total_stats['performance']['avg_db_insert_duration'] = total_stats['performance']['total_db_insert_duration'] / total_stats['processed']
+
+        # Print newline after progress display
+        print()
 
         logger.info(
             f"File processing complete: {total_stats['processed']} processed, "

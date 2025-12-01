@@ -36,15 +36,18 @@ class DocumentDatabase:
         self.config = config
     
     def store_classification(self, file_path: str, content: str, categories: str,
-                           metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None) -> int:
+                           metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None,
+                           sub_categories: Optional[List[str]] = None) -> int:
         """Store a document classification in the database.
-        
+
         Args:
             file_path: Path to the original file
             content: Extracted text content
             categories: Classification categories (comma-separated or hyphenated)
             metadata: Optional additional metadata
-        
+            file_hash: Optional file hash for duplicate detection
+            sub_categories: Optional list of sub-categories
+
         Returns:
             Document ID in the database
         """
@@ -54,6 +57,7 @@ class DocumentDatabase:
             'content': content,
             'content_preview': content[:500] if len(content) > 500 else content,
             'categories': categories,
+            'sub_categories': sub_categories or [],
             'classification_date': datetime.now().isoformat(),
             'metadata': metadata or {},
             'file_hash': file_hash,

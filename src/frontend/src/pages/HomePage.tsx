@@ -287,8 +287,13 @@ export default function HomePage() {
                             <td className="px-6 py-4">
                               <div className="flex flex-wrap gap-1">
                                 {doc.categories.split('-').map((category, index) => (
-                                  <span key={index} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-700">
+                                  <span key={`main-${index}`} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-700">
                                     {category.trim()}
+                                  </span>
+                                ))}
+                                {doc.sub_categories && doc.sub_categories.map((subCategory, index) => (
+                                  <span key={`sub-${index}`} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                                    {subCategory}
                                   </span>
                                 ))}
                               </div>
