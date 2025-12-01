@@ -19,6 +19,8 @@ try:
 except ImportError:
     HAS_PDF2IMAGE = False
 
+from src.backend.utils.retry import retry_on_llm_failure, RetryError
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +28,8 @@ class FileHandler:
     """Handles file operations including text extraction and file moving."""
 
     def __init__(self, source_paths: List[str], ollama_endpoint: str = "http://localhost:11434",
-                 ocr_model: str = "deepseek-ocr:3b", ocr_timeout: int = 60):
+                 ocr_model: str = "deepseek-ocr:3b", ocr_timeout: int = 60,
+                 max_retries: int = 3, retry_base_delay: float = 1.0):
         """Initialize file handler.
 
         Args:
@@ -34,11 +37,15 @@ class FileHandler:
             ollama_endpoint: Ollama API endpoint for OCR
             ocr_model: OCR model name (default: deepseek-ocr:3b)
             ocr_timeout: Timeout for OCR operations in seconds
+            max_retries: Maximum number of retry attempts for failed API calls
+            retry_base_delay: Base delay in seconds between retry attempts
         """
         self.source_paths = [Path(path) for path in source_paths]
         self.ollama_endpoint = ollama_endpoint
         self.ocr_model = ocr_model
         self.ocr_timeout = ocr_timeout
+        self.max_retries = max_retries
+        self.retry_base_delay = retry_base_delay
 
         # Initialize Ollama client for OCR
         self.ocr_client = ollama.Client(host=ollama_endpoint, timeout=ocr_timeout)
@@ -48,16 +55,35 @@ class FileHandler:
         for source_path in self.source_paths:
             source_path.mkdir(parents=True, exist_ok=True)
 
+    def _call_ocr_generate(self, prompt: str, images: Optional[List[str]] = None, options: Optional[dict] = None) -> dict:
+        """Make OCR LLM generate call with retry logic."""
+        @retry_on_llm_failure(max_retries=self.max_retries,
+                             base_delay=self.retry_base_delay,
+                             exceptions=(Exception,))  # OCR can fail for various reasons
+        def _generate():
+            generate_kwargs = {
+                'model': self.ocr_model,
+                'prompt': prompt,
+                'options': options or {'num_predict': 1}
+            }
+            if images:
+                generate_kwargs['images'] = images
+            return self.ocr_client.generate(**generate_kwargs)
+
+        return _generate()
+
     def _check_ocr_availability(self) -> bool:
         """Check if DeepSeek-OCR is available and accessible."""
         try:
             # Try a simple test call to check availability
-            response = self.ocr_client.generate(
-                model=self.ocr_model,
+            self._call_ocr_generate(
                 prompt="test",
                 options={'num_predict': 1}  # Minimal response
             )
             return True
+        except RetryError as e:
+            logger.warning(f"DeepSeek-OCR not available at {self.ollama_endpoint} after retries: {e.last_exception}")
+            return False
         except Exception:
             logger.warning(f"DeepSeek-OCR not available at {self.ollama_endpoint}")
             return False
@@ -431,11 +457,10 @@ class FileHandler:
             image.save(buffer, format='PNG')
             image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-            # Call DeepSeek-OCR with timing
+            # Call DeepSeek-OCR with timing and retry logic
             # Based on https://ollama.com/library/deepseek-ocr examples
             start_time = time.time()
-            response = self.ocr_client.generate(
-                model=self.ocr_model,
+            response = self._call_ocr_generate(
                 prompt="<|grounding|>Convert the document to markdown.",
                 images=[image_data],  # Base64 image data
                 options={
@@ -453,6 +478,9 @@ class FileHandler:
                 logger.info(f"DeepSeek-OCR returned empty response. Full response: {response}")
                 return None
 
+        except RetryError as e:
+            logger.error(f"DeepSeek OCR failed after retries: {e.last_exception}")
+            return None
         except Exception as e:
             # Log connection issues but don't spam the logs for each image
             if "No route to host" in str(e) or "Connection refused" in str(e):

@@ -12,6 +12,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.backend.core.classifier import Classifier
+from src.backend.utils.retry import retry_on_llm_failure, RetryError
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ logger = logging.getLogger(__name__)
 class RAGAgent:
     """Agent that analyzes retrieved documents using LLM to determine relevance."""
 
-    def __init__(self, endpoint: str, model: str, timeout: int = 300, num_predict: int = 6000):
+    def __init__(self, endpoint: str, model: str, timeout: int = 300, num_predict: int = 6000,
+                 max_retries: int = 3, retry_base_delay: float = 1.0):
         """Initialize RAG agent.
 
         Args:
@@ -27,11 +29,15 @@ class RAGAgent:
             model: Model name to use (e.g., 'deepseek-r1:8b')
             timeout: API timeout in seconds
             num_predict: Maximum number of tokens to predict
+            max_retries: Maximum number of retry attempts for failed API calls
+            retry_base_delay: Base delay in seconds between retry attempts
         """
         self.endpoint = endpoint
         self.model = model
         self.timeout = timeout
         self.num_predict = num_predict
+        self.max_retries = max_retries
+        self.retry_base_delay = retry_base_delay
         self.client = ollama.Client(host=endpoint, timeout=timeout)
 
     def _clean_llm_response(self, response: str) -> str:
@@ -53,6 +59,23 @@ class RAGAgent:
         response = re.sub(r'\[\[.*?\]\]', '', response)  # Remove coordinate-like arrays
 
         return response.strip()
+
+    def _call_llm_generate(self, prompt: str, options: Dict, stream: bool = False) -> Any:
+        """Make LLM generate call with retry logic."""
+        @retry_on_llm_failure(max_retries=self.max_retries,
+                             base_delay=self.retry_base_delay,
+                             exceptions=(Exception,))  # RAG can fail for various reasons
+        def _generate():
+            generate_kwargs = {
+                'model': self.model,
+                'prompt': prompt,
+                'options': options
+            }
+            if stream:
+                generate_kwargs['stream'] = stream
+            return self.client.generate(**generate_kwargs)
+
+        return _generate()
 
     def analyze_relevance(self, query: str, documents: List[Dict], verbose: bool = False) -> List[Dict]:
         """Analyze retrieved documents and determine their relevance to the query.
@@ -116,10 +139,9 @@ class RAGAgent:
             logger.info("-" * 80)
 
         try:
-            # Call LLM
+            # Call LLM with retry logic
             start_time = time.time()
-            response = self.client.generate(
-                model=self.model,
+            response = self._call_llm_generate(
                 prompt=prompt,
                 options={
                     'temperature': 0.1,  # Low temperature for consistent analysis
@@ -149,6 +171,14 @@ class RAGAgent:
 
             return analysis
 
+        except RetryError as e:
+            logger.error(f"LLM analysis failed after retries: {e.last_exception}")
+            return {
+                'relevance_score': 0.5,  # Neutral score on error
+                'relevance_reasoning': f'Analysis failed after retries: {str(e.last_exception)}',
+                'is_relevant': True,  # Default to relevant
+                'analysis_duration': 0.0
+            }
         except Exception as e:
             logger.error(f"LLM analysis error: {e}")
             return {
@@ -303,15 +333,14 @@ Reasoning: This document contains flight confirmation details matching the query
             logger.info("=" * 80)
 
         try:
-            # Use streaming generation
-            stream = self.client.generate(
-                model=self.model,
+            # Use streaming generation with retry logic
+            stream = self._call_llm_generate(
                 prompt=prompt,
-                stream=True,
                 options={
                     'temperature': 0.7,  # Slightly higher for more natural answers
                     'num_predict': self.num_predict,
-                }
+                },
+                stream=True
             )
 
             full_answer = ""
@@ -334,6 +363,10 @@ Reasoning: This document contains flight confirmation details matching the query
             # Yield final answer with citations
             yield (full_answer, citations)
 
+        except RetryError as e:
+            logger.error(f"Answer generation failed after retries: {e.last_exception}")
+            error_msg = f"I encountered an error while generating an answer after retries: {str(e.last_exception)}"
+            yield (error_msg, None)
         except Exception as e:
             logger.error(f"Error generating answer: {e}")
             error_msg = f"I encountered an error while generating an answer: {str(e)}"

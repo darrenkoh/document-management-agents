@@ -189,6 +189,20 @@ class Config:
         return ollama_config.get('ocr_timeout', 60)
 
     @property
+    def ollama_max_retries(self) -> int:
+        """Get the maximum number of retry attempts for failed LLM API calls."""
+        ollama_config = self._config.get('ollama', {})
+        retry_config = ollama_config.get('retry', {})
+        return retry_config.get('max_retries', 3)
+
+    @property
+    def ollama_retry_base_delay(self) -> float:
+        """Get the base delay in seconds between retry attempts."""
+        ollama_config = self._config.get('ollama', {})
+        retry_config = ollama_config.get('retry', {})
+        return retry_config.get('base_delay', 1.0)
+
+    @property
     def vector_store_type(self) -> str:
         """Get the vector store type."""
         db_config = self._config.get('database', {})

@@ -36,7 +36,9 @@ class DocumentAgent:
             config.source_paths,
             ollama_endpoint=config.ollama_endpoint,
             ocr_model=config.ollama_ocr_model,
-            ocr_timeout=config.ollama_ocr_timeout
+            ocr_timeout=config.ollama_ocr_timeout,
+            max_retries=config.ollama_max_retries,
+            retry_base_delay=config.ollama_retry_base_delay
         )
         # Initialize vector store (required for embeddings)
         try:
@@ -57,7 +59,9 @@ class DocumentAgent:
             endpoint=config.ollama_endpoint,
             model=config.ollama_embedding_model,
             summarizer_model=config.ollama_summarizer_model,
-            timeout=config.ollama_timeout
+            timeout=config.ollama_timeout,
+            max_retries=config.ollama_max_retries,
+            retry_base_delay=config.ollama_retry_base_delay
         )
 
         # Create method to get existing categories for classifier
@@ -98,7 +102,9 @@ class DocumentAgent:
             prompt_template=config.prompt_template,
             existing_categories_getter=get_existing_categories,
             existing_sub_categories_getter=get_existing_sub_categories,
-            summarizer=summarize_for_classification
+            summarizer=summarize_for_classification,
+            max_retries=config.ollama_max_retries,
+            retry_base_delay=config.ollama_retry_base_delay
         )
 
         # Initialize RAG agent for document analysis
@@ -106,7 +112,9 @@ class DocumentAgent:
             endpoint=config.ollama_endpoint,
             model=config.ollama_model,  # Use same model as classifier (deepseek-r1:8b)
             timeout=config.ollama_timeout,
-            num_predict=config.ollama_num_predict
+            num_predict=config.ollama_num_predict,
+            max_retries=config.ollama_max_retries,
+            retry_base_delay=config.ollama_retry_base_delay
         )
     
     def process_files_batch(self, file_paths: List[Path], batch_size: int = 10, progress_callback=None) -> Dict[str, any]:

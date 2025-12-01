@@ -61,6 +61,12 @@ ollama:
   ocr_model: "deepseek-ocr:3b"
   # Timeout for OCR operations (can be longer than regular models)
   ocr_timeout: 300
+  # Retry configuration for failed LLM API calls
+  retry:
+    # Maximum number of retry attempts for failed API calls
+    max_retries: 3
+    # Delay in seconds between retry attempts (exponential backoff)
+    base_delay: 1.0
 
 # Optional: Predefined classification categories
 # If empty, the agent will auto-detect categories

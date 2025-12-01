@@ -2,6 +2,7 @@
 import logging
 import ollama
 import re
+import time
 from typing import List, Optional, Dict, Tuple
 
 # Try to import httpx exceptions in case ollama uses httpx
@@ -12,6 +13,8 @@ try:
 except ImportError:
     CONNECTION_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
 
+from src.backend.utils.retry import retry_on_llm_failure, RetryError
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +22,8 @@ class EmbeddingGenerator:
     """Generates embeddings for document content using Ollama with semantic chunking."""
 
     def __init__(self, endpoint: str, model: str = "qwen3-embedding:8b",
-                 summarizer_model: str = "deepseek-r1:8b", timeout: int = 30):
+                 summarizer_model: str = "deepseek-r1:8b", timeout: int = 30,
+                 max_retries: int = 3, retry_base_delay: float = 1.0):
         """Initialize embedding generator.
 
         Args:
@@ -27,11 +31,15 @@ class EmbeddingGenerator:
             model: Embedding model name (default: qwen3-embedding:8b)
             summarizer_model: Model for document summarization (default: deepseek-r1:8b)
             timeout: API timeout in seconds
+            max_retries: Maximum number of retry attempts for failed API calls
+            retry_base_delay: Base delay in seconds between retry attempts
         """
         self.endpoint = endpoint
         self.model = model
         self.summarizer_model = summarizer_model
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_base_delay = retry_base_delay
         self.client = ollama.Client(host=endpoint, timeout=timeout)
 
     def _clean_llm_response(self, response: str) -> str:
@@ -54,6 +62,16 @@ class EmbeddingGenerator:
 
         return response.strip()
 
+    def _call_llm_embeddings(self, model: str, prompt: str) -> Dict:
+        """Make LLM embeddings call with retry logic."""
+        @retry_on_llm_failure(max_retries=self.max_retries,
+                             base_delay=self.retry_base_delay,
+                             exceptions=CONNECTION_EXCEPTIONS)
+        def _embeddings():
+            return self.client.embeddings(model=model, prompt=prompt)
+
+        return _embeddings()
+
     def generate_embedding(self, text: str) -> Optional[List[float]]:
         """Generate embedding vector for text.
 
@@ -70,7 +88,7 @@ class EmbeddingGenerator:
 
             logger.info(f"Generating embedding for text (length: {len(truncated_text)} chars)")
 
-            response = self.client.embeddings(
+            response = self._call_llm_embeddings(
                 model=self.model,
                 prompt=truncated_text
             )
@@ -83,9 +101,9 @@ class EmbeddingGenerator:
                 logger.warning("No embedding returned from model")
                 return None
 
-        except CONNECTION_EXCEPTIONS as e:
-            # Connection/timeout errors should be logged as failures
-            logger.error(f"LLM connection error during embedding generation: {e}")
+        except RetryError as e:
+            # All retry attempts failed
+            logger.error(f"Embedding generation failed after retries: {e.last_exception}")
             return None
         except Exception as e:
             # Other errors
@@ -159,6 +177,16 @@ class EmbeddingGenerator:
 
         return final_chunks
 
+    def _call_llm_generate(self, model: str, prompt: str, options: Dict) -> Dict:
+        """Make LLM generate call with retry logic."""
+        @retry_on_llm_failure(max_retries=self.max_retries,
+                             base_delay=self.retry_base_delay,
+                             exceptions=CONNECTION_EXCEPTIONS)
+        def _generate():
+            return self.client.generate(model=model, prompt=prompt, options=options)
+
+        return _generate()
+
     def generate_document_summary(self, text: str, max_length: int = 1000) -> Optional[str]:
         """Generate a concise summary of the document.
 
@@ -179,35 +207,56 @@ class EmbeddingGenerator:
 
 Summary:"""
 
-        try:
-            response = self.client.generate(
-                model=self.summarizer_model,
-                prompt=prompt,
-                options={
-                    'temperature': 0.3,
-                    'num_predict': min(500, max_length // 2),
-                }
-            )
+        # Retry on empty summary response
+        for attempt in range(self.max_retries + 1):  # +1 for initial attempt
+            try:
+                response = self._call_llm_generate(
+                    model=self.summarizer_model,
+                    prompt=prompt,
+                    options={
+                        'temperature': 0.3,
+                        'num_predict': min(500, max_length // 2),
+                    }
+                )
 
-            summary = response.get('response', '').strip()
-            if summary:
-                # Clean up LLM encoding tokens and other artifacts
-                summary = self._clean_llm_response(summary)
-                # Clean up and truncate if needed
-                summary = summary.replace('Summary:', '').strip()
-                if len(summary) > max_length:
-                    summary = summary[:max_length] + "..."
-                return summary
-            else:
-                logger.warning("No summary generated from LLM")
-                return None
+                summary = response.get('response', '').strip()
+                if summary:
+                    # Clean up LLM encoding tokens and other artifacts
+                    summary = self._clean_llm_response(summary)
+                    # Clean up and truncate if needed
+                    summary = summary.replace('Summary:', '').strip()
+                    if len(summary) > max_length:
+                        summary = summary[:max_length] + "..."
+                    return summary
+                else:
+                    # Empty summary response - retry if attempts remaining
+                    if attempt < self.max_retries:
+                        delay = self.retry_base_delay * (2.0 ** attempt)  # Exponential backoff
+                        logger.warning(f"No summary generated from LLM (attempt {attempt + 1}/{self.max_retries + 1}), retrying in {delay:.1f}s")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"No summary generated from LLM after {self.max_retries + 1} attempts")
+                        return None
 
-        except CONNECTION_EXCEPTIONS as e:
-            logger.error(f"LLM connection error during summarization: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error generating document summary: {e}")
-            return None
+            except RetryError as e:
+                if attempt < self.max_retries:
+                    delay = self.retry_base_delay * (2.0 ** attempt)  # Exponential backoff
+                    logger.warning(f"Document summary generation failed (attempt {attempt + 1}/{self.max_retries + 1}): {e.last_exception}, retrying in {delay:.1f}s")
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Document summary generation failed after {self.max_retries + 1} attempts: {e.last_exception}")
+                    return None
+            except Exception as e:
+                if attempt < self.max_retries:
+                    delay = self.retry_base_delay * (2.0 ** attempt)  # Exponential backoff
+                    logger.warning(f"Error generating document summary (attempt {attempt + 1}/{self.max_retries + 1}): {e}, retrying in {delay:.1f}s")
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Error generating document summary after {self.max_retries + 1} attempts: {e}")
+                    return None
+
+        # Should not reach here, but just in case
+        return None
 
     def generate_document_embeddings(self, text: str, chunk_size: int = 4000,
                                    overlap: int = 200, generate_summary: bool = True) -> Dict[str, List]:

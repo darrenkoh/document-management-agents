@@ -8,10 +8,12 @@ import time
 # Try to import httpx exceptions in case ollama uses httpx
 try:
     import httpx
-    CONNECTION_EXCEPTIONS = (ConnectionError, TimeoutError, OSError, 
+    CONNECTION_EXCEPTIONS = (ConnectionError, TimeoutError, OSError,
                              httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError)
 except ImportError:
     CONNECTION_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
+
+from src.backend.utils.retry import retry_on_llm_failure, RetryError
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 class Classifier:
     """Classifies file content using Ollama LLM."""
 
-    def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None, existing_categories_getter=None, existing_sub_categories_getter=None, summarizer=None):
+    def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None, existing_categories_getter=None, existing_sub_categories_getter=None, summarizer=None, max_retries: int = 3, retry_base_delay: float = 1.0):
         """Initialize classifier.
 
         Args:
@@ -31,6 +33,8 @@ class Classifier:
             existing_categories_getter: Optional callable that returns list of existing categories from database
             existing_sub_categories_getter: Optional callable that returns list of existing sub-categories from database
             summarizer: Optional callable that takes text and returns a summary string
+            max_retries: Maximum number of retry attempts for failed API calls
+            retry_base_delay: Base delay in seconds between retry attempts
         """
         self.endpoint = endpoint
         self.model = model
@@ -40,9 +44,21 @@ class Classifier:
         self.existing_categories_getter = existing_categories_getter
         self.existing_sub_categories_getter = existing_sub_categories_getter
         self.summarizer = summarizer
+        self.max_retries = max_retries
+        self.retry_base_delay = retry_base_delay
         self.client = ollama.Client(host=endpoint, timeout=timeout)
         self._cache: Dict[str, str] = {}
     
+    def _call_llm_generate(self, prompt: str, options: Dict) -> Dict:
+        """Make LLM generate call with retry logic."""
+        @retry_on_llm_failure(max_retries=self.max_retries,
+                             base_delay=self.retry_base_delay,
+                             exceptions=CONNECTION_EXCEPTIONS)
+        def _generate():
+            return self.client.generate(model=self.model, prompt=prompt, options=options)
+
+        return _generate()
+
     def classify(self, content: str, filename: Optional[str] = None, verbose: bool = False) -> Optional[tuple[str, float, Optional[List[str]]]]:
         """Classify file content into a category and optional sub-categories.
 
@@ -81,12 +97,11 @@ class Classifier:
                 logger.info(prompt)
                 logger.info("-" * 80)
 
-            # Call Ollama with timing
+            # Call Ollama with timing and retry logic
             # Note: For reasoning models (like deepseek-r1), we need higher num_predict
             # to allow for thinking tokens and actual response
             start_time = time.time()
-            response = self.client.generate(
-                model=self.model,
+            response = self._call_llm_generate(
                 prompt=prompt,
                 options={
                     'temperature': 0.3,  # Lower temperature for more consistent classification
