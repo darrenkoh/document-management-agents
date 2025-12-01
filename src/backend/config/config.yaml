@@ -131,8 +131,8 @@ semantic_search:
 
 # Document chunking configuration for embeddings
 chunking:
-  # Maximum characters per chunk
-  chunk_size: 4000
+  # Maximum characters per chunk (optimized for qwen3-embedding:8b with 32K context)
+  chunk_size: 12000
   # Characters to overlap between chunks
   chunk_overlap: 200
   # Whether to generate summary embeddings for documents

@@ -64,9 +64,9 @@ class EmbeddingGenerator:
             Embedding vector as list of floats, or None if failed
         """
         try:
-            # Truncate text if too long (embedding models have limits)
-            # Most embedding models handle up to ~8192 tokens, so ~6000 chars is safe
-            truncated_text = text[:6000] if len(text) > 6000 else text
+            # Truncate text if too long (qwen3-embedding:8b supports 32K tokens, ~128K chars)
+            # Using 30K chars (~7.5K tokens) to stay well within limits and ensure quality
+            truncated_text = text[:30000] if len(text) > 30000 else text
 
             logger.debug(f"Generating embedding for text (length: {len(truncated_text)} chars)")
 
