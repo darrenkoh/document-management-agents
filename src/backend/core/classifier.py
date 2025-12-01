@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class Classifier:
     """Classifies file content using Ollama LLM."""
 
-    def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None, existing_categories_getter=None):
+    def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None, existing_categories_getter=None, summarizer=None):
         """Initialize classifier.
 
         Args:
@@ -29,6 +29,7 @@ class Classifier:
             num_predict: Maximum number of tokens to predict
             prompt_template: Optional custom prompt template with {filename} and {content} placeholders
             existing_categories_getter: Optional callable that returns list of existing categories from database
+            summarizer: Optional callable that takes text and returns a summary string
         """
         self.endpoint = endpoint
         self.model = model
@@ -36,6 +37,7 @@ class Classifier:
         self.num_predict = num_predict
         self.prompt_template = prompt_template
         self.existing_categories_getter = existing_categories_getter
+        self.summarizer = summarizer
         self.client = ollama.Client(host=endpoint, timeout=timeout)
         self._cache: Dict[str, str] = {}
     
@@ -210,8 +212,24 @@ class Classifier:
         Returns:
             Formatted prompt string
         """
-        # Truncate content if too long (keep first 3000 chars for context)
-        truncated_content = content[:3000] if len(content) > 3000 else content
+        # Prepare content for classification - use summary for long documents if available
+        if len(content) > 3000 and self.summarizer:
+            logger.debug(f"Document too long ({len(content)} chars), generating summary for classification")
+            try:
+                summarized_content = self.summarizer(content, max_length=1500)  # Longer summary for classification
+                if summarized_content:
+                    content_for_classification = summarized_content
+                    logger.debug(f"Using document summary for classification ({len(summarized_content)} chars)")
+                else:
+                    # Fallback to truncation if summarization fails
+                    content_for_classification = content[:3000]
+                    logger.warning("Summarization failed, falling back to truncated content")
+            except Exception as e:
+                logger.warning(f"Summarization error: {e}, falling back to truncated content")
+                content_for_classification = content[:3000]
+        else:
+            # Use truncated content for short documents or when no summarizer available
+            content_for_classification = content[:3000] if len(content) > 3000 else content
 
         # Get existing categories from database if available
         existing_categories_str = ""
@@ -234,7 +252,7 @@ class Classifier:
         if self.prompt_template:
             prompt = self.prompt_template.format(
                 filename=filename if filename else 'unknown',
-                content=truncated_content
+                content=content_for_classification
             )
             # Add existing categories to custom template if available
             if existing_categories_str:
@@ -248,7 +266,7 @@ Common categories include but should be be limited to: invoice, contract, receip
 Filename: {filename if filename else 'unknown'}
 
 Content:
-{truncated_content}
+{content_for_classification}
 
 Based on the content above, classify this document into up to 3 categories. Respond with ONLY the category names separated by commas, nothing else. Use lowercase and single words or short phrases (e.g., "invoice", "contract", "receipt", "confirmation", "booking"). If uncertain, use "other". Examples: "invoice", "confirmation,booking", "contract,legal,agreement".
 

@@ -71,13 +71,19 @@ class DocumentAgent:
                 logger.warning(f"Failed to get existing categories: {e}")
                 return []
 
+        # Create summarizer function for classifier
+        def summarize_for_classification(text: str, max_length: int = 1500) -> str:
+            """Summarize document text for classification purposes."""
+            return self.embedding_generator.generate_document_summary(text, max_length=max_length)
+
         self.classifier = Classifier(
             endpoint=config.ollama_endpoint,
             model=config.ollama_model,
             timeout=config.ollama_timeout,
             num_predict=config.ollama_num_predict,
             prompt_template=config.prompt_template,
-            existing_categories_getter=get_existing_categories
+            existing_categories_getter=get_existing_categories,
+            summarizer=summarize_for_classification
         )
 
         # Initialize RAG agent for document analysis
