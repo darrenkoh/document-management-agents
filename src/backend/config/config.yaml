@@ -99,7 +99,7 @@ prompt_template: |
   Content:
   {content}
 
-  First, classify this document into ONE main category from the list above. Then, if the document would benefit from additional context beyond the main category (especially if the main category is "Other"), suggest up to 3 specific sub-categories that describe the document's content more precisely.
+  First, classify this document into ONE main category from the list above. Then, if the document would benefit from additional context beyond the main category (especially if the main category is "Other"), suggest up to 3 specific sub-categories that describe the document's content more precisely. The sub-category word should not be longer than 2 words.
 
   Respond in this exact format:
   MAIN: [main category]
