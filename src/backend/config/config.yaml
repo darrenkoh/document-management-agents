@@ -8,7 +8,10 @@
 #   - "/path/to/other/folder"
 source_paths:
 #  - "/Volumes/1TB/Private"
-  - "/Volumes/Documents/Private"
+#  - "/Volumes/Documents/Private"
+  - "/Volumes/Documents/Private/Marriage"
+  - "/Volumes/Documents/Private/Desktop"
+  - "/Volumes/Documents/Private/Receipt"
   
 
 # File extensions to process (REQUIRED - only files with these extensions will be processed)
@@ -58,10 +61,28 @@ ollama:
   # Summarizer model for document summaries (default: deepseek-r1:8b)
   summarizer_model: "deepseek-r1:8b"
   # OCR model for fallback text extraction from images/PDFs
-  ocr_model: "deepseek-ocr:3b"
+  # Set to 'chandra' to use Chandra OCR via vLLM (port 11435), or 'deepseek-ocr:3b' for Ollama (port 11434)
+  ocr_model: "chandra"
   # Timeout for OCR operations (can be longer than regular models)
   ocr_timeout: 300
   # Retry configuration for failed LLM API calls
+  retry:
+    # Maximum number of retry attempts for failed API calls
+    max_retries: 3
+    # Delay in seconds between retry attempts (exponential backoff)
+    base_delay: 1.0
+
+# Chandra OCR configuration (vLLM-based)
+chandra:
+  # vLLM API endpoint for Chandra OCR (default: http://localhost:11435)
+  endpoint: "http://spark-7819.local:11435"
+  # Model name for Chandra in vLLM (default: chandra)
+  model: "chandra"
+  # Timeout for Chandra OCR operations in seconds
+  timeout: 300
+  # Maximum output tokens for Chandra OCR
+  max_tokens: 8192
+  # Retry configuration for failed Chandra API calls
   retry:
     # Maximum number of retry attempts for failed API calls
     max_retries: 3

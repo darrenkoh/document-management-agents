@@ -12,6 +12,12 @@ from docx import Document
 from PIL import Image
 import ollama
 
+try:
+    from openai import OpenAI
+    HAS_OPENAI = True
+except ImportError:
+    HAS_OPENAI = False
+
 # Try to import pdf2image for PDF to image conversion
 try:
     from pdf2image import convert_from_path
@@ -29,7 +35,11 @@ class FileHandler:
 
     def __init__(self, source_paths: List[str], ollama_endpoint: str = "http://localhost:11434",
                  ocr_model: str = "deepseek-ocr:3b", ocr_timeout: int = 60,
-                 max_retries: int = 3, retry_base_delay: float = 1.0):
+                 max_retries: int = 3, retry_base_delay: float = 1.0,
+                 ocr_provider: str = "ollama", chandra_endpoint: str = "http://localhost:11435",
+                 chandra_model: str = "chandra", chandra_timeout: int = 300,
+                 chandra_max_tokens: int = 8192, chandra_max_retries: int = 3,
+                 chandra_retry_base_delay: float = 1.0):
         """Initialize file handler.
 
         Args:
@@ -39,6 +49,13 @@ class FileHandler:
             ocr_timeout: Timeout for OCR operations in seconds
             max_retries: Maximum number of retry attempts for failed API calls
             retry_base_delay: Base delay in seconds between retry attempts
+            ocr_provider: OCR provider ('ollama' or 'chandra')
+            chandra_endpoint: Chandra vLLM API endpoint
+            chandra_model: Chandra model name
+            chandra_timeout: Timeout for Chandra OCR operations
+            chandra_max_tokens: Maximum tokens for Chandra OCR
+            chandra_max_retries: Maximum retries for Chandra OCR
+            chandra_retry_base_delay: Base delay for Chandra OCR retries
         """
         self.source_paths = [Path(path) for path in source_paths]
         self.ollama_endpoint = ollama_endpoint
@@ -47,8 +64,24 @@ class FileHandler:
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
 
-        # Initialize Ollama client for OCR
-        self.ocr_client = ollama.Client(host=ollama_endpoint, timeout=ocr_timeout)
+        # Chandra OCR configuration
+        self.ocr_provider = ocr_provider
+        self.chandra_endpoint = chandra_endpoint
+        self.chandra_model = chandra_model
+        self.chandra_timeout = chandra_timeout
+        self.chandra_max_tokens = chandra_max_tokens
+        self.chandra_max_retries = chandra_max_retries
+        self.chandra_retry_base_delay = chandra_retry_base_delay
+
+        # Initialize OCR clients
+        self.ollama_ocr_client = ollama.Client(host=ollama_endpoint, timeout=ocr_timeout)
+        self.chandra_ocr_client = None
+        if HAS_OPENAI and ocr_provider == "chandra":
+            self.chandra_ocr_client = OpenAI(
+                base_url=chandra_endpoint + "/v1",
+                api_key="dummy"  # vLLM doesn't require a real API key
+            )
+
         self.ocr_available = self._check_ocr_availability()
 
         # Ensure source directories exist
@@ -56,7 +89,14 @@ class FileHandler:
             source_path.mkdir(parents=True, exist_ok=True)
 
     def _call_ocr_generate(self, prompt: str, images: Optional[List[str]] = None, options: Optional[dict] = None) -> dict:
-        """Make OCR LLM generate call with retry logic."""
+        """Make OCR LLM generate call with retry logic (deprecated - use provider-specific methods)."""
+        if self.ocr_provider == "chandra":
+            return self._call_chandra_ocr_generate(prompt, images, options)
+        else:
+            return self._call_ollama_ocr_generate(prompt, images, options)
+
+    def _call_ollama_ocr_generate(self, prompt: str, images: Optional[List[str]] = None, options: Optional[dict] = None) -> dict:
+        """Make Ollama OCR LLM generate call with retry logic."""
         @retry_on_llm_failure(max_retries=self.max_retries,
                              base_delay=self.retry_base_delay,
                              exceptions=(Exception,))  # OCR can fail for various reasons
@@ -68,24 +108,82 @@ class FileHandler:
             }
             if images:
                 generate_kwargs['images'] = images
-            return self.ocr_client.generate(**generate_kwargs)
+            return self.ollama_ocr_client.generate(**generate_kwargs)
+
+        return _generate()
+
+    def _call_chandra_ocr_generate(self, prompt: str, images: Optional[List[str]] = None, max_tokens: int = 8192) -> dict:
+        """Make Chandra OCR LLM generate call with retry logic."""
+        if not HAS_OPENAI or not self.chandra_ocr_client:
+            raise Exception("OpenAI client not available for Chandra OCR")
+
+        @retry_on_llm_failure(max_retries=self.chandra_max_retries,
+                             base_delay=self.chandra_retry_base_delay,
+                             exceptions=(Exception,))  # OCR can fail for various reasons
+        def _generate():
+            messages = [{"role": "user", "content": prompt}]
+            if images:
+                # For Chandra, images should be base64 encoded
+                messages[0]["content"] = [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{images[0]}"}}
+                ]
+
+            response = self.chandra_ocr_client.chat.completions.create(
+                model=self.chandra_model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=0.0  # Deterministic output for OCR
+            )
+            # Convert OpenAI response format to Ollama format for compatibility
+            return {
+                'response': response.choices[0].message.content,
+                'done': True
+            }
 
         return _generate()
 
     def _check_ocr_availability(self) -> bool:
-        """Check if DeepSeek-OCR is available and accessible."""
+        """Check if OCR is available and accessible."""
+        if self.ocr_provider == "chandra":
+            return self._check_chandra_availability()
+        else:
+            return self._check_ollama_availability()
+
+    def _check_ollama_availability(self) -> bool:
+        """Check if Ollama OCR is available and accessible."""
         try:
             # Try a simple test call to check availability
-            self._call_ocr_generate(
+            self._call_ollama_ocr_generate(
                 prompt="test",
                 options={'num_predict': 1}  # Minimal response
             )
             return True
         except RetryError as e:
-            logger.warning(f"DeepSeek-OCR not available at {self.ollama_endpoint} after retries: {e.last_exception}")
+            logger.warning(f"Ollama OCR not available at {self.ollama_endpoint} after retries: {e.last_exception}")
             return False
         except Exception:
-            logger.warning(f"DeepSeek-OCR not available at {self.ollama_endpoint}")
+            logger.warning(f"Ollama OCR not available at {self.ollama_endpoint}")
+            return False
+
+    def _check_chandra_availability(self) -> bool:
+        """Check if Chandra OCR is available and accessible."""
+        if not HAS_OPENAI:
+            logger.warning("OpenAI library not available for Chandra OCR")
+            return False
+
+        try:
+            # Try a simple test call to check availability
+            self._call_chandra_ocr_generate(
+                prompt="test",
+                max_tokens=1  # Minimal response
+            )
+            return True
+        except RetryError as e:
+            logger.warning(f"Chandra OCR not available at {self.chandra_endpoint} after retries: {e.last_exception}")
+            return False
+        except Exception as e:
+            logger.warning(f"Chandra OCR not available at {self.chandra_endpoint}: {e}")
             return False
     
     def _is_included(self, file_path: Path, allowed_extensions: Optional[List[str]] = None) -> bool:
@@ -153,16 +251,18 @@ class FileHandler:
                 # If PDF text extraction returns minimal content, try OCR
                 if not text or len(text.strip()) < 50:  # Threshold for "empty" content
                     if self.ocr_available:
-                        logger.info(f"PDF text extraction returned minimal content, trying DeepSeek-OCR for {file_path}")
-                        ocr_result = self._extract_text_with_deepseek_ocr(file_path)
+                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                        logger.info(f"PDF text extraction returned minimal content, trying {ocr_provider_name}-OCR for {file_path}")
+                        ocr_result = self._extract_text_with_ocr(file_path)
                         if ocr_result:
                             ocr_text, ocr_duration = ocr_result
-                            logger.info(f"DeepSeek-OCR successfully extracted text from {file_path}")
+                            logger.info(f"{ocr_provider_name}-OCR successfully extracted text from {file_path}")
                             return (ocr_text, ocr_duration, True)
                         else:
                             return (text, 0.0, False)
                     else:
-                        logger.warning(f"DeepSeek-OCR not available, skipping OCR for {file_path}")
+                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                        logger.warning(f"{ocr_provider_name}-OCR not available, skipping OCR for {file_path}")
                         return (text, 0.0, False)
                 return (text, 0.0, False)
             elif suffix == '.docx':
@@ -170,16 +270,18 @@ class FileHandler:
                 # If DOCX text extraction returns minimal content, try OCR as fallback
                 if not text or len(text.strip()) < 50:  # Threshold for "empty" content
                     if self.ocr_available:
-                        logger.info(f"DOCX text extraction returned minimal content, trying DeepSeek-OCR for {file_path}")
-                        ocr_result = self._extract_text_with_deepseek_ocr(file_path)
+                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                        logger.info(f"DOCX text extraction returned minimal content, trying {ocr_provider_name}-OCR for {file_path}")
+                        ocr_result = self._extract_text_with_ocr(file_path)
                         if ocr_result:
                             ocr_text, ocr_duration = ocr_result
-                            logger.info(f"DeepSeek-OCR successfully extracted text from DOCX {file_path}")
+                            logger.info(f"{ocr_provider_name}-OCR successfully extracted text from DOCX {file_path}")
                             return (ocr_text, ocr_duration, True)
                         else:
                             return (text, 0.0, False)
                     else:
-                        logger.warning(f"DeepSeek-OCR not available, skipping OCR fallback for {file_path}")
+                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                        logger.warning(f"{ocr_provider_name}-OCR not available, skipping OCR fallback for {file_path}")
                         return (text, 0.0, False)
                 return (text, 0.0, False)
             elif suffix == '.doc':
@@ -195,7 +297,8 @@ class FileHandler:
                         logger.info(f"Skipping image {file_path} - no meaningful text content found")
                         return (None, ocr_duration, True)
                 else:
-                    logger.warning(f"DeepSeek-OCR not available, skipping image {file_path}")
+                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                    logger.warning(f"{ocr_provider_name}-OCR not available, skipping image {file_path}")
                     return (None, 0.0, False)
             else:
                 logger.warning(f"Unsupported file type: {suffix}")
@@ -291,26 +394,29 @@ class FileHandler:
             return f.read()
     
     def _extract_from_image(self, file_path: Path) -> tuple[Optional[str], float]:
-        """Extract text from image using DeepSeek OCR.
+        """Extract text from image using OCR.
 
         Returns:
             Tuple of (extracted text or None if no meaningful text found, OCR duration in seconds)
         """
         try:
             image = Image.open(file_path)
-            ocr_result = self._ocr_image_with_deepseek(image)
+            ocr_result = self._ocr_image(image)
             if ocr_result:
                 text, duration = ocr_result
                 # Check for meaningful content (not just whitespace or markdown boilerplate)
                 stripped_text = text.strip() if text else ""
                 if self._has_meaningful_content(stripped_text):
-                    logger.info(f"DeepSeek-OCR successfully extracted {len(stripped_text)} characters of meaningful content from {file_path}")
+                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                    logger.info(f"{ocr_provider_name}-OCR successfully extracted {len(stripped_text)} characters of meaningful content from {file_path}")
                     return (text, duration)
                 else:
-                    logger.info(f"DeepSeek-OCR found no meaningful text content in image {file_path} (likely a photo, chart, or empty image). Extracted: '{stripped_text[:100]}{'...' if len(stripped_text) > 100 else ''}'")
+                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                    logger.info(f"{ocr_provider_name}-OCR found no meaningful text content in image {file_path} (likely a photo, chart, or empty image). Extracted: '{stripped_text[:100]}{'...' if len(stripped_text) > 100 else ''}'")
                     return (None, duration)
             else:
-                logger.warning(f"DeepSeek-OCR processing failed for {file_path}")
+                ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                logger.warning(f"{ocr_provider_name}-OCR processing failed for {file_path}")
                 return (None, 0.0)
         except Exception as e:
             logger.error(f"Failed to process image {file_path}: {e}")
@@ -384,17 +490,18 @@ class FileHandler:
             logger.error(f"Failed to convert PDF to images: {e}")
             return []
 
-    def _extract_text_with_deepseek_ocr(self, file_path: Path) -> Optional[str]:
-        """Extract text from file using DeepSeek-OCR as fallback.
+    def _extract_text_with_ocr(self, file_path: Path) -> Optional[tuple[str, float]]:
+        """Extract text from file using OCR as fallback.
 
         Args:
             file_path: Path to the file
 
         Returns:
-            Extracted text or None if OCR fails
+            Tuple of (extracted text, duration) or None if OCR fails
         """
         try:
             suffix = file_path.suffix.lower()
+            ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
 
             if suffix == '.pdf':
                 # Convert PDF to images first
@@ -405,12 +512,12 @@ class FileHandler:
                     logger.warning(f"Could not extract images from PDF: {file_path}")
                     return None
 
-                # Process each image with DeepSeek-OCR
+                # Process each image with OCR
                 all_text = []
                 total_ocr_duration = 0.0
                 for i, image in enumerate(images):
-                    logger.info(f"Processing page {i+1}/{len(images)} with DeepSeek-OCR")
-                    ocr_result = self._ocr_image_with_deepseek(image)
+                    logger.info(f"Processing page {i+1}/{len(images)} with {ocr_provider_name}-OCR")
+                    ocr_result = self._ocr_image(image)
                     if ocr_result:
                         text, duration = ocr_result
                         all_text.append(text)
@@ -432,14 +539,28 @@ class FileHandler:
             elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
                 # Direct image OCR
                 image = Image.open(file_path)
-                ocr_result = self._ocr_image_with_deepseek(image)
-                return ocr_result  # Already returns (text, duration) or None
+                return self._ocr_image(image)  # Already returns (text, duration) or None
             else:
                 return None
 
         except Exception as e:
-            logger.error(f"DeepSeek OCR failed for {file_path}: {e}")
+            ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+            logger.error(f"{ocr_provider_name} OCR failed for {file_path}: {e}")
             return None
+
+    def _ocr_image(self, image: Image.Image) -> Optional[tuple[str, float]]:
+        """Perform OCR on a single image using the configured OCR provider.
+
+        Args:
+            image: PIL Image object
+
+        Returns:
+            Tuple of (extracted text, duration in seconds) or None if failed
+        """
+        if self.ocr_provider == "chandra":
+            return self._ocr_image_with_chandra(image)
+        else:
+            return self._ocr_image_with_deepseek(image)
 
     def _ocr_image_with_deepseek(self, image: Image.Image) -> Optional[tuple[str, float]]:
         """Perform OCR on a single image using DeepSeek-OCR.
@@ -460,7 +581,7 @@ class FileHandler:
             # Call DeepSeek-OCR with timing and retry logic
             # Based on https://ollama.com/library/deepseek-ocr examples
             start_time = time.time()
-            response = self._call_ocr_generate(
+            response = self._call_ollama_ocr_generate(
                 prompt="<|grounding|>Convert the document to markdown.",
                 images=[image_data],  # Base64 image data
                 options={
@@ -487,6 +608,51 @@ class FileHandler:
                 logger.warning(f"DeepSeek OCR unavailable: Cannot connect to Ollama at {self.ollama_endpoint}. OCR fallback disabled.")
             else:
                 logger.error(f"DeepSeek OCR failed: {e}")
+            return None
+
+    def _ocr_image_with_chandra(self, image: Image.Image) -> Optional[tuple[str, float]]:
+        """Perform OCR on a single image using Chandra-OCR.
+
+        Args:
+            image: PIL Image object
+
+        Returns:
+            Tuple of (extracted text, duration in seconds) or None if failed
+        """
+        try:
+            # Convert image to base64 string
+            import io
+            buffer = io.BytesIO()
+            image.save(buffer, format='PNG')
+            image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+            # Call Chandra-OCR with timing and retry logic
+            # Based on Chandra documentation, it uses OpenAI-compatible API
+            start_time = time.time()
+            response = self._call_chandra_ocr_generate(
+                prompt="Convert this document to markdown. Extract all text, tables, and formatting information.",
+                images=[image_data],  # Base64 image data
+                max_tokens=self.chandra_max_tokens
+            )
+            ocr_duration = time.time() - start_time
+
+            extracted_text = response.get('response', '').strip()
+            if extracted_text:
+                logger.info(f"Chandra-OCR extracted text: {extracted_text[:100]}...")
+                return (extracted_text, ocr_duration)
+            else:
+                logger.info(f"Chandra-OCR returned empty response. Full response: {response}")
+                return None
+
+        except RetryError as e:
+            logger.error(f"Chandra OCR failed after retries: {e.last_exception}")
+            return None
+        except Exception as e:
+            # Log connection issues but don't spam the logs for each image
+            if "No route to host" in str(e) or "Connection refused" in str(e):
+                logger.warning(f"Chandra OCR unavailable: Cannot connect to vLLM at {self.chandra_endpoint}. OCR fallback disabled.")
+            else:
+                logger.error(f"Chandra OCR failed: {e}")
             return None
 
     def generate_file_hash(self, file_path: Path) -> Optional[tuple[str, float]]:

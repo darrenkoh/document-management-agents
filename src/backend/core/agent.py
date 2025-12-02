@@ -38,7 +38,14 @@ class DocumentAgent:
             ocr_model=config.ollama_ocr_model,
             ocr_timeout=config.ollama_ocr_timeout,
             max_retries=config.ollama_max_retries,
-            retry_base_delay=config.ollama_retry_base_delay
+            retry_base_delay=config.ollama_retry_base_delay,
+            ocr_provider=config.ocr_provider,
+            chandra_endpoint=config.chandra_endpoint,
+            chandra_model=config.chandra_model,
+            chandra_timeout=config.chandra_timeout,
+            chandra_max_tokens=config.chandra_max_tokens,
+            chandra_max_retries=config.chandra_max_retries,
+            chandra_retry_base_delay=config.chandra_retry_base_delay
         )
         # Initialize vector store (required for embeddings)
         try:

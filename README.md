@@ -177,7 +177,13 @@ ollama:
   endpoint: "http://localhost:11434"
   model: "deepseek-r1:8b"
   embedding_model: "qwen3-embedding:8b"
-  ocr_model: "deepseek-ocr:3b"
+  # OCR model: 'deepseek-ocr:3b' for Ollama or 'chandra' for vLLM
+  ocr_model: "chandra"
+
+# Chandra OCR configuration (when ocr_model is set to 'chandra')
+chandra:
+  endpoint: "http://localhost:11435"
+  model: "chandra"
 
 # Web server settings
 webapp:
@@ -271,8 +277,31 @@ This project is open source and available under the MIT License.
 - Verify required models are installed
 
 **OCR not working**
-- Install deepseek-ocr model: `ollama pull deepseek-ocr:3b`
+- For Ollama OCR: Install deepseek-ocr model: `ollama pull deepseek-ocr:3b`
+- For Chandra OCR: Install Chandra and start vLLM server on port 11435
 - Check poppler-utils and tesseract are installed for PDF processing
+
+**Chandra OCR Setup**
+```bash
+# Install Chandra OCR
+pip install chandra-ocr
+
+# Start Chandra vLLM server (runs on port 11435 by default)
+chandra_vllm
+
+# Or use custom configuration
+VLLM_API_BASE=http://localhost:11435/v1 VLLM_MODEL_NAME=chandra chandra_vllm
+```
+
+Update `config.yaml` to use Chandra:
+```yaml
+ollama:
+  ocr_model: "chandra"  # Instead of "deepseek-ocr:3b"
+
+chandra:
+  endpoint: "http://localhost:11435"
+  model: "chandra"
+```
 
 **Frontend not loading**
 - Ensure backend API is running on port 8081

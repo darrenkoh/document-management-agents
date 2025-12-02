@@ -203,6 +203,55 @@ class Config:
         return retry_config.get('base_delay', 1.0)
 
     @property
+    def ocr_provider(self) -> str:
+        """Get the OCR provider ('ollama' or 'chandra')."""
+        ollama_config = self._config.get('ollama', {})
+        ocr_model = ollama_config.get('ocr_model', 'deepseek-ocr:3b')
+        # If ocr_model is 'chandra', use chandra provider
+        if ocr_model == 'chandra':
+            return 'chandra'
+        # Otherwise, assume ollama
+        return 'ollama'
+
+    @property
+    def chandra_endpoint(self) -> str:
+        """Get the Chandra vLLM API endpoint."""
+        chandra_config = self._config.get('chandra', {})
+        return chandra_config.get('endpoint', 'http://localhost:11435')
+
+    @property
+    def chandra_model(self) -> str:
+        """Get the Chandra model name."""
+        chandra_config = self._config.get('chandra', {})
+        return chandra_config.get('model', 'chandra')
+
+    @property
+    def chandra_timeout(self) -> int:
+        """Get the Chandra OCR timeout in seconds."""
+        chandra_config = self._config.get('chandra', {})
+        return chandra_config.get('timeout', 300)
+
+    @property
+    def chandra_max_tokens(self) -> int:
+        """Get the maximum tokens for Chandra OCR."""
+        chandra_config = self._config.get('chandra', {})
+        return chandra_config.get('max_tokens', 8192)
+
+    @property
+    def chandra_max_retries(self) -> int:
+        """Get the maximum number of retry attempts for Chandra API calls."""
+        chandra_config = self._config.get('chandra', {})
+        retry_config = chandra_config.get('retry', {})
+        return retry_config.get('max_retries', 3)
+
+    @property
+    def chandra_retry_base_delay(self) -> float:
+        """Get the base delay in seconds between Chandra retry attempts."""
+        chandra_config = self._config.get('chandra', {})
+        retry_config = chandra_config.get('retry', {})
+        return retry_config.get('base_delay', 1.0)
+
+    @property
     def vector_store_type(self) -> str:
         """Get the vector store type."""
         db_config = self._config.get('database', {})
