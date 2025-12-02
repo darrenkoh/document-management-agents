@@ -137,7 +137,7 @@ class ChromaVectorStore(VectorStore):
         # Note: 'dimension' is not used by ChromaDB as it handles embedding dimensions automatically
 
         # Extract distance metric configuration
-        distance_metric = kwargs.get('distance_metric', 'l2')  # Default to 'l2' for backward compatibility
+        self.distance_metric = kwargs.get('distance_metric', 'l2')  # Default to 'l2' for backward compatibility
 
         # Initialize ChromaDB client
         self.client = chromadb.PersistentClient(
@@ -148,18 +148,16 @@ class ChromaVectorStore(VectorStore):
         # Get or create collection with distance metric
         try:
             self.collection = self.client.get_collection(name=collection_name)
-            logger.info(f"Loaded existing ChromaDB collection: {collection_name} (using distance metric: {distance_metric})")
+            logger.info(f"Loaded existing ChromaDB collection: {collection_name} (using distance metric: {self.distance_metric})")
         except NotFoundError:
             # ChromaDB raises NotFoundError when collection doesn't exist
             # Create collection with specified distance metric
-            collection_metadata = {"hnsw:space": distance_metric}
+            collection_metadata = {"hnsw:space": self.distance_metric}
             self.collection = self.client.create_collection(
                 name=collection_name,
                 metadata=collection_metadata
             )
-            logger.info(f"Created new ChromaDB collection: {collection_name} (distance metric: {distance_metric})")
-
-        self.distance_metric = distance_metric
+            logger.info(f"Created new ChromaDB collection: {collection_name} (distance metric: {self.distance_metric})")
 
     def add_embeddings(self, embeddings: List[List[float]],
                       metadata: List[Dict[str, Any]],
@@ -289,41 +287,63 @@ class ChromaVectorStore(VectorStore):
     def get_all_embeddings(self) -> List[Dict[str, Any]]:
         """Get all embeddings and metadata from ChromaDB."""
         try:
+            # Ensure the collection exists and is accessible
+            try:
+                # Try to access the collection to make sure it exists
+                self.collection.count()
+            except Exception as e:
+                logger.warning(f"Collection not accessible, attempting to recreate: {e}")
+                try:
+                    # Try to get the collection again
+                    self.collection = self.client.get_collection(name=self.collection_name)
+                    logger.info(f"Reconnected to existing collection: {self.collection_name}")
+                except NotFoundError:
+                    # Create collection if it doesn't exist
+                    collection_metadata = {"hnsw:space": self.distance_metric}
+                    self.collection = self.client.create_collection(
+                        name=self.collection_name,
+                        metadata=collection_metadata
+                    )
+                    logger.info(f"Created new collection: {self.collection_name}")
+                except Exception as recreate_error:
+                    logger.error(f"Failed to recreate collection: {recreate_error}")
+                    return []
+
             # Get all data from collection
             result = self.collection.get(
                 include=['embeddings', 'metadatas']
             )
-            
+
             if result['embeddings'] is None:
                 return []
-            
+
             # Check for empty embeddings list which might be returned as None or empty list
             # Use explicit length check to avoid numpy ambiguity
             if len(result['embeddings']) == 0:
                 return []
 
-                
+
             all_data = []
             for i, (doc_id, embedding, metadata) in enumerate(zip(
-                result['ids'], 
-                result['embeddings'], 
+                result['ids'],
+                result['embeddings'],
                 result['metadatas']
             )):
                 # Ensure metadata is a dictionary
                 meta = metadata if metadata else {}
-                
+
                 # Add ID to metadata if not present
                 if 'id' not in meta:
                     meta['id'] = doc_id
-                    
+
                 all_data.append({
                     'id': doc_id,
                     'embedding': embedding,
                     'metadata': meta
                 })
-                
+
             return all_data
-            
+
         except Exception as e:
             logger.error(f"Error getting all embeddings from ChromaDB: {e}")
             return []

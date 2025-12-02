@@ -210,16 +210,37 @@ Summary:"""
         # Retry on empty summary response
         for attempt in range(self.max_retries + 1):  # +1 for initial attempt
             try:
+                # Increase token limit with each retry to handle length issues
+                token_limit = 1500 + (attempt * 500)  # Start at 1500, increase by 500 each retry
                 response = self._call_llm_generate(
                     model=self.summarizer_model,
                     prompt=prompt,
                     options={
                         'temperature': 0.3,
-                        'num_predict': min(500, max_length // 2),
+                        'num_predict': token_limit,
                     }
                 )
 
+                # Check for LLM response errors
+                done_reason = response.get('done_reason', '')
                 summary = response.get('response', '').strip()
+
+                # Check if the response indicates an error condition
+                error_indicators = ['error', 'fail', 'timeout', 'cancel']
+                # Also treat 'length' as an error since it means the model hit token limits
+                has_error = any(indicator in done_reason.lower() for indicator in error_indicators) or response.get('error') or done_reason.lower() == 'length'
+
+                if has_error:
+                    logger.warning(f"LLM response indicates error (done_reason: {done_reason}, error: {response.get('error', 'N/A')})")
+                    if attempt < self.max_retries:
+                        delay = self.retry_base_delay * (2.0 ** attempt)  # Exponential backoff
+                        logger.warning(f"LLM error detected (attempt {attempt + 1}/{self.max_retries + 1}), retrying in {delay:.1f}s")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.error(f"LLM error after {self.max_retries + 1} attempts (done_reason: {done_reason})")
+                        return None
+
                 if summary:
                     # Clean up LLM encoding tokens and other artifacts
                     summary = self._clean_llm_response(summary)
@@ -229,13 +250,18 @@ Summary:"""
                         summary = summary[:max_length] + "..."
                     return summary
                 else:
-                    # Empty summary response - retry if attempts remaining
+                    # Empty summary response - log detailed response info for debugging
+                    logger.warning(f"No summary content in LLM response (attempt {attempt + 1}/{self.max_retries + 1})")
+                    logger.warning(f"Response details - done_reason: {done_reason}, eval_count: {response.get('eval_count', 'N/A')}")
+                    logger.warning(f"Response type: {type(response)}, has 'response' field: {hasattr(response, 'get') and 'response' in str(response)}")
+
                     if attempt < self.max_retries:
                         delay = self.retry_base_delay * (2.0 ** attempt)  # Exponential backoff
                         logger.warning(f"No summary generated from LLM (attempt {attempt + 1}/{self.max_retries + 1}), retrying in {delay:.1f}s")
                         time.sleep(delay)
                     else:
                         logger.error(f"No summary generated from LLM after {self.max_retries + 1} attempts")
+                        logger.error(f"Final response details - done_reason: {done_reason}, eval_count: {response.get('eval_count', 'N/A')}, response_type: {type(response)}")
                         return None
 
             except RetryError as e:
