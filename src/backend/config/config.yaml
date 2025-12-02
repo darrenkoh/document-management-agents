@@ -9,9 +9,7 @@
 source_paths:
 #  - "/Volumes/1TB/Private"
 #  - "/Volumes/Documents/Private"
-  - "/Volumes/Documents/Private/Marriage"
-  - "/Volumes/Documents/Private/Desktop"
-  - "/Volumes/Documents/Private/Receipt"
+  - "/Volumes/Documents/Private/t"
   
 
 # File extensions to process (REQUIRED - only files with these extensions will be processed)

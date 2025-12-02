@@ -55,6 +55,13 @@ def setup_logging(config: Config, verbose: bool = False):
         handlers=handlers
     )
 
+    # Suppress verbose logging from third-party libraries
+    # OpenAI library logs base64 image data at DEBUG level, which makes logs unreadable
+    # HTTPX library also produces verbose connection logs
+    logging.getLogger('openai').setLevel(logging.WARNING)
+    logging.getLogger('openai._base_client').setLevel(logging.WARNING)
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+
 
 def main():
     """Main entry point."""

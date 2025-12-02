@@ -5,6 +5,7 @@ import base64
 import io
 import subprocess
 import time
+import re
 from pathlib import Path
 from typing import Optional, List
 from pypdf import PdfReader
@@ -113,35 +114,70 @@ class FileHandler:
         return _generate()
 
     def _call_chandra_ocr_generate(self, prompt: str, images: Optional[List[str]] = None, max_tokens: int = 8192) -> dict:
-        """Make Chandra OCR LLM generate call with retry logic."""
+        """Make Chandra OCR LLM generate call with retry logic matching Chandra's implementation."""
         if not HAS_OPENAI or not self.chandra_ocr_client:
             raise Exception("OpenAI client not available for Chandra OCR")
 
-        @retry_on_llm_failure(max_retries=self.chandra_max_retries,
-                             base_delay=self.chandra_retry_base_delay,
-                             exceptions=(Exception,))  # OCR can fail for various reasons
-        def _generate():
-            messages = [{"role": "user", "content": prompt}]
+        def _generate(temperature: float = 0.0, top_p: float = 0.1) -> dict:
+            """Generate with specific temperature and top_p parameters."""
+            content = []
+
+            # Add image first (as per Chandra's implementation)
             if images:
-                # For Chandra, images should be base64 encoded
-                messages[0]["content"] = [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{images[0]}"}}
-                ]
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{images[0]}"}
+                })
+
+            # Add text prompt after image
+            content.append({"type": "text", "text": prompt})
+
+            messages = [{"role": "user", "content": content}]
 
             response = self.chandra_ocr_client.chat.completions.create(
                 model=self.chandra_model,
                 messages=messages,
                 max_tokens=max_tokens,
-                temperature=0.0  # Deterministic output for OCR
+                temperature=temperature,
+                top_p=top_p
             )
+
             # Convert OpenAI response format to Ollama format for compatibility
             return {
                 'response': response.choices[0].message.content,
                 'done': True
             }
 
-        return _generate()
+        def _should_retry_chandra(result: dict, retries: int) -> bool:
+            """Check if generation should be retried based on Chandra's logic."""
+            raw_text = result.get('response', '')
+
+            # Check for repeat tokens (Chandra's repeat detection)
+            has_repeat = self._detect_repeat_token(raw_text)
+
+            if retries < self.chandra_max_retries and has_repeat:
+                logger.info(f"Detected repeat token in Chandra OCR output, retrying (attempt {retries + 1})")
+                return True
+
+            # Check for other errors
+            if retries < self.chandra_max_retries and not raw_text.strip():
+                logger.info(f"Empty response from Chandra OCR, retrying (attempt {retries + 1})")
+                return True
+
+            return False
+
+        # Main retry logic following Chandra's pattern
+        result = _generate()  # Initial attempt with temperature=0, top_p=0.1
+        retries = 0
+
+        while _should_retry_chandra(result, retries):
+            # Retry with higher temperature and top_p (as per Chandra's implementation)
+            result = _generate(temperature=0.3, top_p=0.95)
+            retries += 1
+            if retries < self.chandra_max_retries:
+                time.sleep(2 * (retries + 1))  # Exponential backoff
+
+        return result
 
     def _check_ocr_availability(self) -> bool:
         """Check if OCR is available and accessible."""
@@ -248,21 +284,31 @@ class FileHandler:
 
             if suffix == '.pdf':
                 text = self._extract_from_pdf(file_path)
-                # If PDF text extraction returns minimal content, try OCR
-                if not text or len(text.strip()) < 50:  # Threshold for "empty" content
+                # Check if PDF text extraction returned meaningful content
+                should_use_ocr = False
+                if not text or not text.strip():
+                    should_use_ocr = True
+                elif len(text.strip()) < 50:  # Threshold for "minimal" content
+                    should_use_ocr = True
+                elif self._is_garbage_text(text):  # Check for garbage/random text
+                    should_use_ocr = True
+
+                if should_use_ocr:
                     if self.ocr_available:
                         ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
-                        logger.info(f"PDF text extraction returned minimal content, trying {ocr_provider_name}-OCR for {file_path}")
+                        reason = "no content" if not text else "minimal content" if len(text.strip()) < 50 else "garbage text detected"
+                        logger.info(f"PDF text extraction returned {reason}, trying {ocr_provider_name}-OCR for {file_path}")
                         ocr_result = self._extract_text_with_ocr(file_path)
                         if ocr_result:
                             ocr_text, ocr_duration = ocr_result
                             logger.info(f"{ocr_provider_name}-OCR successfully extracted text from {file_path}")
                             return (ocr_text, ocr_duration, True)
                         else:
+                            logger.warning(f"{ocr_provider_name}-OCR failed, using extracted text (may be garbage)")
                             return (text, 0.0, False)
                     else:
                         ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
-                        logger.warning(f"{ocr_provider_name}-OCR not available, skipping OCR for {file_path}")
+                        logger.warning(f"{ocr_provider_name}-OCR not available, using potentially garbage text from {file_path}")
                         return (text, 0.0, False)
                 return (text, 0.0, False)
             elif suffix == '.docx':
@@ -468,6 +514,105 @@ class FileHandler:
 
         return True
 
+    def _is_garbage_text(self, text: str) -> bool:
+        """Check if extracted text appears to be garbage/random characters rather than meaningful content.
+
+        This is specifically designed to detect corrupted PDF text layers that contain
+        random symbols instead of actual document content.
+
+        Args:
+            text: The text to check
+
+        Returns:
+            True if text appears to be garbage, False if it might be meaningful
+        """
+        if not text or not text.strip():
+            return True
+
+        # Remove whitespace for analysis
+        cleaned_text = text.replace(' ', '').replace('\n', '').replace('\t', '').strip()
+
+        # If too short after cleaning, it's likely empty
+        if len(cleaned_text) < 10:
+            return True
+
+        # Calculate ratio of alphanumeric characters to total characters
+        # Garbage text often has very low alphanumeric content
+        alpha_numeric = sum(1 for c in cleaned_text if c.isalnum())
+        alpha_numeric_ratio = alpha_numeric / len(cleaned_text)
+
+        # If less than 30% alphanumeric characters, likely garbage
+        if alpha_numeric_ratio < 0.3:
+            return True
+
+        # Check for excessive special character patterns common in corrupted PDFs
+        # Patterns like repeated symbols, excessive punctuation, etc.
+        special_chars = sum(1 for c in cleaned_text if not c.isalnum() and not c.isspace())
+        special_ratio = special_chars / len(cleaned_text)
+
+        # If more than 70% special characters, likely garbage
+        if special_ratio > 0.7:
+            return True
+
+        # Check for repetitive patterns (common in corrupted text)
+        # Look for sequences of 3+ identical characters
+        for char in set(cleaned_text.lower()):
+            if cleaned_text.lower().count(char * 3) > 0:
+                return True
+
+        # Check if text contains mostly symbols that don't form words
+        words = text.split()
+        if len(words) > 0:
+            # Calculate what percentage of "words" are actually just symbols
+            symbol_words = sum(1 for word in words if len(word) > 0 and all(not c.isalnum() for c in word))
+            symbol_word_ratio = symbol_words / len(words)
+
+            # If more than 50% of words are pure symbols, likely garbage
+            if symbol_word_ratio > 0.5:
+                return True
+
+        # Check for common garbage patterns from corrupted PDFs
+        garbage_patterns = [
+            r'[~@#$%^&*+=|\\{}[\]:;"\'<>,.?/-]{5,}',  # 5+ consecutive special chars
+            r'[a-zA-Z]{1,2}[~@#$%^&*+=|\\{}[\]:;"\'<>,.?/-]{3,}',  # short letters + many symbols
+            r'[0-9]{1,3}[~@#$%^&*+=|\\{}[\]:;"\'<>,.?/-]{3,}',  # short numbers + many symbols
+        ]
+
+        for pattern in garbage_patterns:
+            if re.search(pattern, text):
+                return True
+
+        return False
+
+    def _detect_repeat_token(self, text: str, cut_from_end: int = None) -> bool:
+        """Detect if text contains repeating tokens, following Chandra's implementation.
+
+        Args:
+            text: The text to check for repeats
+            cut_from_end: If provided, only check the last N characters
+
+        Returns:
+            True if repeat tokens are detected
+        """
+        if not text:
+            return False
+
+        if cut_from_end:
+            text = text[-cut_from_end:]
+
+        # Look for sequences of 10+ identical characters
+        for char in set(text):
+            if text.count(char * 10) > 0:
+                return True
+
+        # Look for repeating patterns of 4+ characters
+        for i in range(len(text) - 20):  # Check first 20 chars for patterns
+            pattern = text[i:i+4]
+            if len(pattern) >= 4 and text.count(pattern) > 3:  # Pattern repeats more than 3 times
+                return True
+
+        return False
+
     def _pdf_to_images(self, file_path: Path) -> List[Image.Image]:
         """Convert PDF pages to PIL Images for OCR processing.
 
@@ -630,7 +775,7 @@ class FileHandler:
             # Based on Chandra documentation, it uses OpenAI-compatible API
             start_time = time.time()
             response = self._call_chandra_ocr_generate(
-                prompt="Convert this document to markdown. Extract all text, tables, and formatting information.",
+                prompt="Convert the document to markdown.",
                 images=[image_data],  # Base64 image data
                 max_tokens=self.chandra_max_tokens
             )
