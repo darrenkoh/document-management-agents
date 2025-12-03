@@ -252,6 +252,18 @@ class Config:
         return retry_config.get('base_delay', 1.0)
 
     @property
+    def chandra_frequency_penalty(self) -> float:
+        """Get the frequency penalty for Chandra OCR."""
+        chandra_config = self._config.get('chandra', {})
+        return chandra_config.get('frequency_penalty', 0.02)
+
+    @property
+    def chandra_detect_repeat_tokens(self) -> bool:
+        """Get whether to detect and retry on repetitive OCR output for Chandra."""
+        chandra_config = self._config.get('chandra', {})
+        return chandra_config.get('detect_repeat_tokens', True)
+
+    @property
     def vector_store_type(self) -> str:
         """Get the vector store type."""
         db_config = self._config.get('database', {})

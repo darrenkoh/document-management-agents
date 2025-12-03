@@ -110,12 +110,11 @@ class Classifier:
             )
             classification_duration = time.time() - start_time
             
-            # Get raw response - check both 'response' and 'thinking' fields
-            # Reasoning models (like deepseek-r1) may put output in 'thinking' field
+            # Get raw response - the LLM should now put structured output in response field
             raw_response = response.get('response', '')
             thinking = response.get('thinking', '')
             done_reason = response.get('done_reason', '')
-            
+
             # Log full response if verbose
             logger.info("LLM RESPONSE:")
             logger.info("-" * 80)
@@ -129,72 +128,8 @@ class Classifier:
             logger.info(f"Eval count: {response.get('eval_count', 'N/A')}")
             logger.info("-" * 80)
             logger.info("=" * 80)
-            
-            # If response is empty but thinking exists, try to extract from thinking
-            # This happens with reasoning models that use thinking tokens
-            if not raw_response and thinking:
-                logger.info(f"Response field empty, attempting to extract from thinking field")
-                # For reasoning models, try to find the category in the thinking text
-                # Look for common category words
-                thinking_lower = thinking.strip().lower()
-                category_keywords = ['invoice', 'contract', 'receipt', 'letter', 'report', 
-                                     'resume', 'certificate', 'form', 'statement', 'manual',
-                                     'article', 'email', 'memo', 'note', 'presentation', 
-                                     'spreadsheet', 'confirmation', 'booking', 'ticket', 'itinerary',
-                                     'flight', 'travel', 'other']
-                
-                # Try to extract categories from the last part of thinking (where the answer usually is)
-                # Look for comma-separated categories or multiple category mentions
-                thinking_lines = thinking.strip().split('\n')
-                last_lines = '\n'.join(thinking_lines[-10:])  # Check last 10 lines
-                last_lines_lower = last_lines.lower()
-                
-                # Look for comma-separated categories pattern
-                comma_pattern = r'\b(?:' + '|'.join(category_keywords) + r')(?:\s*,\s*(?:' + '|'.join(category_keywords) + r')){0,2}\b'
-                comma_match = re.search(comma_pattern, last_lines_lower)
-                
-                if comma_match:
-                    raw_response = comma_match.group(0)
-                    if verbose:
-                        logger.info(f"Extracted comma-separated categories '{raw_response}' from thinking field")
-                else:
-                    # Check if any keyword appears in thinking (collect up to 3)
-                    found_keywords = []
-                    for keyword in category_keywords:
-                        idx = thinking_lower.rfind(keyword)
-                        if idx != -1:
-                            found_keywords.append((idx, keyword))
-                    
-                    if found_keywords:
-                        # Sort by position (latest first) and take up to 3 unique keywords
-                        found_keywords.sort(reverse=True)
-                        unique_keywords = []
-                        seen = set()
-                        for idx, keyword in found_keywords:
-                            if keyword not in seen:
-                                unique_keywords.append(keyword)
-                                seen.add(keyword)
-                                if len(unique_keywords) >= 3:
-                                    break
-                        raw_response = ','.join(unique_keywords)
-                        if verbose:
-                            logger.info(f"Extracted categories '{raw_response}' from thinking field")
-                    else:
-                        # Try to extract from last lines as single category
-                        for line in reversed(thinking_lines[-10:]):  # Check last 10 lines
-                            line = line.strip().lower()
-                            if line and len(line) < 100:  # Allow longer for multiple categories
-                                # Check if it looks like categories
-                                for keyword in category_keywords:
-                                    if keyword in line:
-                                        raw_response = keyword
-                                        if verbose:
-                                            logger.info(f"Extracted '{keyword}' from thinking line: '{line}'")
-                                        break
-                                if raw_response:
-                                    break
-            
-            # Extract category and sub-categories from response
+
+            # Extract category and sub-categories from response field
             category, sub_categories = self._extract_category_and_subcategories(raw_response)
 
             if verbose:
@@ -378,8 +313,8 @@ Use lowercase for sub-categories and separate with commas."""
                 # Clean and normalize main category
                 main_category = self._normalize_category(main_cat)
 
-        # Extract sub-categories
-        if sub_match:
+        # Extract sub-categories only if not already provided
+        if not sub_categories and sub_match:
             sub_text = sub_match.group(1).strip()
             if sub_text and sub_text.lower() not in ['(leave empty)', 'leave empty', 'none', '']:
                 # Split by commas and clean

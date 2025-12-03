@@ -45,7 +45,9 @@ class DocumentAgent:
             chandra_timeout=config.chandra_timeout,
             chandra_max_tokens=config.chandra_max_tokens,
             chandra_max_retries=config.chandra_max_retries,
-            chandra_retry_base_delay=config.chandra_retry_base_delay
+            chandra_retry_base_delay=config.chandra_retry_base_delay,
+            chandra_frequency_penalty=config.chandra_frequency_penalty,
+            chandra_detect_repeat_tokens=config.chandra_detect_repeat_tokens
         )
         # Initialize vector store (required for embeddings)
         try:

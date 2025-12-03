@@ -40,7 +40,8 @@ class FileHandler:
                  ocr_provider: str = "ollama", chandra_endpoint: str = "http://localhost:11435",
                  chandra_model: str = "chandra", chandra_timeout: int = 300,
                  chandra_max_tokens: int = 8192, chandra_max_retries: int = 3,
-                 chandra_retry_base_delay: float = 1.0):
+                 chandra_retry_base_delay: float = 1.0, chandra_frequency_penalty: float = 0.02,
+                 chandra_detect_repeat_tokens: bool = True):
         """Initialize file handler.
 
         Args:
@@ -57,6 +58,8 @@ class FileHandler:
             chandra_max_tokens: Maximum tokens for Chandra OCR
             chandra_max_retries: Maximum retries for Chandra OCR
             chandra_retry_base_delay: Base delay for Chandra OCR retries
+            chandra_frequency_penalty: Frequency penalty to reduce repetition in generated text
+            chandra_detect_repeat_tokens: Whether to detect and retry on repetitive OCR output
         """
         self.source_paths = [Path(path) for path in source_paths]
         self.ollama_endpoint = ollama_endpoint
@@ -73,6 +76,8 @@ class FileHandler:
         self.chandra_max_tokens = chandra_max_tokens
         self.chandra_max_retries = chandra_max_retries
         self.chandra_retry_base_delay = chandra_retry_base_delay
+        self.chandra_frequency_penalty = chandra_frequency_penalty
+        self.chandra_detect_repeat_tokens = chandra_detect_repeat_tokens
 
         # Initialize OCR clients
         self.ollama_ocr_client = ollama.Client(host=ollama_endpoint, timeout=ocr_timeout)
@@ -139,7 +144,8 @@ class FileHandler:
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                top_p=top_p
+                top_p=top_p,
+                frequency_penalty=self.chandra_frequency_penalty
             )
 
             # Convert OpenAI response format to Ollama format for compatibility
@@ -152,12 +158,12 @@ class FileHandler:
             """Check if generation should be retried based on Chandra's logic."""
             raw_text = result.get('response', '')
 
-            # Check for repeat tokens (Chandra's repeat detection)
-            has_repeat = self._detect_repeat_token(raw_text)
-
-            if retries < self.chandra_max_retries and has_repeat:
-                logger.info(f"Detected repeat token in Chandra OCR output, retrying (attempt {retries + 1})")
-                return True
+            # Check for repeat tokens (Chandra's repeat detection) - if enabled
+            if self.chandra_detect_repeat_tokens:
+                has_repeat = self._detect_repeat_token(raw_text)
+                if retries < self.chandra_max_retries and has_repeat:
+                    logger.info(f"Detected repeat token in Chandra OCR output, retrying (attempt {retries + 1})")
+                    return True
 
             # Check for other errors
             if retries < self.chandra_max_retries and not raw_text.strip():

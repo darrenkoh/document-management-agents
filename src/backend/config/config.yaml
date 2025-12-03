@@ -79,13 +79,17 @@ chandra:
   # Timeout for Chandra OCR operations in seconds
   timeout: 300
   # Maximum output tokens for Chandra OCR
-  max_tokens: 8192
+  max_tokens: 16384
   # Retry configuration for failed Chandra API calls
   retry:
     # Maximum number of retry attempts for failed API calls
     max_retries: 3
     # Delay in seconds between retry attempts (exponential backoff)
     base_delay: 1.0
+  # Frequency penalty to reduce repetition in generated text (0.0 to 2.0)
+  frequency_penalty: 0.0
+  # Whether to detect and retry on repetitive OCR output
+  detect_repeat_tokens: false
 
 # Optional: Predefined classification categories
 # If empty, the agent will auto-detect categories
@@ -120,7 +124,7 @@ prompt_template: |
 
   First, classify this document into ONE main category from the list above. Then, if the document would benefit from additional context beyond the main category (especially if the main category is "Other"), suggest up to 3 specific sub-categories that describe the document's content more precisely. The sub-category word should not be longer than 2 words.
 
-  Respond in this exact format:
+  IMPORTANT: After your analysis, provide ONLY your final answer in this exact format in the response field (not in thinking):
   MAIN: [main category]
   SUB: [sub-category1, sub-category2, sub-category3] (or leave empty if no sub-categories needed)
 
