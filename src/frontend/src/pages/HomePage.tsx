@@ -172,18 +172,23 @@ export default function HomePage() {
         />
       </div>
 
-      {/* Streaming Logs */}
-      {(isStreaming || streamingLogs.length > 0) && (
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-primary-900 rounded-xl p-6 shadow-2xl overflow-hidden border border-primary-800">
+      {/* Streaming Logs - Always reserve space to prevent layout shifts */}
+      <div className="max-w-3xl mx-auto">
+        <div
+          className={`bg-primary-900 rounded-xl shadow-2xl overflow-hidden border border-primary-800 transition-all duration-300 ease-in-out ${
+            (isStreaming || streamingLogs.length > 0) ? 'p-6 opacity-100 max-h-96' : 'p-0 opacity-0 max-h-0'
+          }`}
+          style={{ overflowAnchor: 'auto' }}
+        >
+          {(isStreaming || streamingLogs.length > 0) && (
             <StreamingLogs
               isVisible={true}
               logs={streamingLogs}
               isStreaming={isStreaming}
             />
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Content Section */}
       <div className="space-y-8">

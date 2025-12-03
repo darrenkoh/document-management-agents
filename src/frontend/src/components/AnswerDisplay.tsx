@@ -15,12 +15,18 @@ interface AnswerDisplayProps {
 
 export function AnswerDisplay({ answer, citations, isStreaming, error, question }: AnswerDisplayProps) {
   const navigate = useNavigate();
+  const answerContainerRef = useRef<HTMLDivElement>(null);
   const answerEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when answer is streaming
+  // Auto-scroll to bottom when answer is streaming (only if user is already near bottom)
   useEffect(() => {
-    if (isStreaming && answerEndRef.current) {
-      answerEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (isStreaming && answerContainerRef.current && answerEndRef.current) {
+      const container = answerContainerRef.current;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+      if (isNearBottom) {
+        answerEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
     }
   }, [answer, isStreaming]);
 
@@ -31,7 +37,7 @@ export function AnswerDisplay({ answer, citations, isStreaming, error, question 
 
   return (
     <Card className="mb-6 border-accent-200 bg-gradient-to-br from-accent-50/50 to-white">
-      <CardContent className="p-6">
+      <CardContent ref={answerContainerRef} className="p-6">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-accent-100 flex items-center justify-center">
