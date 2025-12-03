@@ -312,13 +312,19 @@ class ChromaVectorStore(VectorStore):
             # Ensure the collection exists and is accessible
             try:
                 # Try to access the collection to make sure it exists
-                self.collection.count()
+                count = self.collection.count()
+                logger.info(f"Collection has {count} embeddings")
+                if count == 0:
+                    return []
             except Exception as e:
                 logger.warning(f"Collection not accessible, attempting to recreate: {e}")
                 try:
                     # Try to get the collection again
                     self.collection = self.client.get_collection(name=self.collection_name)
                     logger.info(f"Reconnected to existing collection: {self.collection_name}")
+                    count = self.collection.count()
+                    if count == 0:
+                        return []
                 except NotFoundError:
                     # Create collection if it doesn't exist
                     collection_metadata = {"hnsw:space": self.distance_metric}
@@ -327,47 +333,91 @@ class ChromaVectorStore(VectorStore):
                         metadata=collection_metadata
                     )
                     logger.info(f"Created new collection: {self.collection_name}")
+                    return []
                 except Exception as recreate_error:
                     logger.error(f"Failed to recreate collection: {recreate_error}")
                     return []
 
-            # Get all data from collection
-            result = self.collection.get(
-                include=['embeddings', 'metadatas']
-            )
+            # Get all IDs first, then fetch data in batches to avoid issues
+            try:
+                all_ids_result = self.collection.get(include=[])
+                if not all_ids_result['ids']:
+                    return []
 
-            if result['embeddings'] is None:
-                return []
+                all_ids = all_ids_result['ids']
+                logger.info(f"Found {len(all_ids)} document IDs")
 
-            # Check for empty embeddings list which might be returned as None or empty list
-            # Use explicit length check to avoid numpy ambiguity
-            if len(result['embeddings']) == 0:
-                return []
+                # Fetch data in smaller batches to avoid potential issues
+                batch_size = 50
+                all_data = []
 
+                for i in range(0, len(all_ids), batch_size):
+                    batch_ids = all_ids[i:i + batch_size]
+                    try:
+                        batch_result = self.collection.get(
+                            ids=batch_ids,
+                            include=['embeddings', 'metadatas']
+                        )
 
-            all_data = []
-            for i, (doc_id, embedding, metadata) in enumerate(zip(
-                result['ids'],
-                result['embeddings'],
-                result['metadatas']
-            )):
-                # Ensure metadata is a dictionary
-                meta = metadata if metadata else {}
+                        for j, (doc_id, embedding, metadata) in enumerate(zip(
+                            batch_result['ids'],
+                            batch_result['embeddings'],
+                            batch_result['metadatas']
+                        )):
+                            # Ensure metadata is a dictionary
+                            meta = metadata if metadata else {}
 
-                # Add ID to metadata if not present
-                if 'id' not in meta:
-                    meta['id'] = doc_id
+                            # Add ID to metadata if not present
+                            if 'id' not in meta:
+                                meta['id'] = doc_id
 
-                all_data.append({
-                    'id': doc_id,
-                    'embedding': embedding,
-                    'metadata': meta
-                })
+                            all_data.append({
+                                'id': doc_id,
+                                'embedding': embedding,
+                                'metadata': meta
+                            })
 
-            return all_data
+                    except Exception as batch_error:
+                        logger.warning(f"Error fetching batch {i//batch_size}: {batch_error}")
+                        continue
+
+                logger.info(f"Successfully retrieved {len(all_data)} embeddings")
+                return all_data
+
+            except Exception as ids_error:
+                logger.error(f"Error getting IDs from ChromaDB: {ids_error}")
+                # Fallback: try the original method but with better error handling
+                try:
+                    result = self.collection.get(include=['embeddings', 'metadatas'])
+                    if not result['ids']:
+                        return []
+
+                    all_data = []
+                    for i, (doc_id, embedding, metadata) in enumerate(zip(
+                        result['ids'],
+                        result['embeddings'],
+                        result['metadatas']
+                    )):
+                        meta = metadata if metadata else {}
+                        if 'id' not in meta:
+                            meta['id'] = doc_id
+
+                        all_data.append({
+                            'id': doc_id,
+                            'embedding': embedding,
+                            'metadata': meta
+                        })
+
+                    return all_data
+
+                except Exception as fallback_error:
+                    logger.error(f"Fallback method also failed: {fallback_error}")
+                    return []
 
         except Exception as e:
             logger.error(f"Error getting all embeddings from ChromaDB: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
 
     def count(self) -> int:
