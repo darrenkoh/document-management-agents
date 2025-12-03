@@ -132,6 +132,15 @@ class Classifier:
             # Extract category and sub-categories from response field
             category, sub_categories = self._extract_category_and_subcategories(raw_response)
 
+            # If no category found in response field and thinking field exists,
+            # try extracting from thinking field (for reasoning models like deepseek-r1)
+            if category == "uncategorized" and thinking:
+                thinking_category, thinking_sub_categories = self._extract_category_and_subcategories(thinking)
+                if thinking_category != "uncategorized":
+                    category, sub_categories = thinking_category, thinking_sub_categories
+                    if verbose:
+                        logger.info(f"Found structured output in thinking field: '{category}', sub-categories: {sub_categories}")
+
             if verbose:
                 logger.info(f"Extracted category: '{category}', sub-categories: {sub_categories} (from raw response: '{raw_response}')")
 

@@ -206,6 +206,28 @@ class ChromaVectorStore(VectorStore):
                       threshold: float = -1.0) -> List[Tuple[str, float, Dict[str, Any]]]:
         """Search for similar embeddings in ChromaDB."""
         try:
+            # Ensure the collection exists and is accessible
+            try:
+                # Try to access the collection to make sure it exists
+                self.collection.count()
+            except Exception as e:
+                logger.warning(f"Collection not accessible, attempting to reconnect: {e}")
+                try:
+                    # Try to get the collection again
+                    self.collection = self.client.get_collection(name=self.collection_name)
+                    logger.info(f"Reconnected to existing collection: {self.collection_name}")
+                except NotFoundError:
+                    # Create collection if it doesn't exist
+                    collection_metadata = {"hnsw:space": self.distance_metric}
+                    self.collection = self.client.create_collection(
+                        name=self.collection_name,
+                        metadata=collection_metadata
+                    )
+                    logger.info(f"Created new collection during search: {self.collection_name}")
+                except Exception as reconnect_error:
+                    logger.error(f"Failed to reconnect to collection: {reconnect_error}")
+                    return []
+
             # Normalize query embedding
             import numpy as np
             query_array = np.array(query_embedding)

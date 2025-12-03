@@ -9,7 +9,7 @@
 source_paths:
 #  - "/Volumes/1TB/Private"
 #  - "/Volumes/Documents/Private"
-  - "/Volumes/Documents/Private/t"
+  - "/Volumes/Documents/Private"
   
 
 # File extensions to process (REQUIRED - only files with these extensions will be processed)
@@ -53,7 +53,7 @@ ollama:
   # Timeout in seconds for API calls
   timeout: 300
   # Maximum number of tokens to predict (higher for reasoning models)
-  num_predict: 6000
+  num_predict: 12000
   # Embedding model for semantic search (default: qwen3-embedding:8b)
   embedding_model: "qwen3-embedding:8b"
   # Summarizer model for document summaries (default: deepseek-r1:8b)
@@ -124,7 +124,7 @@ prompt_template: |
 
   First, classify this document into ONE main category from the list above. Then, if the document would benefit from additional context beyond the main category (especially if the main category is "Other"), suggest up to 3 specific sub-categories that describe the document's content more precisely. The sub-category word should not be longer than 2 words.
 
-  IMPORTANT: After your analysis, provide ONLY your final answer in this exact format in the response field (not in thinking):
+  IMPORTANT: After your analysis, provide your final answer in this exact format:
   MAIN: [main category]
   SUB: [sub-category1, sub-category2, sub-category3] (or leave empty if no sub-categories needed)
 
