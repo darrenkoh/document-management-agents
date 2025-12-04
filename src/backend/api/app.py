@@ -236,7 +236,9 @@ def api_search():
         return jsonify({'error': 'Query is required'}), 400
 
     try:
-        results = agent.search(query, top_k=50)
+        # Use config default for top_k instead of hardcoded 50
+        top_k = config.semantic_search_top_k
+        results = agent.search(query, top_k=top_k)
         return jsonify({
             'query': query,
             'results': results,
@@ -276,7 +278,9 @@ def api_search_stream():
             """Background thread that performs the search"""
             try:
                 app.logger.info(f"Starting search for query: {query}")
-                results = agent.search(query, top_k=50, progress_callback=progress_callback)
+                # Use config default for top_k instead of hardcoded 50
+                top_k = config.semantic_search_top_k
+                results = agent.search(query, top_k=top_k, progress_callback=progress_callback)
                 search_results['data'] = results
                 app.logger.info(f"Search completed with {len(results)} results")
             except Exception as e:
@@ -373,7 +377,9 @@ def api_search_answer():
                 citations = None
                 
                 # Use agent.answer_question which yields (chunk, citations) tuples
-                for chunk, chunk_citations in agent.answer_question(query, top_k=10, progress_callback=progress_callback):
+                # Use config default for top_k instead of hardcoded 10
+                top_k = config.semantic_search_top_k
+                for chunk, chunk_citations in agent.answer_question(query, top_k=top_k, progress_callback=progress_callback):
                     if chunk_citations is not None:
                         # Final chunk with citations
                         answer_text = chunk
@@ -472,7 +478,9 @@ def debug_search():
 
     # Test semantic search with a simple query
     try:
-        semantic_results = agent.search('test', top_k=10)
+        # Use config default for top_k instead of hardcoded 10
+        top_k = config.semantic_search_top_k
+        semantic_results = agent.search('test', top_k=top_k)
         semantic_count = len(semantic_results)
     except Exception as e:
         semantic_results = []
