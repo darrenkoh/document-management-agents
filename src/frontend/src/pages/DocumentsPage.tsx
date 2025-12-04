@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StreamingLogs, useStreamingLogs } from '@/components/ui/StreamingLogs';
 import { DocumentSearchAndQuestion } from '@/components/DocumentSearchAndQuestion';
+import { AnswerSection } from '@/components/AnswerSection';
 import { Document, DocumentsResponse, AnswerCitation, AnswerStreamEvent } from '@/types';
 import { apiClient, getFileIcon, formatFileSize, cleanContentPreview } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -278,7 +279,7 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      {/* Combined Search and Question Component */}
+      {/* Search Component */}
       <DocumentSearchAndQuestion
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
@@ -292,7 +293,10 @@ export default function DocumentsPage() {
         showClearFilters={!!hasActiveFilters}
         onClearFilters={clearFilters}
         isSemanticSearch={isSemanticSearch}
-        showQuestionAnswering={true}
+      />
+
+      {/* Question Answering Section */}
+      <AnswerSection
         questionQuery={questionQuery}
         onQuestionQueryChange={setQuestionQuery}
         answer={answer}

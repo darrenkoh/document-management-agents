@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StreamingLogs, useStreamingLogs, StreamingLogMessage } from '@/components/ui/StreamingLogs';
 import { DocumentSearchAndQuestion } from '@/components/DocumentSearchAndQuestion';
+import { AnswerSection } from '@/components/AnswerSection';
 import { Document, SearchResult, AnswerCitation, AnswerStreamEvent } from '@/types';
 import { apiClient, getFileIcon, formatFileSize, cleanContentPreview } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -115,7 +116,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-5">
-      {/* Combined Search and Question Component */}
+      {/* Search Component */}
       <div className="max-w-4xl mx-auto">
         <DocumentSearchAndQuestion
           searchQuery={query}
@@ -126,7 +127,12 @@ export default function HomePage() {
           searchPlaceholder="Search documents, categories, or content..."
           showClearFilters={false}
           isSemanticSearch={false}
-          showQuestionAnswering={true}
+        />
+      </div>
+
+      {/* Question Answering Section */}
+      <div className="max-w-4xl mx-auto">
+        <AnswerSection
           questionQuery={questionQuery}
           onQuestionQueryChange={setQuestionQuery}
           answer={answer}
