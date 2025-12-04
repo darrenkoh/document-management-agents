@@ -168,6 +168,7 @@ export interface EmbeddingPoint {
   z: number;
   filename: string;
   categories: string;
+  sub_categories?: string[];
   metadata: DocumentMetadata;
 }
 

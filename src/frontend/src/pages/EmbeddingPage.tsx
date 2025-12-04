@@ -4,14 +4,17 @@ import { apiClient } from '@/lib/api';
 import { EmbeddingPoint } from '@/types';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Card } from '@/components/ui/Card';
-import { RefreshCw, Database, Info } from 'lucide-react';
+import { RefreshCw, Database, Info, Layers, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+
+type ViewMode = 'category' | 'subcategory';
 
 export const EmbeddingPage: React.FC = () => {
   const [points, setPoints] = useState<EmbeddingPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [explainedVariance, setExplainedVariance] = useState<number[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('category');
 
   // Fetch embeddings
   const fetchEmbeddings = async () => {
@@ -38,40 +41,51 @@ export const EmbeddingPage: React.FC = () => {
     fetchEmbeddings();
   }, []);
 
-  // Group points by category for coloring
+  // Group points by category or sub-category for coloring
   const plotData = useMemo(() => {
     const groupedPoints: Record<string, { x: number[], y: number[], z: number[], text: string[], ids: number[] }> = {};
     
     points.forEach(point => {
-      const category = point.categories || 'Uncategorized';
-      // Split hyphenated categories and take the first one for primary coloring
-      const primaryCategory = category.split('-')[0].trim();
+      const subCategories = point.sub_categories || [];
+      const subCategoriesDisplay = subCategories.length > 0 ? subCategories.join(', ') : 'None';
       
-      if (!groupedPoints[primaryCategory]) {
-        groupedPoints[primaryCategory] = { x: [], y: [], z: [], text: [], ids: [] };
+      // Determine grouping key based on view mode
+      let groupKey: string;
+      if (viewMode === 'subcategory') {
+        // Use first sub-category for grouping, or 'Uncategorized' if none
+        groupKey = subCategories.length > 0 ? subCategories[0] : 'Uncategorized';
+      } else {
+        // Use primary category (first part of hyphenated categories)
+        const category = point.categories || 'Uncategorized';
+        groupKey = category.split('-')[0].trim();
       }
       
-      groupedPoints[primaryCategory].x.push(point.x);
-      groupedPoints[primaryCategory].y.push(point.y);
-      groupedPoints[primaryCategory].z.push(point.z);
+      if (!groupedPoints[groupKey]) {
+        groupedPoints[groupKey] = { x: [], y: [], z: [], text: [], ids: [] };
+      }
       
-      // Hover text
+      groupedPoints[groupKey].x.push(point.x);
+      groupedPoints[groupKey].y.push(point.y);
+      groupedPoints[groupKey].z.push(point.z);
+      
+      // Hover text - always show both categories and sub-categories
       const hoverText = `
         <b>File:</b> ${point.filename}<br>
-        <b>Categories:</b> ${point.categories}<br>
+        <b>Category:</b> ${point.categories}<br>
+        <b>Sub-categories:</b> ${subCategoriesDisplay}<br>
         <b>ID:</b> ${point.id}
       `;
-      groupedPoints[primaryCategory].text.push(hoverText);
-      groupedPoints[primaryCategory].ids.push(point.id);
+      groupedPoints[groupKey].text.push(hoverText);
+      groupedPoints[groupKey].ids.push(point.id);
     });
 
-    return Object.entries(groupedPoints).map(([category, data]) => ({
+    return Object.entries(groupedPoints).map(([groupName, data]) => ({
       x: data.x,
       y: data.y,
       z: data.z,
       mode: 'markers' as const,
       type: 'scatter3d' as const,
-      name: category,
+      name: groupName,
       text: data.text,
       hoverinfo: 'text' as const,
       marker: {
@@ -79,7 +93,7 @@ export const EmbeddingPage: React.FC = () => {
         opacity: 0.8,
       }
     }));
-  }, [points]);
+  }, [points, viewMode]);
 
   if (loading) {
     return (
@@ -126,6 +140,31 @@ export const EmbeddingPage: React.FC = () => {
         <div className="flex items-center space-x-3">
            <div className="text-sm text-gray-500 mr-4">
              {points.length} Documents
+           </div>
+           {/* View Mode Toggle */}
+           <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+             <button
+               onClick={() => setViewMode('category')}
+               className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                 viewMode === 'category'
+                   ? 'bg-white text-gray-900 shadow-sm'
+                   : 'text-gray-500 hover:text-gray-700'
+               }`}
+             >
+               <Layers className="mr-1.5 h-4 w-4" />
+               Category
+             </button>
+             <button
+               onClick={() => setViewMode('subcategory')}
+               className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                 viewMode === 'subcategory'
+                   ? 'bg-white text-gray-900 shadow-sm'
+                   : 'text-gray-500 hover:text-gray-700'
+               }`}
+             >
+               <Tag className="mr-1.5 h-4 w-4" />
+               Sub-category
+             </button>
            </div>
            <Button onClick={fetchEmbeddings} variant="outline" size="sm">
             <RefreshCw className="mr-2 h-4 w-4" />

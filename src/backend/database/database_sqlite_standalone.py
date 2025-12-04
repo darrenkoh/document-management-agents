@@ -325,12 +325,22 @@ class SQLiteDocumentDatabase:
             all_metadata = []
             all_ids = []
 
+            # Get sub_categories (stored as JSON string in DB, parse to list)
+            sub_categories = doc.get('sub_categories', [])
+            if isinstance(sub_categories, str):
+                import json
+                try:
+                    sub_categories = json.loads(sub_categories) if sub_categories else []
+                except json.JSONDecodeError:
+                    sub_categories = []
+
             # Add chunk embeddings
             for i, chunk_emb in enumerate(chunk_embeddings):
                 chunk_metadata = {
                     'file_path': doc['file_path'],
                     'filename': doc['filename'],
                     'categories': doc['categories'],
+                    'sub_categories': sub_categories,
                     'content_preview': doc['content_preview'],
                     'file_hash': doc['file_hash'],
                     'embedding_type': 'chunk',
@@ -347,6 +357,7 @@ class SQLiteDocumentDatabase:
                     'file_path': doc['file_path'],
                     'filename': doc['filename'],
                     'categories': doc['categories'],
+                    'sub_categories': sub_categories,
                     'content_preview': doc['content_preview'],
                     'file_hash': doc['file_hash'],
                     'embedding_type': 'summary',

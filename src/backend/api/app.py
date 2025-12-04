@@ -723,6 +723,15 @@ def api_get_embeddings():
             z = float(coords[2]) if len(coords) > 2 else 0.0
             
             meta = metadata_list[i]
+            # Get sub_categories from metadata (may be a list or string representation)
+            sub_categories = meta.get('sub_categories', [])
+            if isinstance(sub_categories, str):
+                import json
+                try:
+                    sub_categories = json.loads(sub_categories) if sub_categories else []
+                except (json.JSONDecodeError, TypeError):
+                    sub_categories = []
+            
             points.append({
                 'id': ids[i],
                 'x': x,
@@ -730,6 +739,7 @@ def api_get_embeddings():
                 'z': z,
                 'filename': meta.get('filename', 'Unknown'),
                 'categories': meta.get('categories', 'Unknown'),
+                'sub_categories': sub_categories,
                 'metadata': meta
             })
             
