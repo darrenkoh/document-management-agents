@@ -47,7 +47,13 @@ class DocumentAgent:
             chandra_max_retries=config.chandra_max_retries,
             chandra_retry_base_delay=config.chandra_retry_base_delay,
             chandra_frequency_penalty=config.chandra_frequency_penalty,
-            chandra_detect_repeat_tokens=config.chandra_detect_repeat_tokens
+            chandra_detect_repeat_tokens=config.chandra_detect_repeat_tokens,
+            hunyuan_endpoint=config.hunyuan_endpoint,
+            hunyuan_model=config.hunyuan_model,
+            hunyuan_timeout=config.hunyuan_timeout,
+            hunyuan_max_tokens=config.hunyuan_max_tokens,
+            hunyuan_max_retries=config.hunyuan_max_retries,
+            hunyuan_retry_base_delay=config.hunyuan_retry_base_delay
         )
         # Initialize vector store (required for embeddings)
         try:

@@ -204,12 +204,15 @@ class Config:
 
     @property
     def ocr_provider(self) -> str:
-        """Get the OCR provider ('ollama' or 'chandra')."""
+        """Get the OCR provider ('ollama', 'chandra', or 'hunyuan')."""
         ollama_config = self._config.get('ollama', {})
         ocr_model = ollama_config.get('ocr_model', 'deepseek-ocr:3b')
         # If ocr_model is 'chandra', use chandra provider
         if ocr_model == 'chandra':
             return 'chandra'
+        # If ocr_model is 'hunyuan', use hunyuan provider
+        if ocr_model == 'hunyuan':
+            return 'hunyuan'
         # Otherwise, assume ollama
         return 'ollama'
 
@@ -262,6 +265,44 @@ class Config:
         """Get whether to detect and retry on repetitive OCR output for Chandra."""
         chandra_config = self._config.get('chandra', {})
         return chandra_config.get('detect_repeat_tokens', True)
+
+    @property
+    def hunyuan_endpoint(self) -> str:
+        """Get the HunyuanOCR vLLM API endpoint."""
+        hunyuan_config = self._config.get('hunyuan', {})
+        return hunyuan_config.get('endpoint', 'http://localhost:11434')
+
+    @property
+    def hunyuan_model(self) -> str:
+        """Get the HunyuanOCR model name."""
+        hunyuan_config = self._config.get('hunyuan', {})
+        return hunyuan_config.get('model', 'tencent/HunyuanOCR')
+
+    @property
+    def hunyuan_timeout(self) -> int:
+        """Get the HunyuanOCR timeout in seconds."""
+        hunyuan_config = self._config.get('hunyuan', {})
+        return hunyuan_config.get('timeout', 1800)
+
+    @property
+    def hunyuan_max_tokens(self) -> int:
+        """Get the maximum tokens for HunyuanOCR."""
+        hunyuan_config = self._config.get('hunyuan', {})
+        return hunyuan_config.get('max_tokens', 16384)
+
+    @property
+    def hunyuan_max_retries(self) -> int:
+        """Get the maximum number of retry attempts for HunyuanOCR API calls."""
+        hunyuan_config = self._config.get('hunyuan', {})
+        retry_config = hunyuan_config.get('retry', {})
+        return retry_config.get('max_retries', 3)
+
+    @property
+    def hunyuan_retry_base_delay(self) -> float:
+        """Get the base delay in seconds between HunyuanOCR retry attempts."""
+        hunyuan_config = self._config.get('hunyuan', {})
+        retry_config = hunyuan_config.get('retry', {})
+        return retry_config.get('base_delay', 1.0)
 
     @property
     def vector_store_type(self) -> str:

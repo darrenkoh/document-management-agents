@@ -59,8 +59,8 @@ ollama:
   # Summarizer model for document summaries (default: deepseek-r1:8b)
   summarizer_model: "deepseek-r1:8b"
   # OCR model for fallback text extraction from images/PDFs
-  # Set to 'chandra' to use Chandra OCR via vLLM (port 11435), or 'deepseek-ocr:3b' for Ollama (port 11434)
-  ocr_model: "deepseek-ocr:3b"
+  # Set to 'chandra' to use Chandra OCR via vLLM (port 11435), 'hunyuan' to use HunyuanOCR via vLLM (port 11434), or 'deepseek-ocr:3b' for Ollama (port 11434)
+  ocr_model: "hunyuan"
   # Timeout for OCR operations (can be longer than regular models)
   ocr_timeout: 300
   # Retry configuration for failed LLM API calls
@@ -90,6 +90,23 @@ chandra:
   frequency_penalty: 0.0
   # Whether to detect and retry on repetitive OCR output
   detect_repeat_tokens: false
+
+# HunyuanOCR configuration (vLLM-based)
+hunyuan:
+  # vLLM API endpoint for HunyuanOCR (default: http://localhost:11434)
+  endpoint: "http://spark-7819.local:11435"
+  # Model name for HunyuanOCR in vLLM (default: tencent/HunyuanOCR)
+  model: "tencent/HunyuanOCR"
+  # Timeout for HunyuanOCR operations in seconds
+  timeout: 1800
+  # Maximum output tokens for HunyuanOCR
+  max_tokens: 16384
+  # Retry configuration for failed HunyuanOCR API calls
+  retry:
+    # Maximum number of retry attempts for failed API calls
+    max_retries: 3
+    # Delay in seconds between retry attempts (exponential backoff)
+    base_delay: 1.0
 
 # Optional: Predefined classification categories
 # If empty, the agent will auto-detect categories

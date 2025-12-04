@@ -41,7 +41,10 @@ class FileHandler:
                  chandra_model: str = "chandra", chandra_timeout: int = 300,
                  chandra_max_tokens: int = 8192, chandra_max_retries: int = 3,
                  chandra_retry_base_delay: float = 1.0, chandra_frequency_penalty: float = 0.02,
-                 chandra_detect_repeat_tokens: bool = True):
+                 chandra_detect_repeat_tokens: bool = True, hunyuan_endpoint: str = "http://localhost:11434",
+                 hunyuan_model: str = "tencent/HunyuanOCR", hunyuan_timeout: int = 1800,
+                 hunyuan_max_tokens: int = 16384, hunyuan_max_retries: int = 3,
+                 hunyuan_retry_base_delay: float = 1.0):
         """Initialize file handler.
 
         Args:
@@ -51,7 +54,7 @@ class FileHandler:
             ocr_timeout: Timeout for OCR operations in seconds
             max_retries: Maximum number of retry attempts for failed API calls
             retry_base_delay: Base delay in seconds between retry attempts
-            ocr_provider: OCR provider ('ollama' or 'chandra')
+            ocr_provider: OCR provider ('ollama', 'chandra', or 'hunyuan')
             chandra_endpoint: Chandra vLLM API endpoint
             chandra_model: Chandra model name
             chandra_timeout: Timeout for Chandra OCR operations
@@ -60,6 +63,12 @@ class FileHandler:
             chandra_retry_base_delay: Base delay for Chandra OCR retries
             chandra_frequency_penalty: Frequency penalty to reduce repetition in generated text
             chandra_detect_repeat_tokens: Whether to detect and retry on repetitive OCR output
+            hunyuan_endpoint: HunyuanOCR vLLM API endpoint
+            hunyuan_model: HunyuanOCR model name
+            hunyuan_timeout: Timeout for HunyuanOCR operations
+            hunyuan_max_tokens: Maximum tokens for HunyuanOCR
+            hunyuan_max_retries: Maximum retries for HunyuanOCR
+            hunyuan_retry_base_delay: Base delay for HunyuanOCR retries
         """
         self.source_paths = [Path(path) for path in source_paths]
         self.ollama_endpoint = ollama_endpoint
@@ -79,14 +88,29 @@ class FileHandler:
         self.chandra_frequency_penalty = chandra_frequency_penalty
         self.chandra_detect_repeat_tokens = chandra_detect_repeat_tokens
 
+        # HunyuanOCR configuration
+        self.hunyuan_endpoint = hunyuan_endpoint
+        self.hunyuan_model = hunyuan_model
+        self.hunyuan_timeout = hunyuan_timeout
+        self.hunyuan_max_tokens = hunyuan_max_tokens
+        self.hunyuan_max_retries = hunyuan_max_retries
+        self.hunyuan_retry_base_delay = hunyuan_retry_base_delay
+
         # Initialize OCR clients
         self.ollama_ocr_client = ollama.Client(host=ollama_endpoint, timeout=ocr_timeout)
         self.chandra_ocr_client = None
-        if HAS_OPENAI and ocr_provider == "chandra":
-            self.chandra_ocr_client = OpenAI(
-                base_url=chandra_endpoint + "/v1",
-                api_key="dummy"  # vLLM doesn't require a real API key
-            )
+        self.hunyuan_ocr_client = None
+        if HAS_OPENAI:
+            if ocr_provider == "chandra":
+                self.chandra_ocr_client = OpenAI(
+                    base_url=chandra_endpoint + "/v1",
+                    api_key="dummy"  # vLLM doesn't require a real API key
+                )
+            elif ocr_provider == "hunyuan":
+                self.hunyuan_ocr_client = OpenAI(
+                    base_url=hunyuan_endpoint + "/v1",
+                    api_key="dummy"  # vLLM doesn't require a real API key
+                )
 
         self.ocr_available = self._check_ocr_availability()
 
@@ -185,10 +209,55 @@ class FileHandler:
 
         return result
 
+    def _call_hunyuan_ocr_generate(self, prompt: str, images: Optional[List[str]] = None, max_tokens: int = 16384) -> dict:
+        """Make HunyuanOCR LLM generate call with retry logic."""
+        if not HAS_OPENAI or not self.hunyuan_ocr_client:
+            raise Exception("OpenAI client not available for HunyuanOCR")
+
+        def _generate() -> dict:
+            """Generate with HunyuanOCR Document Parsing prompt."""
+            content = []
+
+            # Add image first
+            if images:
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{images[0]}"}
+                })
+
+            # Add text prompt after image - using HunyuanOCR Document Parsing prompt
+            content.append({"type": "text", "text": prompt})
+
+            messages = [{"role": "user", "content": content}]
+
+            response = self.hunyuan_ocr_client.chat.completions.create(
+                model=self.hunyuan_model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=0.0  # Deterministic output for OCR
+            )
+
+            # Convert OpenAI response format to Ollama format for compatibility
+            return {
+                'response': response.choices[0].message.content,
+                'done': True
+            }
+
+        # Retry logic for HunyuanOCR
+        @retry_on_llm_failure(max_retries=self.hunyuan_max_retries,
+                             base_delay=self.hunyuan_retry_base_delay,
+                             exceptions=(Exception,))
+        def _generate_with_retry():
+            return _generate()
+
+        return _generate_with_retry()
+
     def _check_ocr_availability(self) -> bool:
         """Check if OCR is available and accessible."""
         if self.ocr_provider == "chandra":
             return self._check_chandra_availability()
+        elif self.ocr_provider == "hunyuan":
+            return self._check_hunyuan_availability()
         else:
             return self._check_ollama_availability()
 
@@ -226,6 +295,26 @@ class FileHandler:
             return False
         except Exception as e:
             logger.warning(f"Chandra OCR not available at {self.chandra_endpoint}: {e}")
+            return False
+
+    def _check_hunyuan_availability(self) -> bool:
+        """Check if HunyuanOCR is available and accessible."""
+        if not HAS_OPENAI:
+            logger.warning("OpenAI library not available for HunyuanOCR")
+            return False
+
+        try:
+            # Try a simple test call to check availability
+            self._call_hunyuan_ocr_generate(
+                prompt="test",
+                max_tokens=1  # Minimal response
+            )
+            return True
+        except RetryError as e:
+            logger.warning(f"HunyuanOCR not available at {self.hunyuan_endpoint} after retries: {e.last_exception}")
+            return False
+        except Exception as e:
+            logger.warning(f"HunyuanOCR not available at {self.hunyuan_endpoint}: {e}")
             return False
     
     def _is_included(self, file_path: Path, allowed_extensions: Optional[List[str]] = None) -> bool:
@@ -301,7 +390,7 @@ class FileHandler:
 
                 if should_use_ocr:
                     if self.ocr_available:
-                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
                         reason = "no content" if not text else "minimal content" if len(text.strip()) < 50 else "garbage text detected"
                         logger.info(f"PDF text extraction returned {reason}, trying {ocr_provider_name}-OCR for {file_path}")
                         ocr_result = self._extract_text_with_ocr(file_path)
@@ -313,7 +402,7 @@ class FileHandler:
                             logger.warning(f"{ocr_provider_name}-OCR failed, using extracted text (may be garbage)")
                             return (text, 0.0, False)
                     else:
-                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
                         logger.warning(f"{ocr_provider_name}-OCR not available, using potentially garbage text from {file_path}")
                         return (text, 0.0, False)
                 return (text, 0.0, False)
@@ -322,7 +411,7 @@ class FileHandler:
                 # If DOCX text extraction returns minimal content, try OCR as fallback
                 if not text or len(text.strip()) < 50:  # Threshold for "empty" content
                     if self.ocr_available:
-                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
                         logger.info(f"DOCX text extraction returned minimal content, trying {ocr_provider_name}-OCR for {file_path}")
                         ocr_result = self._extract_text_with_ocr(file_path)
                         if ocr_result:
@@ -332,7 +421,7 @@ class FileHandler:
                         else:
                             return (text, 0.0, False)
                     else:
-                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
                         logger.warning(f"{ocr_provider_name}-OCR not available, skipping OCR fallback for {file_path}")
                         return (text, 0.0, False)
                 return (text, 0.0, False)
@@ -349,7 +438,7 @@ class FileHandler:
                         logger.info(f"Skipping image {file_path} - no meaningful text content found")
                         return (None, ocr_duration, True)
                 else:
-                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
                     logger.warning(f"{ocr_provider_name}-OCR not available, skipping image {file_path}")
                     return (None, 0.0, False)
             else:
@@ -459,15 +548,15 @@ class FileHandler:
                 # Check for meaningful content (not just whitespace or markdown boilerplate)
                 stripped_text = text.strip() if text else ""
                 if self._has_meaningful_content(stripped_text):
-                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
                     logger.info(f"{ocr_provider_name}-OCR successfully extracted {len(stripped_text)} characters of meaningful content from {file_path}")
                     return (text, duration)
                 else:
-                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
                     logger.info(f"{ocr_provider_name}-OCR found no meaningful text content in image {file_path} (likely a photo, chart, or empty image). Extracted: '{stripped_text[:100]}{'...' if len(stripped_text) > 100 else ''}'")
                     return (None, duration)
             else:
-                ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+                ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
                 logger.warning(f"{ocr_provider_name}-OCR processing failed for {file_path}")
                 return (None, 0.0)
         except Exception as e:
@@ -652,7 +741,7 @@ class FileHandler:
         """
         try:
             suffix = file_path.suffix.lower()
-            ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+            ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
 
             if suffix == '.pdf':
                 # Convert PDF to images first
@@ -695,7 +784,7 @@ class FileHandler:
                 return None
 
         except Exception as e:
-            ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "DeepSeek"
+            ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
             logger.error(f"{ocr_provider_name} OCR failed for {file_path}: {e}")
             return None
 
@@ -710,6 +799,8 @@ class FileHandler:
         """
         if self.ocr_provider == "chandra":
             return self._ocr_image_with_chandra(image)
+        elif self.ocr_provider == "hunyuan":
+            return self._ocr_image_with_hunyuan(image)
         else:
             return self._ocr_image_with_deepseek(image)
 
@@ -804,6 +895,51 @@ class FileHandler:
                 logger.warning(f"Chandra OCR unavailable: Cannot connect to vLLM at {self.chandra_endpoint}. OCR fallback disabled.")
             else:
                 logger.error(f"Chandra OCR failed: {e}")
+            return None
+
+    def _ocr_image_with_hunyuan(self, image: Image.Image) -> Optional[tuple[str, float]]:
+        """Perform OCR on a single image using HunyuanOCR.
+
+        Args:
+            image: PIL Image object
+
+        Returns:
+            Tuple of (extracted text, duration in seconds) or None if failed
+        """
+        try:
+            # Convert image to base64 string
+            import io
+            buffer = io.BytesIO()
+            image.save(buffer, format='PNG')
+            image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+            # Call HunyuanOCR with timing and retry logic
+            # Using HunyuanOCR Document Parsing prompt
+            start_time = time.time()
+            response = self._call_hunyuan_ocr_generate(
+                prompt="Extract all information from the main body of the document image and represent it in markdown format, ignoring headers and footers. Tables should be expressed in HTML format, formulas in the document should be represented using LaTeX format, and the parsing should be organized according to the reading order.",
+                images=[image_data],  # Base64 image data
+                max_tokens=self.hunyuan_max_tokens
+            )
+            ocr_duration = time.time() - start_time
+
+            extracted_text = response.get('response', '').strip()
+            if extracted_text:
+                logger.info(f"HunyuanOCR extracted text: {extracted_text[:100]}...")
+                return (extracted_text, ocr_duration)
+            else:
+                logger.info(f"HunyuanOCR returned empty response. Full response: {response}")
+                return None
+
+        except RetryError as e:
+            logger.error(f"HunyuanOCR failed after retries: {e.last_exception}")
+            return None
+        except Exception as e:
+            # Log connection issues but don't spam the logs for each image
+            if "No route to host" in str(e) or "Connection refused" in str(e):
+                logger.warning(f"HunyuanOCR unavailable: Cannot connect to vLLM at {self.hunyuan_endpoint}. OCR fallback disabled.")
+            else:
+                logger.error(f"HunyuanOCR failed: {e}")
             return None
 
     def generate_file_hash(self, file_path: Path) -> Optional[tuple[str, float]]:
