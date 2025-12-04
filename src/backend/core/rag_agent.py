@@ -207,31 +207,51 @@ class RAGAgent:
         if len(content_preview) > 2000:
             content_preview = content_preview[:2000] + "..."
 
-        prompt = f"""You are an expert document analyst. Analyze whether this document is relevant to the search query.
+        prompt = f"""You are an expert document search analyst. Your job is to carefully evaluate whether a document is relevant to the user’s search query and assign an accurate relevance score.
 
 SEARCH QUERY: "{query}"
 
 DOCUMENT INFORMATION:
 - Filename: {filename}
 - Categories: {categories}
-- Similarity Score: {similarity:.3f}
-- Content Preview:
+- Embedding Similarity Score: {similarity:.3f} (for context only; do not copy this as the final score)
+- Content Preview (most relevant excerpt):
 {content_preview}
 
 TASK:
-1. Determine if this document is relevant to the search query
-2. Provide a relevance score from 0.0 to 1.0 (where 1.0 is highly relevant, 0.0 is not relevant)
-3. Give brief reasoning for your assessment
+1. Read the query and the document information carefully.
+2. Decide if the document actually helps answer or is directly related to the search query.
+3. Assign a relevance score from 0.0 to 1.0:
+   • 1.0 = Perfect match, exactly what the user is looking for
+   • 0.9 = Extremely relevant, contains the core information needed
+   • 0.7–0.8 = Clearly relevant, useful but not perfect
+   • 0.4–0.6 = Partially relevant or tangentially related
+   • 0.1–0.3 = Only loosely or vaguely related
+   • 0.0 = Completely irrelevant or no connection
+4. Answer with YES only if the score is 0.7 or higher; otherwise answer NO.
 
-RESPONSE FORMAT:
-Score: [0.0-1.0]
-Relevant: [YES/NO]
-Reasoning: [brief explanation]
+REQUIRED OUTPUT FORMAT (exactly, no extra text):
+Score: <0.0–1.0 with one decimal place>
+Relevant: <YES or NO>
+Reasoning: <2–3 short sentences max, explain the match or lack thereof>
 
-Example:
+Examples:
+
+Score: 1.0
+Relevant: YES
+Reasoning: Document is the exact United Airlines flight itinerary for the trip to Japan mentioned in the query.
+
 Score: 0.8
 Relevant: YES
-Reasoning: This document contains flight confirmation details matching the query for travel documents."""
+Reasoning: Contains the 2024 tax return with Schedule C, directly relevant to the query about business income and deductions.
+
+Score: 0.5
+Relevant: NO
+Reasoning: Document is a utility bill from 2022; it mentions an address but does not relate to current rental agreements or moving plans.
+
+Score: 0.0
+Relevant: NO
+Reasoning: This is a grocery receipt; no connection to the query about passport renewal or travel documents."""
 
         return prompt
 
@@ -337,7 +357,7 @@ Reasoning: This document contains flight confirmation details matching the query
             stream = self._call_llm_generate(
                 prompt=prompt,
                 options={
-                    'temperature': 0.7,  # Slightly higher for more natural answers
+                    'temperature': 0.3,  # Slightly higher for more natural answers
                     'num_predict': self.num_predict,
                 },
                 stream=True
@@ -419,6 +439,8 @@ INSTRUCTIONS:
 3. If information is not available in the documents, clearly state "Based on the provided documents, I cannot find information about..."
 4. Provide a well-structured, clear answer
 5. Include specific details and examples from the documents when relevant
+6. At the end of your answer, provide a JSON list of all documents you referenced, in this exact format:
+   CITATIONS: [{{"document_number": 1, "reason": "brief reason for citation"}}, {{"document_number": 2, "reason": "brief reason for citation"}}]
 
 ANSWER:"""
 
@@ -437,14 +459,34 @@ ANSWER:"""
         citations = []
         cited_indices = set()
 
-        # Find all [Document N] references in the answer
-        citation_pattern = r'\[Document\s+(\d+)\]'
-        matches = re.finditer(citation_pattern, answer, re.IGNORECASE)
+        # First, try to extract from structured CITATIONS format at the end
+        try:
+            # Look for CITATIONS: [...] at the end of the answer
+            citations_pattern = r'CITATIONS:\s*\[.*\](?:\s*$)'
+            citations_match = re.search(citations_pattern, answer, re.IGNORECASE | re.DOTALL)
 
-        for match in matches:
-            doc_index = int(match.group(1)) - 1  # Convert to 0-based index
-            if 0 <= doc_index < len(documents):
-                cited_indices.add(doc_index)
+            if citations_match:
+                import json
+                citations_text = citations_match.group(0).replace('CITATIONS:', '').strip()
+                citations_data = json.loads(citations_text)
+
+                for citation_item in citations_data:
+                    if isinstance(citation_item, dict) and 'document_number' in citation_item:
+                        doc_index = citation_item['document_number'] - 1  # Convert to 0-based index
+                        if 0 <= doc_index < len(documents):
+                            cited_indices.add(doc_index)
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.debug(f"Failed to parse structured citations: {e}")
+
+        # Fallback: Find all [Document N] references in the answer (legacy support)
+        if not cited_indices:
+            citation_pattern = r'\[Document\s+(\d+)\]'
+            matches = re.finditer(citation_pattern, answer, re.IGNORECASE)
+
+            for match in matches:
+                doc_index = int(match.group(1)) - 1  # Convert to 0-based index
+                if 0 <= doc_index < len(documents):
+                    cited_indices.add(doc_index)
 
         # Build citation list with document metadata
         for idx in sorted(cited_indices):
