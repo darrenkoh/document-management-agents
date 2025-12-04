@@ -29,6 +29,17 @@ export interface DocumentMetadata {
   page_count?: number;
   creation_date?: string;
   modification_date?: string;
+  performance_metrics?: PerformanceMetrics;
+}
+
+export interface PerformanceMetrics {
+  hash_duration: number;
+  ocr_duration: number;
+  classification_duration: number;
+  embedding_duration: number;
+  db_lookup_duration: number;
+  db_insert_duration: number;
+  total_processing_time: number;
 }
 
 // Search types

@@ -337,11 +337,21 @@ class DocumentAgent:
             # (We'll store all embeddings separately)
             main_embedding = embedding_result['chunks'][0] if embedding_result['chunks'] else embedding_result['summary']
 
-            # Prepare metadata
+            # Prepare metadata including performance metrics
+            total_processing_time = sum(perf_metrics.values())
             metadata = {
                 'file_size': file_path.stat().st_size if file_path.exists() else 0,
                 'file_extension': file_path.suffix,
-                'file_modified': file_path.stat().st_mtime if file_path.exists() else None
+                'file_modified': file_path.stat().st_mtime if file_path.exists() else None,
+                'performance_metrics': {
+                    'hash_duration': perf_metrics['hash_duration'],
+                    'ocr_duration': perf_metrics['ocr_duration'],
+                    'classification_duration': perf_metrics['classification_duration'],
+                    'embedding_duration': perf_metrics['embedding_duration'],
+                    'db_lookup_duration': perf_metrics['db_lookup_duration'],
+                    'db_insert_duration': perf_metrics['db_insert_duration'],
+                    'total_processing_time': total_processing_time
+                }
             }
 
             # Store in database

@@ -60,7 +60,7 @@ ollama:
   summarizer_model: "deepseek-r1:8b"
   # OCR model for fallback text extraction from images/PDFs
   # Set to 'chandra' to use Chandra OCR via vLLM (port 11435), or 'deepseek-ocr:3b' for Ollama (port 11434)
-  ocr_model: "chandra"
+  ocr_model: "deepseek-ocr:3b"
   # Timeout for OCR operations (can be longer than regular models)
   ocr_timeout: 300
   # Retry configuration for failed LLM API calls
@@ -77,7 +77,7 @@ chandra:
   # Model name for Chandra in vLLM (default: chandra)
   model: "chandra"
   # Timeout for Chandra OCR operations in seconds
-  timeout: 300
+  timeout: 1800
   # Maximum output tokens for Chandra OCR
   max_tokens: 16384
   # Retry configuration for failed Chandra API calls
@@ -105,40 +105,56 @@ categories:
 # Use {filename} and {content} as placeholders
 # If not specified, a default prompt will be used
 prompt_template: |
-  Analyze the following document content and classify it into ONE main category and optionally up to 3 sub-categories.
+  You are an expert document classifier. Your task is to analyze the provided filename and document content, then assign exactly ONE main category and (when useful) up to 3 short sub-categories.
 
-  Main categories: Finance, Shopping, Travel, Home, School, Other
+  Available main categories (choose exactly one):
+  - Finance
+  - Shopping
+  - Travel
+  - Home
+  - School
+  - Other
 
-  Classification Rules:
-  - Finance: Documents related to bank statements, investments, 401K, W2 forms, car registration, car insurance, financial statements, tax documents, or any financial transactions
-  - Shopping: Documents related to purchases, receipts, invoices, or buying goods and services
-  - Travel: Documents related to bookings, tickets, itineraries, reservations, or travel plans
-  - Home: Documents related to home improvement, property tax, home loan, home insurance, utility bills, or home maintenance
-  - School: Documents related to education, courses, grades, transcripts, or academic materials
-  - Other: Anything that doesn't fit the above categories
+  Category definitions (strictly follow these):
+  • Finance → bank statements, credit card statements, investments, 401k/IRA, tax forms (W2, 1099, etc.), pay stubs, loan documents, car/home/life insurance policies, financial transactions, invoices you need to pay or have paid for business/personal finances
+  • Shopping → purchase receipts, online order confirmations, invoices for goods/services you bought (non-financial, non-travel), packing slips, return labels
+  • Travel → flight tickets, hotel bookings, car rental confirmations, itineraries, visas, travel insurance, event tickets (concerts, museums, etc. when part of a trip)
+  • Home → mortgage statements, property tax, home insurance, utility bills (electricity, water, internet, etc.), home improvement receipts/contracts, lease agreements, HOA documents
+  • School → report cards, transcripts, class schedules, tuition bills, diplomas, assignment feedback, school-related letters
+  • Other → everything else (medical, legal that isn’t finance/home, personal letters, certificates, etc.)
 
   Filename: {filename}
-
   Content:
   {content}
 
-  First, classify this document into ONE main category from the list above. Then, if the document would benefit from additional context beyond the main category (especially if the main category is "Other"), suggest up to 3 specific sub-categories that describe the document's content more precisely. The sub-category word should not be longer than 2 words.
+  Instructions:
+  1. Read the filename and the full content carefully.
+  2. Choose exactly ONE main category that fits best.
+  3. If the document fits perfectly into Finance, Shopping, Travel, Home, or School and no extra detail is needed, leave sub-categories empty.
+  4. Only add sub-categories when they provide meaningful additional context (especially important when main category is "Other", or when the document is a specific type inside a broad main category).
+  5. Each sub-category must be 1-2 words maximum, lowercase, highly specific, and useful for search/filtering.
+  6. Maximum 3 sub-categories.
 
-  IMPORTANT: After your analysis, provide your final answer in this exact format:
-  MAIN: [main category]
-  SUB: [sub-category1, sub-category2, sub-category3] (or leave empty if no sub-categories needed)
+  Output strictly in this format (nothing else):
+
+  MAIN: <chosen main category>
+  SUB: <sub1>, <sub2>, <sub3>   (or leave blank after SUB: if none)
 
   Examples:
   MAIN: Finance
-  SUB: invoice, tax, quarterly
+  SUB: tax return, 1099, 2024
+
+  MAIN: Shopping
+  SUB: amazon receipt, electronics
 
   MAIN: Other
-  SUB: medical, prescription, pharmacy
+  SUB: medical bill, dental, insurance
 
   MAIN: Travel
-  SUB: (leave empty)
+  SUB:
 
-  Use lowercase for sub-categories and separate with commas.
+  MAIN: Home
+  SUB: utility bill, electricity
 
 # Watch mode settings
 watch:

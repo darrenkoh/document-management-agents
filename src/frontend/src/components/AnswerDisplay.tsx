@@ -4,6 +4,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { AnswerCitation } from '@/types';
 import { MessageSquare, FileText, ExternalLink, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { cleanContentPreview } from '@/lib/api';
 
 interface AnswerDisplayProps {
   answer: string;
@@ -129,7 +130,7 @@ export function AnswerDisplay({ answer, citations, isStreaming, error, question 
                     )}
                     {citation.content_preview && (
                       <p className="text-xs text-primary-600 line-clamp-2">
-                        {citation.content_preview}
+                        {cleanContentPreview(citation.content_preview)}
                       </p>
                     )}
                     {citation.similarity !== undefined && (

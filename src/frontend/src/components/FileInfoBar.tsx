@@ -3,6 +3,15 @@ import { CoolTooltip } from '@/components/ui/CoolTooltip';
 import { formatFileSize } from '@/lib/api';
 import { motion } from 'framer-motion';
 
+// Helper function to format duration in milliseconds
+const formatDuration = (seconds: number): string => {
+  if (seconds === 0) return "0ms";
+  const ms = seconds * 1000;
+  if (ms < 1) return "<1ms";
+  if (ms < 1000) return `${ms.toFixed(0)}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+};
+
 interface FileInfoBarProps {
   document: Document;
 }
@@ -41,6 +50,24 @@ export const FileInfoBar = ({ document }: FileInfoBarProps) => {
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
                   OCR: DeepSeek
                 </span>
+              </div>
+            )}
+
+            {/* Performance Metrics */}
+            {document.metadata.performance_metrics && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Time</span>
+                <CoolTooltip content={`Processing breakdown:
+• Hash: ${formatDuration(document.metadata.performance_metrics.hash_duration)}
+• OCR: ${formatDuration(document.metadata.performance_metrics.ocr_duration)}
+• Classification: ${formatDuration(document.metadata.performance_metrics.classification_duration)}
+• Embeddings: ${formatDuration(document.metadata.performance_metrics.embedding_duration)}
+• DB Lookup: ${formatDuration(document.metadata.performance_metrics.db_lookup_duration)}
+• DB Insert: ${formatDuration(document.metadata.performance_metrics.db_insert_duration)}`}>
+                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold border border-green-200">
+                    {formatDuration(document.metadata.performance_metrics.total_processing_time)}
+                  </span>
+                </CoolTooltip>
               </div>
             )}
           </div>

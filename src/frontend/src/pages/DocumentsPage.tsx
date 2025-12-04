@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Download, Eye, FileText, Trash2, AlertTriangle, ScanText } from 'lucide-react';
+import { Download, Eye, FileText, Trash2, AlertTriangle, ScanText, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StreamingLogs, useStreamingLogs } from '@/components/ui/StreamingLogs';
 import { DocumentSearchAndQuestion } from '@/components/DocumentSearchAndQuestion';
 import { Document, DocumentsResponse, AnswerCitation, AnswerStreamEvent } from '@/types';
-import { apiClient, getFileIcon, formatFileSize } from '@/lib/api';
+import { apiClient, getFileIcon, formatFileSize, cleanContentPreview } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function DocumentsPage() {
@@ -185,6 +185,16 @@ export default function DocumentsPage() {
   const truncateContent = (content: string, length = 80) => {
     if (content.length <= length) return content;
     return content.substring(0, length) + '...';
+  };
+
+  // Helper function to format duration in minutes
+  const formatProcessingTime = (seconds: number): string => {
+    if (!seconds && seconds !== 0) return 'N/A';
+    const totalSeconds = Math.round(seconds);
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const minutes = Math.floor(totalSeconds / 60);
+    const remainingSeconds = totalSeconds % 60;
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
   };
 
   // Selection handlers
@@ -434,6 +444,12 @@ export default function DocumentsPage() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
                       Type
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Processing Time
+                      </div>
+                    </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-primary-600 uppercase tracking-wider">
                       Actions
                     </th>
@@ -477,8 +493,8 @@ export default function DocumentsPage() {
                                 </div>
                               )}
                             </div>
-                            <p className="text-xs text-primary-500 truncate max-w-xs" title={doc.content_preview}>
-                              {truncateContent(doc.content_preview)}
+                            <p className="text-xs text-primary-500 truncate max-w-xs" title={cleanContentPreview(doc.content_preview)}>
+                              {truncateContent(cleanContentPreview(doc.content_preview))}
                             </p>
                           </div>
                         </div>
@@ -523,6 +539,12 @@ export default function DocumentsPage() {
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-700 uppercase">
                           {doc.metadata.file_extension.replace('.', '')}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-primary-600 whitespace-nowrap">
+                        {doc.metadata.performance_metrics ?
+                          formatProcessingTime(doc.metadata.performance_metrics.total_processing_time) :
+                          'N/A'
+                        }
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">

@@ -7,7 +7,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StreamingLogs, useStreamingLogs, StreamingLogMessage } from '@/components/ui/StreamingLogs';
 import { DocumentSearchAndQuestion } from '@/components/DocumentSearchAndQuestion';
 import { Document, SearchResult, AnswerCitation, AnswerStreamEvent } from '@/types';
-import { apiClient, getFileIcon, formatFileSize } from '@/lib/api';
+import { apiClient, getFileIcon, formatFileSize, cleanContentPreview } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function HomePage() {
@@ -228,7 +228,7 @@ export default function HomePage() {
                     </div>
 
                     <p className="text-sm text-primary-600 mb-4 line-clamp-3 leading-relaxed bg-primary-50/50 p-3 rounded-lg border border-primary-100">
-                      {truncateContent(doc.content_preview)}
+                      {truncateContent(cleanContentPreview(doc.content_preview))}
                     </p>
 
                     <div className="flex items-center justify-between text-xs text-primary-400 pt-4 border-t border-primary-100">
