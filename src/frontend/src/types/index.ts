@@ -67,6 +67,7 @@ export interface DocumentsResponse {
 export interface DocumentStats {
   total_docs: number;
   categories: Array<[string, number]>;
+  sub_categories: Array<[string, number]>;
   file_types: Array<[string, number]>;
 }
 
@@ -81,6 +82,7 @@ export interface DocumentsRequest {
   limit?: number;
   search?: string;
   category?: string;
+  sub_category?: string;
 }
 
 // Theme types

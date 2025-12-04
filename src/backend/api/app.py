@@ -520,6 +520,7 @@ def api_documents():
     limit = request.args.get('limit', ITEMS_PER_PAGE, type=int)
     search = request.args.get('search', '').strip()
     category = request.args.get('category', '').strip()
+    sub_category = request.args.get('sub_category', '').strip()
 
     # Refresh data to ensure we have latest documents
     refresh_database()
@@ -534,6 +535,16 @@ def api_documents():
             categories = doc.get('categories', '').lower()
             # Use LIKE-style matching (category appears anywhere in hyphen-separated string)
             if category_lower in categories:
+                filtered_docs.append(doc)
+        all_docs = filtered_docs
+
+    # Filter by sub-category if provided
+    if sub_category:
+        filtered_docs = []
+        sub_category_lower = sub_category.lower()
+        for doc in all_docs:
+            sub_categories = doc.get('sub_categories', [])
+            if sub_categories and any(sub_cat.lower() == sub_category_lower for sub_cat in sub_categories):
                 filtered_docs.append(doc)
         all_docs = filtered_docs
 
@@ -775,13 +786,30 @@ def api_get_stats():
                 file_ext = filename.split('.')[-1].lower()
                 file_type_counts[file_ext] = file_type_counts.get(file_ext, 0) + 1
 
+        # Get default categories from config and merge with database categories
+        default_categories = config.categories or []
+        # Ensure all default categories are included (with count 0 if not in database)
+        for default_cat in default_categories:
+            if default_cat not in category_counts:
+                category_counts[default_cat] = 0
+
+        # Count sub-categories
+        sub_category_counts = {}
+        for doc in all_docs:
+            sub_categories = doc.get('sub_categories', [])
+            for sub_category in sub_categories:
+                sub_category_counts[sub_category] = sub_category_counts.get(sub_category, 0) + 1
+
         # Convert to sorted lists of tuples
-        categories = sorted(category_counts.items(), key=lambda x: x[1], reverse=True)
+        # Sort by count (descending), then by category name (ascending) for consistent ordering
+        categories = sorted(category_counts.items(), key=lambda x: (-x[1], x[0]))
+        sub_categories = sorted(sub_category_counts.items(), key=lambda x: (-x[1], x[0]))
         file_types = sorted(file_type_counts.items(), key=lambda x: x[1], reverse=True)
 
         return jsonify({
             'total_docs': total_docs,
             'categories': categories,
+            'sub_categories': sub_categories,
             'file_types': file_types
         })
     except Exception as e:

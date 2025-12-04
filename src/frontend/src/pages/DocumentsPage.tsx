@@ -20,10 +20,12 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '');
+  const [subCategoryFilter, setSubCategoryFilter] = useState(searchParams.get('sub_category') || '');
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1'));
   const [totalPages, setTotalPages] = useState(1);
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableSubCategories, setAvailableSubCategories] = useState<string[]>([]);
 
 
   // Semantic search state
@@ -47,20 +49,22 @@ export default function DocumentsPage() {
   const [answerError, setAnswerError] = useState<string | undefined>();
 
 
-  // Load all categories on mount
+  // Load all categories and sub-categories on mount
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchCategoriesAndSubCategories = async () => {
       try {
-        // Use stats API to get all categories from all documents
+        // Use stats API to get all categories and sub-categories from all documents
         const stats = await apiClient.getStats();
         // Extract category names from [category, count] tuples
         const categories = stats.categories.map(([category]) => category);
+        const subCategories = stats.sub_categories.map(([subCategory]) => subCategory);
         setAvailableCategories(categories);
+        setAvailableSubCategories(subCategories);
       } catch (error) {
-        console.error('Failed to load categories:', error);
+        console.error('Failed to load categories and sub-categories:', error);
       }
     };
-    fetchCategories();
+    fetchCategoriesAndSubCategories();
   }, []);
 
   // Handle semantic search results from navigation state
@@ -82,16 +86,17 @@ export default function DocumentsPage() {
     if (hasInitialized && !isSemanticSearch) {
       loadDocuments();
     }
-  }, [hasInitialized, currentPage, searchQuery, categoryFilter, isSemanticSearch]);
+  }, [hasInitialized, currentPage, searchQuery, categoryFilter, subCategoryFilter, isSemanticSearch]);
 
   useEffect(() => {
     // Update URL params when filters change
     const params = new URLSearchParams();
     if (searchQuery) params.set('search', searchQuery);
     if (categoryFilter) params.set('category', categoryFilter);
+    if (subCategoryFilter) params.set('sub_category', subCategoryFilter);
     if (currentPage > 1) params.set('page', currentPage.toString());
     setSearchParams(params);
-  }, [searchQuery, categoryFilter, currentPage, setSearchParams]);
+  }, [searchQuery, categoryFilter, subCategoryFilter, currentPage, setSearchParams]);
 
   // Clear selection when documents change
   useEffect(() => {
@@ -106,6 +111,7 @@ export default function DocumentsPage() {
         limit: 20,
         search: searchQuery || undefined,
         category: categoryFilter || undefined,
+        sub_category: subCategoryFilter || undefined,
       });
 
       setDocuments(response.documents);
@@ -160,9 +166,21 @@ export default function DocumentsPage() {
     }
   };
 
+  const handleSubCategoryChange = (subCategory: string) => {
+    setSubCategoryFilter(subCategory);
+    setCurrentPage(1);
+    // If we are filtering by sub-category, we should probably exit semantic search mode
+    if (isSemanticSearch) {
+      setIsSemanticSearch(false);
+      setSemanticSearchQuery('');
+      setSearchQuery(''); // Clear search query as we are now browsing by sub-category
+    }
+  };
+
   const clearFilters = () => {
     setSearchQuery('');
     setCategoryFilter('');
+    setSubCategoryFilter('');
     setCurrentPage(1);
     setIsSemanticSearch(false);
     setSemanticSearchQuery('');
@@ -253,7 +271,7 @@ export default function DocumentsPage() {
     }
   };
 
-  const hasActiveFilters = searchQuery || categoryFilter || isSemanticSearch;
+  const hasActiveFilters = searchQuery || categoryFilter || subCategoryFilter || isSemanticSearch;
   const isAllSelected = documents.length > 0 && selectedIds.size === documents.length;
   const isSomeSelected = selectedIds.size > 0 && selectedIds.size < documents.length;
 
@@ -288,7 +306,11 @@ export default function DocumentsPage() {
         categoryFilter={categoryFilter}
         onCategoryFilterChange={handleCategoryChange}
         availableCategories={availableCategories}
+        subCategoryFilter={subCategoryFilter}
+        onSubCategoryFilterChange={handleSubCategoryChange}
+        availableSubCategories={availableSubCategories}
         showCategoryFilter={true}
+        showSubCategoryFilter={true}
         searchPlaceholder="Search documents..."
         showClearFilters={!!hasActiveFilters}
         onClearFilters={clearFilters}

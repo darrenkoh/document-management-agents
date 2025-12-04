@@ -3,7 +3,6 @@ import { Search, Filter, Brain, ChevronDown, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 interface DocumentSearchAndQuestionProps {
   // Search props
@@ -14,14 +13,17 @@ interface DocumentSearchAndQuestionProps {
   categoryFilter?: string;
   onCategoryFilterChange?: (category: string) => void;
   availableCategories?: string[];
+  subCategoryFilter?: string;
+  onSubCategoryFilterChange?: (subCategory: string) => void;
+  availableSubCategories?: string[];
   showCategoryFilter?: boolean;
+  showSubCategoryFilter?: boolean;
   searchPlaceholder?: string;
   showClearFilters?: boolean;
   onClearFilters?: () => void;
   isSemanticSearch?: boolean;
 
   // Layout props
-  variant?: 'default' | 'compact';
   className?: string;
 }
 
@@ -33,12 +35,15 @@ export function DocumentSearchAndQuestion({
   categoryFilter = '',
   onCategoryFilterChange,
   availableCategories = [],
+  subCategoryFilter = '',
+  onSubCategoryFilterChange,
+  availableSubCategories = [],
   showCategoryFilter = true,
+  showSubCategoryFilter = true,
   searchPlaceholder = 'Search documents...',
   showClearFilters = false,
   onClearFilters,
   isSemanticSearch = false,
-  variant = 'default',
   className = '',
 }: DocumentSearchAndQuestionProps) {
   // Category combobox state
@@ -46,11 +51,19 @@ export function DocumentSearchAndQuestion({
   const [categorySearch, setCategorySearch] = useState('');
   const categoryRef = useRef<HTMLDivElement>(null);
 
-  // Close combobox when clicking outside
+  // Sub-category combobox state
+  const [isSubCategoryOpen, setIsSubCategoryOpen] = useState(false);
+  const [subCategorySearch, setSubCategorySearch] = useState('');
+  const subCategoryRef = useRef<HTMLDivElement>(null);
+
+  // Close comboboxes when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
         setIsCategoryOpen(false);
+      }
+      if (subCategoryRef.current && !subCategoryRef.current.contains(event.target as Node)) {
+        setIsSubCategoryOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -71,6 +84,13 @@ export function DocumentSearchAndQuestion({
       onCategoryFilterChange(category);
     }
     setIsCategoryOpen(false);
+  };
+
+  const handleSubCategoryChange = (subCategory: string) => {
+    if (onSubCategoryFilterChange) {
+      onSubCategoryFilterChange(subCategory);
+    }
+    setIsSubCategoryOpen(false);
   };
 
   return (
@@ -146,6 +166,65 @@ export function DocumentSearchAndQuestion({
                       {availableCategories.length === 0 && (
                         <div className="px-3 py-4 text-center text-sm text-primary-400">
                           No categories found
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Sub-Category Combobox */}
+            {showSubCategoryFilter && availableSubCategories.length > 0 && (
+              <div className="min-w-0 lg:min-w-[250px] relative" ref={subCategoryRef}>
+                <div
+                  className="flex items-center justify-between w-full h-11 px-3 py-2 border border-primary-300 rounded-lg bg-white cursor-pointer hover:border-primary-400 transition-colors"
+                  onClick={() => setIsSubCategoryOpen(!isSubCategoryOpen)}
+                >
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <Filter className="text-primary-400 w-4 h-4 flex-shrink-0" />
+                    <span className={`truncate text-sm ${subCategoryFilter ? 'text-primary-900 font-medium' : 'text-primary-500'}`}>
+                      {subCategoryFilter || 'All Sub-Categories'}
+                    </span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-primary-400 transition-transform duration-200 ${isSubCategoryOpen ? 'rotate-180' : ''}`} />
+                </div>
+
+                {isSubCategoryOpen && (
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-primary-200 rounded-lg shadow-lg max-h-80 overflow-hidden flex flex-col animate-fade-in">
+                    <div className="p-2 border-b border-primary-100 bg-primary-50/50">
+                      <Input
+                        placeholder="Filter sub-categories..."
+                        value={subCategorySearch}
+                        onChange={(e) => setSubCategorySearch(e.target.value)}
+                        className="h-9 text-sm"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    <div className="overflow-y-auto flex-1 p-1">
+                      <div
+                        className={`px-3 py-2 rounded-md cursor-pointer text-sm flex items-center justify-between ${!subCategoryFilter ? 'bg-primary-100 text-primary-900' : 'text-primary-700 hover:bg-primary-50'}`}
+                        onClick={() => handleSubCategoryChange('')}
+                      >
+                        <span>All Sub-Categories</span>
+                        {!subCategoryFilter && <Check className="w-4 h-4 text-primary-600" />}
+                      </div>
+                      {availableSubCategories
+                        .filter(sc => sc.toLowerCase().includes(subCategorySearch.toLowerCase()))
+                        .map(subCategory => (
+                          <div
+                            key={subCategory}
+                            className={`px-3 py-2 rounded-md cursor-pointer text-sm flex items-center justify-between ${subCategoryFilter === subCategory ? 'bg-primary-100 text-primary-900' : 'text-primary-700 hover:bg-primary-50'}`}
+                            onClick={() => handleSubCategoryChange(subCategory)}
+                          >
+                            <span>{subCategory}</span>
+                            {subCategoryFilter === subCategory && <Check className="w-4 h-4 text-primary-600" />}
+                          </div>
+                        ))}
+                      {availableSubCategories.length === 0 && (
+                        <div className="px-3 py-4 text-center text-sm text-primary-400">
+                          No sub-categories found
                         </div>
                       )}
                     </div>
