@@ -7,6 +7,7 @@ import { Document } from '@/types';
 import { apiClient, downloadFile } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 
 // New Components
 import { FileInfoBar } from '@/components/FileInfoBar';
@@ -27,6 +28,86 @@ export default function DocumentDetailPage() {
   const filterLLMEncoding = (content: string): string => {
     const tokenPattern = /<\|[^>]+\|>.*?<\|\/[^>]+\|>/g;
     return content.replace(tokenPattern, '').trim();
+  };
+
+  // Function to detect content type
+  const detectContentType = (content: string): 'markdown' | 'html' | 'plain' => {
+    const cleanContent = filterLLMEncoding(content);
+
+    // Check if content contains markdown table syntax (pipes)
+    if (cleanContent.includes('|') && cleanContent.includes('\n|')) {
+      // Look for markdown table patterns
+      const lines = cleanContent.split('\n');
+      const hasTablePattern = lines.some(line => {
+        const pipeCount = (line.match(/\|/g) || []).length;
+        return pipeCount >= 2 && line.trim().startsWith('|') && line.trim().endsWith('|');
+      });
+      if (hasTablePattern) {
+        return 'markdown';
+      }
+    }
+
+    // Check if content contains HTML tables
+    if (cleanContent.includes('<table') || cleanContent.includes('<tr') || cleanContent.includes('<td') || cleanContent.includes('<th')) {
+      return 'html';
+    }
+
+    return 'plain';
+  };
+
+  // Function to render content based on type
+  const renderContent = (content: string) => {
+    const cleanContent = filterLLMEncoding(content);
+    const contentType = detectContentType(content);
+
+    switch (contentType) {
+      case 'markdown':
+        return (
+          <div className="markdown-content prose prose-gray max-w-none">
+            <ReactMarkdown
+              components={{
+                table: ({ children }) => (
+                  <table className="w-full border-collapse border border-gray-300 my-4 rounded-lg overflow-hidden">
+                    {children}
+                  </table>
+                ),
+                th: ({ children }) => (
+                  <th className="border border-gray-300 px-4 py-2 bg-gray-50 font-semibold text-gray-900 text-left">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="border border-gray-300 px-4 py-2 text-left">
+                    {children}
+                  </td>
+                ),
+                tr: ({ children }) => (
+                  <tr className="hover:bg-gray-50">
+                    {children}
+                  </tr>
+                ),
+              }}
+            >
+              {cleanContent}
+            </ReactMarkdown>
+          </div>
+        );
+
+      case 'html':
+        return (
+          <div
+            className="leading-relaxed font-normal text-base font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_th]:border [&_th]:border-gray-300 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-50 [&_th]:font-semibold [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 prose prose-gray max-w-none"
+            dangerouslySetInnerHTML={{ __html: cleanContent }}
+          />
+        );
+
+      default: // plain text
+        return (
+          <div className="leading-relaxed font-normal text-base font-sans prose prose-gray max-w-none whitespace-pre-wrap">
+            {cleanContent}
+          </div>
+        );
+    }
   };
 
   useEffect(() => {
@@ -213,20 +294,7 @@ export default function DocumentDetailPage() {
 
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden relative">
               <div className="max-h-[500px] overflow-y-auto p-8 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300 transition-colors">
-                <div className="prose prose-gray max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-primary-600 prose-strong:text-gray-900">
-                  <style dangerouslySetInnerHTML={{
-                    __html: `
-                      table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
-                      th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; text-align: left; }
-                      th { background-color: #f9fafb; font-weight: 600; }
-                      tr:nth-child(even) { background-color: #f9fafb; }
-                    `
-                  }} />
-                  <div
-                    className="leading-relaxed font-normal text-base font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_th]:border [&_th]:border-gray-300 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-50 [&_th]:font-semibold [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2"
-                    dangerouslySetInnerHTML={{ __html: filterLLMEncoding(document.content) }}
-                  />
-                </div>
+                {renderContent(document.content)}
               </div>
               {/* Bottom Fade for overflow indication */}
               <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none" />
