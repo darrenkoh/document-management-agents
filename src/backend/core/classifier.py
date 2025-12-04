@@ -360,7 +360,11 @@ Use lowercase for sub-categories and separate with commas."""
         sub_category = sub_category.strip().lower()
         # Remove special chars and normalize
         sub_category = re.sub(r'[^\w\s-]', '', sub_category)
-        return sub_category.replace(' ', '_')
+        # Replace spaces with underscores
+        sub_category = sub_category.replace(' ', '_')
+        # Enforce 2-word maximum limit - split by underscore and take first 2 words
+        words = sub_category.split('_')[:2]
+        return '_'.join(words)
 
     def _extract_category_fallback(self, response: str) -> str:
         """Extract category names from LLM response (fallback for old format).
