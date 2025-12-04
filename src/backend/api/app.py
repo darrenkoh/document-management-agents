@@ -723,14 +723,31 @@ def api_get_embeddings():
             z = float(coords[2]) if len(coords) > 2 else 0.0
             
             meta = metadata_list[i]
-            # Get sub_categories from metadata (may be a list or string representation)
+            # Get sub_categories from metadata (may be JSON string, old string format, or already parsed)
             sub_categories = meta.get('sub_categories', [])
             if isinstance(sub_categories, str):
                 import json
                 try:
-                    sub_categories = json.loads(sub_categories) if sub_categories else []
+                    # Try parsing as JSON first (new format)
+                    sub_categories = json.loads(sub_categories)
                 except (json.JSONDecodeError, TypeError):
-                    sub_categories = []
+                    # Fall back to old string format "['item1', 'item2']"
+                    try:
+                        # Remove brackets and quotes, split by comma
+                        if sub_categories.startswith('[') and sub_categories.endswith(']'):
+                            content = sub_categories[1:-1].strip()
+                            if content:
+                                # Split by ', ' but be careful with spaces
+                                items = [item.strip().strip("'\"") for item in content.split(',')]
+                                sub_categories = [item for item in items if item]
+                            else:
+                                sub_categories = []
+                        else:
+                            sub_categories = []
+                    except:
+                        sub_categories = []
+            elif not isinstance(sub_categories, list):
+                sub_categories = []
             
             points.append({
                 'id': ids[i],

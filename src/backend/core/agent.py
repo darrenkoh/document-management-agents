@@ -37,6 +37,7 @@ class DocumentAgent:
             ollama_endpoint=config.ollama_endpoint,
             ocr_model=config.ollama_ocr_model,
             ocr_timeout=config.ollama_ocr_timeout,
+            max_ocr_pages=config.max_ocr_pages,
             max_retries=config.ollama_max_retries,
             retry_base_delay=config.ollama_retry_base_delay,
             ocr_provider=config.ocr_provider,

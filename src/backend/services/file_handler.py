@@ -36,7 +36,7 @@ class FileHandler:
 
     def __init__(self, source_paths: List[str], ollama_endpoint: str = "http://localhost:11434",
                  ocr_model: str = "deepseek-ocr:3b", ocr_timeout: int = 60,
-                 max_retries: int = 3, retry_base_delay: float = 1.0,
+                 max_ocr_pages: int = 12, max_retries: int = 3, retry_base_delay: float = 1.0,
                  ocr_provider: str = "ollama", chandra_endpoint: str = "http://localhost:11435",
                  chandra_model: str = "chandra", chandra_timeout: int = 300,
                  chandra_max_tokens: int = 8192, chandra_max_retries: int = 3,
@@ -52,6 +52,7 @@ class FileHandler:
             ollama_endpoint: Ollama API endpoint for OCR
             ocr_model: OCR model name (default: deepseek-ocr:3b)
             ocr_timeout: Timeout for OCR operations in seconds
+            max_ocr_pages: Maximum number of PDF pages to process with OCR (default: 12)
             max_retries: Maximum number of retry attempts for failed API calls
             retry_base_delay: Base delay in seconds between retry attempts
             ocr_provider: OCR provider ('ollama', 'chandra', or 'hunyuan')
@@ -74,6 +75,7 @@ class FileHandler:
         self.ollama_endpoint = ollama_endpoint
         self.ocr_model = ocr_model
         self.ocr_timeout = ocr_timeout
+        self.max_ocr_pages = max_ocr_pages
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
 
@@ -751,6 +753,12 @@ class FileHandler:
                     # For now, return None - in production you might want to use pdf2image
                     logger.warning(f"Could not extract images from PDF: {file_path}")
                     return None
+
+                # Limit the number of pages to process based on max_ocr_pages
+                total_pages = len(images)
+                if total_pages > self.max_ocr_pages:
+                    images = images[:self.max_ocr_pages]
+                    logger.info(f"PDF has {total_pages} pages, limiting OCR processing to first {self.max_ocr_pages} pages")
 
                 # Process each image with OCR
                 all_text = []

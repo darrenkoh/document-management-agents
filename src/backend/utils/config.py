@@ -189,6 +189,12 @@ class Config:
         return ollama_config.get('ocr_timeout', 60)
 
     @property
+    def max_ocr_pages(self) -> int:
+        """Get the maximum number of PDF pages to process with OCR."""
+        ollama_config = self._config.get('ollama', {})
+        return ollama_config.get('max_ocr_pages', 12)
+
+    @property
     def ollama_max_retries(self) -> int:
         """Get the maximum number of retry attempts for failed LLM API calls."""
         ollama_config = self._config.get('ollama', {})

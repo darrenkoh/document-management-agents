@@ -183,8 +183,12 @@ class ChromaVectorStore(VectorStore):
                 for key, value in meta.items():
                     if isinstance(value, (str, int, float, bool)):
                         processed_meta[key] = value
+                    elif isinstance(value, (list, dict)):
+                        # Convert lists/dicts to JSON strings for proper storage/retrieval
+                        import json
+                        processed_meta[key] = json.dumps(value)
                     else:
-                        # Convert complex objects to strings
+                        # Convert other complex objects to strings
                         processed_meta[key] = str(value)
                 processed_metadata.append(processed_meta)
 

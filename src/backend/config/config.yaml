@@ -63,6 +63,9 @@ ollama:
   ocr_model: "hunyuan"
   # Timeout for OCR operations (can be longer than regular models)
   ocr_timeout: 300
+  # Maximum number of PDF pages to process with OCR (default: 12)
+  # This limits OCR processing to the first N pages of PDFs to reduce processing time
+  max_ocr_pages: 12
   # Retry configuration for failed LLM API calls
   retry:
     # Maximum number of retry attempts for failed API calls
