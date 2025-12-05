@@ -354,21 +354,45 @@ class ChromaVectorStore(VectorStore):
                     result['embeddings'],
                     result['metadatas']
                 )):
-                    meta = metadata if metadata else {}
-                    if 'id' not in meta:
-                        meta['id'] = doc_id
+                    try:
+                        meta = metadata if metadata else {}
+                        if 'id' not in meta:
+                            meta['id'] = doc_id
 
-                    all_data.append({
-                        'id': doc_id,
-                        'embedding': embedding,
-                        'metadata': meta
-                    })
+                        all_data.append({
+                            'id': doc_id,
+                            'embedding': embedding,
+                            'metadata': meta
+                        })
+                    except Exception as item_error:
+                        logger.warning(f"Error processing embedding {i} with ID {doc_id}: {item_error}")
+                        # Skip corrupted items but continue processing others
+                        continue
 
                 logger.info(f"Successfully retrieved {len(all_data)} embeddings")
                 return all_data
 
             except Exception as e:
                 logger.error(f"Error getting all embeddings from ChromaDB: {e}")
+                # If the error is related to "finding id", try to reset the collection
+                if "finding id" in str(e).lower():
+                    logger.warning("ChromaDB corruption detected (ID finding error), attempting collection reset")
+                    try:
+                        # Delete and recreate the collection
+                        self.client.delete_collection(name=self.collection_name)
+                        logger.info(f"Deleted corrupted collection: {self.collection_name}")
+
+                        # Create new collection
+                        collection_metadata = {"hnsw:space": self.distance_metric}
+                        self.collection = self.client.create_collection(
+                            name=self.collection_name,
+                            metadata=collection_metadata
+                        )
+                        logger.info(f"Created new collection after reset: {self.collection_name}")
+                        return []  # Return empty since we reset the collection
+                    except Exception as reset_error:
+                        logger.error(f"Failed to reset corrupted collection: {reset_error}")
+                        return []
                 return []
 
         except Exception as e:
