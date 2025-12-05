@@ -31,28 +31,102 @@ export default function DocumentDetailPage() {
   };
 
   // Function to detect content type
-  const detectContentType = (content: string): 'markdown' | 'html' | 'plain' => {
+  const detectContentType = (content: string): 'markdown' | 'html' | 'mixed' | 'plain' => {
     const cleanContent = filterLLMEncoding(content);
 
+    const hasHtmlTables = cleanContent.includes('<table') || cleanContent.includes('<tr') || cleanContent.includes('<td') || cleanContent.includes('<th');
+
     // Check if content contains markdown table syntax (pipes)
-    if (cleanContent.includes('|') && cleanContent.includes('\n|')) {
-      // Look for markdown table patterns
+    const hasMarkdownTables = cleanContent.includes('|') && cleanContent.includes('\n|') && (() => {
       const lines = cleanContent.split('\n');
-      const hasTablePattern = lines.some(line => {
+      return lines.some(line => {
         const pipeCount = (line.match(/\|/g) || []).length;
         return pipeCount >= 2 && line.trim().startsWith('|') && line.trim().endsWith('|');
       });
-      if (hasTablePattern) {
-        return 'markdown';
-      }
+    })();
+
+    // If content has both HTML tables and markdown tables, it's mixed
+    if (hasHtmlTables && hasMarkdownTables) {
+      return 'mixed';
     }
 
-    // Check if content contains HTML tables
-    if (cleanContent.includes('<table') || cleanContent.includes('<tr') || cleanContent.includes('<td') || cleanContent.includes('<th')) {
+    // Check for HTML tables first (since they might contain pipes that would confuse markdown detection)
+    if (hasHtmlTables) {
       return 'html';
     }
 
+    // Check if content contains markdown table syntax (pipes)
+    if (hasMarkdownTables) {
+      return 'markdown';
+    }
+
     return 'plain';
+  };
+
+  // Function to clean and improve HTML table content from OCR
+  const cleanHtmlTables = (htmlContent: string): string => {
+    // Fix common OCR HTML table issues
+    let cleaned = htmlContent;
+
+    // Ensure tables have proper structure
+    // Fix missing closing tags
+    cleaned = cleaned.replace(/<table([^>]*)>((?!<\/table>).)*$/gi, '$&</table>');
+    cleaned = cleaned.replace(/<tr([^>]*)>((?!<\/tr>).)*$/gi, '$&</tr>');
+    cleaned = cleaned.replace(/<td([^>]*)>((?!<\/td>).)*$/gi, '$&</td>');
+    cleaned = cleaned.replace(/<th([^>]*)>((?!<\/th>).)*$/gi, '$&</th>');
+
+    // Add missing tbody tags for better structure
+    cleaned = cleaned.replace(/(<table[^>]*>)\s*(<tr[^>]*>)/gi, '$1<tbody>$2');
+    cleaned = cleaned.replace(/(<\/tr>\s*)(<\/table>)/gi, '$1</tbody>$2');
+
+    // Fix spacing issues in table cells
+    cleaned = cleaned.replace(/<td[^>]*>\s*<br\s*\/?>\s*/gi, '<td>');
+    cleaned = cleaned.replace(/\s*<br\s*\/?>\s*<\/td>/gi, '</td>');
+
+    return cleaned;
+  };
+
+  // Function to process mixed content (HTML tables + markdown tables)
+  const processMixedContent = (content: string): string => {
+    // First clean HTML tables
+    let processed = cleanHtmlTables(content);
+
+    // Then convert any markdown table syntax within the content to HTML tables
+    // This handles cases where markdown tables appear within HTML content
+    processed = processed.replace(/\|.*\|\n\|.*\|\n\|.*\|/g, (match) => {
+      // Convert markdown table to HTML table
+      const lines = match.split('\n');
+      if (lines.length >= 3) {
+        const headerLine = lines[0];
+        const separatorLine = lines[1];
+        const dataLines = lines.slice(2);
+
+        // Parse header
+        const headers = headerLine.split('|').filter(cell => cell.trim());
+        // Parse data rows
+        const rows = dataLines.map(line => line.split('|').filter(cell => cell.trim()));
+
+        let htmlTable = '<table style="border-collapse: collapse; width: 100%; margin: 1rem 0; border: 1px solid #d1d5db;">';
+        htmlTable += '<thead><tr>';
+        headers.forEach(header => {
+          htmlTable += `<th style="border: 1px solid #d1d5db; padding: 0.5rem; background-color: #f9fafb; font-weight: 600;">${header.trim()}</th>`;
+        });
+        htmlTable += '</tr></thead><tbody>';
+        rows.forEach(row => {
+          htmlTable += '<tr>';
+          row.forEach(cell => {
+            htmlTable += `<td style="border: 1px solid #d1d5db; padding: 0.5rem;">${cell.trim()}</td>`;
+          });
+          htmlTable += '</tr>';
+        });
+        htmlTable += '</tbody></table>';
+
+        return htmlTable;
+      }
+      return match;
+    });
+
+    return processed;
   };
 
   // Function to render content based on type
@@ -95,10 +169,98 @@ export default function DocumentDetailPage() {
 
       case 'html':
         return (
-          <div
-            className="leading-relaxed font-normal text-base font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_th]:border [&_th]:border-gray-300 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-50 [&_th]:font-semibold [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 prose prose-gray max-w-none"
-            dangerouslySetInnerHTML={{ __html: cleanContent }}
-          />
+          <div className="prose prose-gray max-w-none">
+            {/* Enhanced HTML table styling with better spacing and visual hierarchy */}
+            <style dangerouslySetInnerHTML={{
+              __html: `
+                .html-content table {
+                  border-collapse: collapse;
+                  width: 100%;
+                  margin: 1rem 0;
+                  border-radius: 0.5rem;
+                  overflow: hidden;
+                  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+                }
+                .html-content th,
+                .html-content td {
+                  border: 1px solid #d1d5db;
+                  padding: 0.75rem 1rem;
+                  text-align: left;
+                  vertical-align: top;
+                }
+                .html-content th {
+                  background-color: #f9fafb;
+                  font-weight: 600;
+                  color: #111827;
+                }
+                .html-content tr:nth-child(even) {
+                  background-color: #f9fafb;
+                }
+                .html-content tr:hover {
+                  background-color: #f3f4f6;
+                }
+                .html-content p {
+                  margin: 0.5rem 0;
+                  line-height: 1.6;
+                }
+                .html-content br {
+                  margin: 0.25rem 0;
+                }
+              `
+            }} />
+            <div
+              className="html-content leading-relaxed font-normal text-base font-sans text-gray-700"
+              dangerouslySetInnerHTML={{ __html: cleanHtmlTables(cleanContent) }}
+            />
+          </div>
+        );
+
+      case 'mixed':
+        return (
+          <div className="prose prose-gray max-w-none">
+            {/* Enhanced mixed content styling */}
+            <style dangerouslySetInnerHTML={{
+              __html: `
+                .mixed-content table {
+                  border-collapse: collapse;
+                  width: 100%;
+                  margin: 1rem 0;
+                  border-radius: 0.5rem;
+                  overflow: hidden;
+                  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+                }
+                .mixed-content th,
+                .mixed-content td {
+                  border: 1px solid #d1d5db;
+                  padding: 0.75rem 1rem;
+                  text-align: left;
+                  vertical-align: top;
+                }
+                .mixed-content th {
+                  background-color: #f9fafb;
+                  font-weight: 600;
+                  color: #111827;
+                }
+                .mixed-content tr:nth-child(even) {
+                  background-color: #f9fafb;
+                }
+                .mixed-content tr:hover {
+                  background-color: #f3f4f6;
+                }
+                .mixed-content p {
+                  margin: 0.5rem 0;
+                  line-height: 1.6;
+                }
+                .mixed-content br {
+                  margin: 0.25rem 0;
+                }
+              `
+            }} />
+            <div
+              className="mixed-content leading-relaxed font-normal text-base font-sans text-gray-700"
+              dangerouslySetInnerHTML={{ __html: processMixedContent(cleanContent) }}
+            />
+          </div>
         );
 
       default: // plain text
@@ -318,11 +480,7 @@ export default function DocumentDetailPage() {
 
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="p-8">
-                  <div className="prose prose-gray max-w-none prose-p:text-gray-700 prose-strong:text-gray-900">
-                    <p className="text-base leading-relaxed font-normal text-gray-700 whitespace-pre-wrap">
-                      {filterLLMEncoding(document.summary)}
-                    </p>
-                  </div>
+                  {renderContent(document.summary)}
                 </div>
               </div>
             </motion.section>
