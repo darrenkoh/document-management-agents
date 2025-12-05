@@ -342,81 +342,34 @@ class ChromaVectorStore(VectorStore):
                     logger.error(f"Failed to recreate collection: {recreate_error}")
                     return []
 
-            # Get all IDs first, then fetch data in batches to avoid issues
+            # Use the reliable method: get all data at once (ChromaDB handles this efficiently)
             try:
-                all_ids_result = self.collection.get(include=[])
-                if not all_ids_result['ids']:
+                result = self.collection.get(include=['embeddings', 'metadatas'])
+                if not result['ids']:
                     return []
 
-                all_ids = all_ids_result['ids']
-                logger.info(f"Found {len(all_ids)} document IDs")
-
-                # Fetch data in smaller batches to avoid potential issues
-                batch_size = 50
                 all_data = []
+                for i, (doc_id, embedding, metadata) in enumerate(zip(
+                    result['ids'],
+                    result['embeddings'],
+                    result['metadatas']
+                )):
+                    meta = metadata if metadata else {}
+                    if 'id' not in meta:
+                        meta['id'] = doc_id
 
-                for i in range(0, len(all_ids), batch_size):
-                    batch_ids = all_ids[i:i + batch_size]
-                    try:
-                        batch_result = self.collection.get(
-                            ids=batch_ids,
-                            include=['embeddings', 'metadatas']
-                        )
-
-                        for j, (doc_id, embedding, metadata) in enumerate(zip(
-                            batch_result['ids'],
-                            batch_result['embeddings'],
-                            batch_result['metadatas']
-                        )):
-                            # Ensure metadata is a dictionary
-                            meta = metadata if metadata else {}
-
-                            # Add ID to metadata if not present
-                            if 'id' not in meta:
-                                meta['id'] = doc_id
-
-                            all_data.append({
-                                'id': doc_id,
-                                'embedding': embedding,
-                                'metadata': meta
-                            })
-
-                    except Exception as batch_error:
-                        logger.warning(f"Error fetching batch {i//batch_size}: {batch_error}")
-                        continue
+                    all_data.append({
+                        'id': doc_id,
+                        'embedding': embedding,
+                        'metadata': meta
+                    })
 
                 logger.info(f"Successfully retrieved {len(all_data)} embeddings")
                 return all_data
 
-            except Exception as ids_error:
-                logger.error(f"Error getting IDs from ChromaDB: {ids_error}")
-                # Fallback: try the original method but with better error handling
-                try:
-                    result = self.collection.get(include=['embeddings', 'metadatas'])
-                    if not result['ids']:
-                        return []
-
-                    all_data = []
-                    for i, (doc_id, embedding, metadata) in enumerate(zip(
-                        result['ids'],
-                        result['embeddings'],
-                        result['metadatas']
-                    )):
-                        meta = metadata if metadata else {}
-                        if 'id' not in meta:
-                            meta['id'] = doc_id
-
-                        all_data.append({
-                            'id': doc_id,
-                            'embedding': embedding,
-                            'metadata': meta
-                        })
-
-                    return all_data
-
-                except Exception as fallback_error:
-                    logger.error(f"Fallback method also failed: {fallback_error}")
-                    return []
+            except Exception as e:
+                logger.error(f"Error getting all embeddings from ChromaDB: {e}")
+                return []
 
         except Exception as e:
             logger.error(f"Error getting all embeddings from ChromaDB: {e}")

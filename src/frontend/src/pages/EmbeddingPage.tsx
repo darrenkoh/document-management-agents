@@ -139,7 +139,7 @@ export const EmbeddingPage: React.FC = () => {
         </div>
         <div className="flex items-center space-x-3">
            <div className="text-sm text-gray-500 mr-4">
-             {points.length} Documents
+             {points.length} Embeddings
            </div>
            {/* View Mode Toggle */}
            <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5">
