@@ -374,25 +374,13 @@ class ChromaVectorStore(VectorStore):
 
             except Exception as e:
                 logger.error(f"Error getting all embeddings from ChromaDB: {e}")
-                # If the error is related to "finding id", try to reset the collection
+                # If the error is related to "finding id", this might indicate corruption
+                # But let's be more conservative - only reset if we can't even get the collection
                 if "finding id" in str(e).lower():
-                    logger.warning("ChromaDB corruption detected (ID finding error), attempting collection reset")
-                    try:
-                        # Delete and recreate the collection
-                        self.client.delete_collection(name=self.collection_name)
-                        logger.info(f"Deleted corrupted collection: {self.collection_name}")
-
-                        # Create new collection
-                        collection_metadata = {"hnsw:space": self.distance_metric}
-                        self.collection = self.client.create_collection(
-                            name=self.collection_name,
-                            metadata=collection_metadata
-                        )
-                        logger.info(f"Created new collection after reset: {self.collection_name}")
-                        return []  # Return empty since we reset the collection
-                    except Exception as reset_error:
-                        logger.error(f"Failed to reset corrupted collection: {reset_error}")
-                        return []
+                    logger.warning("ChromaDB 'finding id' error detected - this may indicate data corruption")
+                    logger.warning("Try running the document ingestion process to regenerate embeddings")
+                    # Don't automatically reset - let the user decide
+                    return []
                 return []
 
         except Exception as e:
