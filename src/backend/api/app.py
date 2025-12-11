@@ -653,40 +653,90 @@ def api_delete_documents():
 
 @app.route('/api/embeddings')
 def api_get_embeddings():
-    """Get all document embeddings projected to 3D space using PCA."""
+    """Get all document embeddings with optional PCA processing."""
     try:
         # Check if vector store is available
         if not agent.database.vector_store:
             return jsonify({'error': 'Vector store not available'}), 503
 
+        # Get query parameters
+        raw = request.args.get('raw', 'false').lower() == 'true'
+        n_components = int(request.args.get('components', 3))
+
         # Get all embeddings
         all_data = agent.database.vector_store.get_all_embeddings()
-        
+
         if not all_data:
-            return jsonify({'points': [], 'count': 0})
+            return jsonify({'points': [], 'embeddings': [], 'count': 0})
 
         # Extract embeddings and metadata
         embeddings = []
         metadata_list = []
         ids = []
-        
+
         for item in all_data:
             embeddings.append(item['embedding'])
             metadata_list.append(item['metadata'])
             ids.append(item['id'])
-            
-        # Perform PCA to reduce to 3 dimensions
+
+        # If raw embeddings requested, return them without PCA
+        if raw:
+            points = []
+            for i, (emb, meta) in enumerate(zip(embeddings, metadata_list)):
+                # Get sub_categories from metadata (may be JSON string, old string format, or already parsed)
+                sub_categories = meta.get('sub_categories', [])
+                if isinstance(sub_categories, str):
+                    import json
+                    try:
+                        # Try parsing as JSON first (new format)
+                        sub_categories = json.loads(sub_categories)
+                    except (json.JSONDecodeError, TypeError):
+                        # Fall back to old string format "['item1', 'item2']"
+                        try:
+                            # Remove brackets and quotes, split by comma
+                            if sub_categories.startswith('[') and sub_categories.endswith(']'):
+                                content = sub_categories[1:-1].strip()
+                                if content:
+                                    # Split by ', ' but be careful with spaces
+                                    items = [item.strip().strip("'\"") for item in content.split(',')]
+                                    sub_categories = [item for item in items if item]
+                                else:
+                                    sub_categories = []
+                            else:
+                                sub_categories = []
+                        except:
+                            sub_categories = []
+                elif not isinstance(sub_categories, list):
+                    sub_categories = []
+
+            points.append({
+                'id': ids[i],
+                'embedding': emb.tolist() if hasattr(emb, 'tolist') else emb,
+                'filename': meta.get('filename', 'Unknown'),
+                'categories': meta.get('categories', 'Unknown'),
+                'sub_categories': sub_categories,
+                'metadata': meta
+            })
+
+            return jsonify({
+                'embeddings': points,
+                'count': len(points),
+                'raw': True
+            })
+
+        # Perform PCA to reduce dimensions
         # Import here to avoid dependency if endpoint is not used
         from sklearn.decomposition import PCA
         import numpy as np
-        
+
         # Convert to numpy array
         X = np.array(embeddings)
-        
-        # We need at least 3 samples for 3 components, or min(n_samples, n_features)
+
+        # Validate n_components
         n_samples, n_features = X.shape
-        n_components = min(3, n_samples, n_features)
-        
+        max_components = min(n_samples, n_features)
+        n_components = min(n_components, max_components)
+
         if n_components < 2:
              # Not enough data for meaningful visualization
              # Just return some dummy coordinates or handle gracefully
@@ -702,26 +752,21 @@ def api_get_embeddings():
                      'metadata': meta
                  })
              return jsonify({'points': points, 'count': len(points)})
-             
+
         # Fit PCA
-        pca = PCA(n_components=3) # Always try for 3, will handle fewer components if needed
-        
-        if n_samples < 3:
-            # If we have fewer than 3 samples, we can't do 3D PCA properly with sklearn default
-            # But since we handled n_components logic above, let's see.
-            # Actually PCA(n_components=3) on 2 samples will result in 2 components.
-            pass
-            
+        pca = PCA(n_components=n_components)
+
         X_pca = pca.fit_transform(X)
         
         # Prepare result points
         points = []
         for i, coords in enumerate(X_pca):
-            # Pad with zeros if we have fewer than 3 dimensions
-            x = float(coords[0]) if len(coords) > 0 else 0.0
-            y = float(coords[1]) if len(coords) > 1 else 0.0
-            z = float(coords[2]) if len(coords) > 2 else 0.0
-            
+            # Create coordinate object based on number of components
+            point_coords = {}
+            for j in range(n_components):
+                coord_name = 'xyz'[j] if j < 3 else f'pc{j+1}'
+                point_coords[coord_name] = float(coords[j]) if j < len(coords) else 0.0
+
             meta = metadata_list[i]
             # Get sub_categories from metadata (may be JSON string, old string format, or already parsed)
             sub_categories = meta.get('sub_categories', [])
@@ -748,21 +793,22 @@ def api_get_embeddings():
                         sub_categories = []
             elif not isinstance(sub_categories, list):
                 sub_categories = []
-            
-            points.append({
+
+            point = {
                 'id': ids[i],
-                'x': x,
-                'y': y,
-                'z': z,
                 'filename': meta.get('filename', 'Unknown'),
                 'categories': meta.get('categories', 'Unknown'),
                 'sub_categories': sub_categories,
-                'metadata': meta
-            })
-            
+                'metadata': meta,
+                **point_coords  # Add coordinate data (x, y, z, pc4, etc.)
+            }
+
+            points.append(point)
+
         return jsonify({
-            'points': points, 
+            'points': points,
             'count': len(points),
+            'components': n_components,
             'explained_variance': pca.explained_variance_ratio_.tolist() if hasattr(pca, 'explained_variance_ratio_') else []
         })
 

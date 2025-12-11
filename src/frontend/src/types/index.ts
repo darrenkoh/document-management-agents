@@ -170,13 +170,21 @@ export interface EmbeddingPoint {
   categories: string;
   sub_categories?: string[];
   metadata: DocumentMetadata;
+  // Additional PCA components beyond x,y,z
+  pc4?: number;
+  pc5?: number;
+  [key: `pc${number}`]: number | undefined;
 }
 
 export interface EmbeddingResponse {
   points: EmbeddingPoint[];
   count: number;
+  components?: number;
   explained_variance?: number[];
   error?: string;
+  // Raw embeddings response
+  raw?: boolean;
+  embeddings?: any[];
 }
 
 // Answer types

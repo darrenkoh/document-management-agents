@@ -297,21 +297,29 @@ def regenerate_all_embeddings():
                 norm = math.sqrt(sum(x*x for x in embedding))
                 embedding = [x/norm for x in embedding]
 
-                # Parse sub_categories if it's a JSON string
+                # Parse sub_categories if it's a JSON string and convert back to JSON for ChromaDB storage
+                sub_categories_json = '[]'  # Default empty array as JSON string
                 if sub_categories and sub_categories.startswith('['):
                     try:
-                        sub_categories_list = json.loads(sub_categories)
-                        sub_categories_str = ', '.join(sub_categories_list)
+                        # It's already JSON, keep it as is for ChromaDB
+                        sub_categories_json = sub_categories
                     except:
-                        sub_categories_str = str(sub_categories)
-                else:
-                    sub_categories_str = str(sub_categories) if sub_categories else ''
+                        # If there's any issue, default to empty array
+                        sub_categories_json = '[]'
+                elif sub_categories:
+                    # If it's a plain string, try to split and convert to JSON
+                    try:
+                        items = [s.strip() for s in sub_categories.split(',') if s.strip()]
+                        sub_categories_json = json.dumps(items)
+                    except:
+                        sub_categories_json = '[]'
 
-                # Prepare metadata
+                # Prepare metadata - store sub_categories as JSON string for ChromaDB compatibility
+                # The API endpoint will parse this back to an array for the frontend
                 metadata = {
                     'filename': filename or 'Unknown',
                     'categories': categories or 'Unknown',
-                    'sub_categories': sub_categories_str,
+                    'sub_categories': sub_categories_json,  # Store as JSON string
                     'id': str(doc_id)
                 }
 
