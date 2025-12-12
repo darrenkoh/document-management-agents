@@ -309,7 +309,7 @@ export default function DocumentDetailPage() {
 
   const handleViewOriginal = () => {
     if (!document) return;
-    window.open(`/document/${document.id}/file`, '_blank');
+    window.open(`/api/document/${document.id}/file/view`, '_blank');
   };
 
   const handleDelete = async () => {

@@ -20,7 +20,7 @@ export const UnifiedFileViewer = ({ document, className }: UnifiedFileViewerProp
     // Construct the URL directly since we have a proxy set up
     // But we can also fetch it as blob if we need to handle auth headers in the future
     // For now, direct URL is more efficient for browser caching and native handling
-    setFileUrl(`/document/${document.id}/file`);
+    setFileUrl(`/api/document/${document.id}/file/view`);
     setLoading(false);
   }, [document.id]);
 

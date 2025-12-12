@@ -28,7 +28,7 @@ export default function Layout() {
 
   const handleRefresh = async () => {
     try {
-      const response = await fetch('/refresh');
+      const response = await fetch('/api/refresh');
       if (response.ok) {
         window.location.reload();
       }

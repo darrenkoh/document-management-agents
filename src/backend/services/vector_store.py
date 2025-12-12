@@ -130,7 +130,9 @@ class ChromaVectorStore(VectorStore):
 
         self.persist_directory = Path(persist_directory)
         self.persist_directory.mkdir(parents=True, exist_ok=True)
+        self.base_collection_name = collection_name
         self.collection_name = collection_name
+        self.expected_dimension = kwargs.get('dimension')
 
         # Filter out ChromaDB-specific parameters that shouldn't go to Settings
         chromadb_settings = {k: v for k, v in kwargs.items() if k not in ['dimension', 'distance_metric']}
@@ -145,7 +147,7 @@ class ChromaVectorStore(VectorStore):
             settings=Settings(**chromadb_settings)
         )
 
-        # Get or create collection with distance metric
+        # Get or create collection with distance metric (and store our expected embedding dim in metadata)
         try:
             self.collection = self.client.get_collection(name=collection_name)
             logger.info(f"Loaded existing ChromaDB collection: {collection_name} (using distance metric: {self.distance_metric})")
@@ -153,11 +155,57 @@ class ChromaVectorStore(VectorStore):
             # ChromaDB raises NotFoundError when collection doesn't exist
             # Create collection with specified distance metric
             collection_metadata = {"hnsw:space": self.distance_metric}
+            if self.expected_dimension:
+                collection_metadata["embedding_dimension"] = int(self.expected_dimension)
             self.collection = self.client.create_collection(
                 name=collection_name,
                 metadata=collection_metadata
             )
             logger.info(f"Created new ChromaDB collection: {collection_name} (distance metric: {self.distance_metric})")
+
+        # Prefer a dimension-specific collection whenever dimension is configured.
+        # This avoids hard failures (and subtle correctness issues) when the embedding model changes.
+        if self.expected_dimension:
+            self._switch_to_dimension_collection()
+
+    def _dimension_collection_name(self) -> Optional[str]:
+        """Return the dimension-suffixed collection name (if dimension is known)."""
+        if not self.expected_dimension:
+            return None
+        return f"{self.base_collection_name}_dim{int(self.expected_dimension)}"
+
+    def _switch_to_dimension_collection(self) -> bool:
+        """Switch to a dimension-specific collection to avoid embedding-dimension mismatches.
+
+        This is non-destructive: we do not delete or modify the old collection; we simply
+        use a different collection name for the current embedding model/dimension.
+        """
+        dim_name = self._dimension_collection_name()
+        if not dim_name:
+            return False
+        if self.collection_name == dim_name:
+            return True
+
+        try:
+            from chromadb.errors import NotFoundError
+        except Exception:
+            return False
+
+        collection_metadata = {"hnsw:space": self.distance_metric}
+        collection_metadata["embedding_dimension"] = int(self.expected_dimension)
+
+        self.collection_name = dim_name
+        try:
+            self.collection = self.client.get_collection(name=dim_name)
+            logger.warning(
+                f"Switched to existing ChromaDB collection '{dim_name}' due to embedding dimension mismatch"
+            )
+        except NotFoundError:
+            self.collection = self.client.create_collection(name=dim_name, metadata=collection_metadata)
+            logger.warning(
+                f"Created and switched to new ChromaDB collection '{dim_name}' due to embedding dimension mismatch"
+            )
+        return True
 
     def add_embeddings(self, embeddings: List[List[float]],
                       metadata: List[Dict[str, Any]],
@@ -202,6 +250,27 @@ class ChromaVectorStore(VectorStore):
             return True
 
         except Exception as e:
+            # If we hit an embedding dimension mismatch, automatically switch to a dimension-specific
+            # collection and retry once. This prevents hard failures when the embedding model changes.
+            try:
+                from chromadb.errors import InvalidArgumentError
+            except Exception:
+                InvalidArgumentError = None  # type: ignore
+
+            if InvalidArgumentError and isinstance(e, InvalidArgumentError) and "expecting embedding with dimension" in str(e).lower():
+                if self._switch_to_dimension_collection():
+                    try:
+                        self.collection.add(
+                            embeddings=normalized_embeddings,
+                            metadatas=processed_metadata,
+                            ids=ids
+                        )
+                        logger.info(f"Added {len(embeddings)} normalized embeddings to ChromaDB (after collection switch)")
+                        return True
+                    except Exception as retry_error:
+                        logger.error(f"Error adding embeddings to ChromaDB after collection switch: {retry_error}")
+                        return False
+
             logger.error(f"Error adding embeddings to ChromaDB: {e}")
             return False
 
@@ -210,6 +279,18 @@ class ChromaVectorStore(VectorStore):
                       threshold: float = -1.0) -> List[Tuple[str, float, Dict[str, Any]]]:
         """Search for similar embeddings in ChromaDB."""
         try:
+            # Ensure NotFoundError name is available in this method scope
+            from chromadb.errors import NotFoundError
+
+            # Guardrail: if the query embedding dimension doesn't match our configured expectation,
+            # we should not query the current collection (it will error or return nonsense).
+            if self.expected_dimension and len(query_embedding) != int(self.expected_dimension):
+                logger.warning(
+                    f"Query embedding dimension {len(query_embedding)} does not match expected {int(self.expected_dimension)}; "
+                    "switching to dimension-specific collection"
+                )
+                self._switch_to_dimension_collection()
+
             # Ensure the collection exists and is accessible
             try:
                 # Try to access the collection to make sure it exists
@@ -223,6 +304,8 @@ class ChromaVectorStore(VectorStore):
                 except NotFoundError:
                     # Create collection if it doesn't exist
                     collection_metadata = {"hnsw:space": self.distance_metric}
+                    if self.expected_dimension:
+                        collection_metadata["embedding_dimension"] = int(self.expected_dimension)
                     self.collection = self.client.create_collection(
                         name=self.collection_name,
                         metadata=collection_metadata
@@ -242,11 +325,30 @@ class ChromaVectorStore(VectorStore):
                 normalized_query = query_embedding
 
             # Query ChromaDB (distance metric depends on collection configuration)
-            results = self.collection.query(
-                query_embeddings=[normalized_query],
-                n_results=top_k,  # Use the max_candidates value passed from config
-                include=['metadatas', 'distances']
-            )
+            try:
+                results = self.collection.query(
+                    query_embeddings=[normalized_query],
+                    n_results=top_k,  # Use the max_candidates value passed from config
+                    include=['metadatas', 'distances']
+                )
+            except Exception as query_error:
+                # Handle embedding dimension mismatch by switching to a dimension-specific collection and retrying once.
+                try:
+                    from chromadb.errors import InvalidArgumentError
+                except Exception:
+                    InvalidArgumentError = None  # type: ignore
+
+                if InvalidArgumentError and isinstance(query_error, InvalidArgumentError) and "expecting embedding with dimension" in str(query_error).lower():
+                    if self._switch_to_dimension_collection():
+                        results = self.collection.query(
+                            query_embeddings=[normalized_query],
+                            n_results=top_k,
+                            include=['metadatas', 'distances']
+                        )
+                    else:
+                        raise
+                else:
+                    raise
 
             logger.info(f"ChromaDB query returned {len(results['ids'][0])} results")
 
@@ -254,8 +356,8 @@ class ChromaVectorStore(VectorStore):
             # ChromaDB returns cosine distances (0-2 range), convert to similarity (1 to -1)
             # For positive similarities, clamp to 0-1 range
             distances = results['distances'][0]
+            search_results = []
             if distances:
-                search_results = []
                 for i, (doc_id, distance, metadata) in enumerate(
                     zip(results['ids'][0], distances, results['metadatas'][0])):
 
@@ -313,6 +415,9 @@ class ChromaVectorStore(VectorStore):
     def get_all_embeddings(self) -> List[Dict[str, Any]]:
         """Get all embeddings and metadata from ChromaDB."""
         try:
+            # Ensure NotFoundError name is available in this method scope
+            from chromadb.errors import NotFoundError
+
             # Ensure the collection exists and is accessible
             try:
                 # Try to access the collection to make sure it exists
@@ -332,6 +437,8 @@ class ChromaVectorStore(VectorStore):
                 except NotFoundError:
                     # Create collection if it doesn't exist
                     collection_metadata = {"hnsw:space": self.distance_metric}
+                    if self.expected_dimension:
+                        collection_metadata["embedding_dimension"] = int(self.expected_dimension)
                     self.collection = self.client.create_collection(
                         name=self.collection_name,
                         metadata=collection_metadata
