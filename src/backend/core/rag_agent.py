@@ -478,15 +478,14 @@ ANSWER:"""
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             logger.debug(f"Failed to parse structured citations: {e}")
 
-        # Fallback: Find all [Document N] references in the answer (legacy support)
-        if not cited_indices:
-            citation_pattern = r'\[Document\s+(\d+)\]'
-            matches = re.finditer(citation_pattern, answer, re.IGNORECASE)
-
-            for match in matches:
-                doc_index = int(match.group(1)) - 1  # Convert to 0-based index
-                if 0 <= doc_index < len(documents):
-                    cited_indices.add(doc_index)
+        # Fallback: Find all [DocumentN] / [Document N] / [DocN] references in the answer.
+        # Some models omit the space, so tolerate it.
+        citation_pattern = r'\[(?:Document|Doc)\s*(\d+)\]'
+        matches = re.finditer(citation_pattern, answer, re.IGNORECASE)
+        for match in matches:
+            doc_index = int(match.group(1)) - 1  # Convert to 0-based index
+            if 0 <= doc_index < len(documents):
+                cited_indices.add(doc_index)
 
         # Build citation list with document metadata
         for idx in sorted(cited_indices):
