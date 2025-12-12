@@ -16,6 +16,7 @@ from src.backend.database.database_sqlite_standalone import SQLiteDocumentDataba
 from src.backend.services.embeddings import EmbeddingGenerator
 from src.backend.services.vector_store import create_vector_store
 from src.backend.core.rag_agent import RAGAgent
+from src.backend.services.receipt_segmentation import SegmentationConfig, Sam3ReceiptSegmenter
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,8 @@ class DocumentAgent:
             hunyuan_timeout=config.hunyuan_timeout,
             hunyuan_max_tokens=config.hunyuan_max_tokens,
             hunyuan_max_retries=config.hunyuan_max_retries,
-            hunyuan_retry_base_delay=config.hunyuan_retry_base_delay
+            hunyuan_retry_base_delay=config.hunyuan_retry_base_delay,
+            exclude_paths=list({*config.watch_exclude_paths, config.segmentation_output_dir})
         )
         # Initialize vector store (required for embeddings)
         try:
@@ -132,6 +134,27 @@ class DocumentAgent:
             max_retries=config.ollama_max_retries,
             retry_base_delay=config.ollama_retry_base_delay
         )
+
+        # Optional: receipt segmentation (SAM3)
+        self.segmentation_cfg = SegmentationConfig(
+            enable=config.segmentation_enable,
+            output_dir=Path(config.segmentation_output_dir),
+            device=config.segmentation_device,
+            checkpoint_path=Path(config.segmentation_checkpoint_path) if config.segmentation_checkpoint_path else None,
+            text_prompt=config.segmentation_text_prompt,
+            confidence_threshold=config.segmentation_confidence_threshold,
+            max_masks=config.segmentation_max_masks,
+            max_segments=config.segmentation_max_segments,
+            min_area_ratio=config.segmentation_min_area_ratio,
+            min_width_px=config.segmentation_min_width_px,
+            min_height_px=config.segmentation_min_height_px,
+            min_fill_ratio=config.segmentation_min_fill_ratio,
+            iou_dedup_threshold=config.segmentation_iou_dedup_threshold,
+            bbox_padding_px=config.segmentation_bbox_padding_px,
+        )
+        self.receipt_segmenter: Sam3ReceiptSegmenter | None = None
+        if self.segmentation_cfg.enable:
+            self.receipt_segmenter = Sam3ReceiptSegmenter(self.segmentation_cfg)
     
     def process_files_batch(self, file_paths: List[Path], batch_size: int = 10, progress_callback=None) -> Dict[str, any]:
         """Process multiple files in batches for better performance.
@@ -152,6 +175,7 @@ class DocumentAgent:
             'failed': 0,
             'skipped': 0,
             'skipped_deleted': 0,
+            'segmented': 0,
             'performance': {
                 'total_hash_duration': 0.0,
                 'total_ocr_duration': 0.0,
@@ -188,6 +212,9 @@ class DocumentAgent:
                     elif status == 'skipped_deleted':
                         stats['skipped_deleted'] += 1
                         processed_files_count += 1  # Still count for performance averages
+                    elif status == 'segmented':
+                        stats['segmented'] += 1
+                        processed_files_count += 1  # Count for progress/averages (metrics are near-zero)
                     elif status == 'failed':
                         stats['failed'] += 1
 
@@ -248,6 +275,10 @@ class DocumentAgent:
                 'db_lookup_duration': 0.0,
                 'db_insert_duration': 0.0
             }
+
+            # Optional: receipt segmentation for images (creates N docs, skips original)
+            if self._segment_and_ingest_children(file_path):
+                return ('segmented', perf_metrics)
 
             # Generate file hash first
             hash_result = self.file_handler.generate_file_hash(file_path)
@@ -403,6 +434,47 @@ class DocumentAgent:
             return ('failed', {'hash_duration': 0.0, 'ocr_duration': 0.0, 'classification_duration': 0.0,
                            'embedding_duration': 0.0, 'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
 
+    def _should_segment_receipts(self, file_path: Path) -> bool:
+        """Return True if receipt segmentation should be applied to this file."""
+        if not self.receipt_segmenter or not self.segmentation_cfg.enable:
+            return False
+
+        suffix = file_path.suffix.lower()
+        if suffix not in {'.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp'}:
+            return False
+
+        # Avoid re-segmenting already-segmented outputs
+        try:
+            resolved = file_path.resolve()
+            out_dir = self.segmentation_cfg.output_dir.resolve()
+            resolved.relative_to(out_dir)
+            return False
+        except Exception:
+            return True
+
+    def _segment_and_ingest_children(self, file_path: Path) -> bool:
+        """Run segmentation and ingest resulting PNGs. Returns True if segmentation happened."""
+        if not self._should_segment_receipts(file_path):
+            return False
+
+        try:
+            seg_paths = self.receipt_segmenter.segment_receipts(file_path)
+        except Exception as e:
+            logger.warning(f"Receipt segmentation failed for {file_path.name}; continuing without segmentation: {e}")
+            return False
+
+        if not seg_paths:
+            return False
+
+        logger.info(f"Segmented {file_path.name} into {len(seg_paths)} receipt(s); ingesting segments and skipping original")
+        for seg_path in seg_paths:
+            try:
+                self.process_file(seg_path)
+            except Exception as e:
+                logger.error(f"Failed to ingest segmented receipt {seg_path}: {e}")
+
+        return True
+
     def _collect_all_files(self) -> Dict[Path, List[Path]]:
         """Collect all files from all directories using BFS traversal.
 
@@ -430,6 +502,8 @@ class DocumentAgent:
                 files_in_dir = []
                 for item in current_dir.iterdir():
                     if item.is_file():
+                        if self.file_handler._is_excluded(item):
+                            continue
                         # Check if file should be included based on extensions
                         if self.file_handler._is_included(item, self.config.file_extensions if self.config.file_extensions else None):
                             files_in_dir.append(item)
@@ -481,6 +555,7 @@ class DocumentAgent:
             'processed': 0,
             'failed': 0,
             'skipped': 0,
+            'segmented': 0,
             'performance': {
                 'total_hash_duration': 0.0,
                 'total_ocr_duration': 0.0,
@@ -521,6 +596,7 @@ class DocumentAgent:
             total_stats['processed'] += batch_stats['processed']
             total_stats['failed'] += batch_stats['failed']
             total_stats['skipped'] += batch_stats.get('skipped', 0)
+            total_stats['segmented'] += batch_stats.get('segmented', 0)
 
             # Accumulate performance metrics
             total_stats['performance']['total_hash_duration'] += batch_stats['performance']['total_hash_duration']

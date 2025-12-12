@@ -17,7 +17,7 @@ An intelligent document classification and search system that uses local AI mode
 
 ### Prerequisites
 
-- **Python 3.8+**
+- **Python 3.12+**
 - **Node.js 18+**
 - **Ollama** installed and running locally
 
@@ -53,6 +53,7 @@ Edit `src/backend/config/config.yaml` to customize:
 - File extensions to include for processing (required)
 - Database and vector store locations
 - Ollama model settings
+- Optional SAM3 receipt image segmentation
 - Web server configuration
 
 ### 4. Running File Processing and Web App for Browsing
@@ -135,6 +136,40 @@ python document_ingestion.py category invoice
 python document_ingestion.py --verbose classify
 ```
 
+### Receipt Segmentation (Optional, SAM3)
+
+If you have a single image that contains **multiple receipts**, you can enable SAM3-based segmentation so each receipt is ingested as its **own document**.
+
+- **When enabled**: the ingestion pipeline will write segmented PNGs into `segmentation.output_dir`, ingest each segment, and **skip ingesting the original combined image**.
+- **When disabled**: ingestion behavior is unchanged.
+
+To enable, set in `src/backend/config/config.yaml`:
+- `segmentation.enable: true`
+- `segmentation.checkpoint_path: "/path/to/sam3/checkpoint"`
+- Optional tuning:
+  - `segmentation.text_prompt: "receipt"`
+  - `segmentation.confidence_threshold: 0.5`
+
+Install SAM3 (upstream) in the same environment:
+
+```bash
+git clone https://github.com/facebookresearch/sam3.git
+cd sam3
+pip install -e .
+```
+
+To run segmentation without ingesting (to validate outputs):
+
+```bash
+python src/backend/scripts/segment_receipts.py --input /path/to/image_or_dir
+```
+
+If you run into MPS-related PyTorch errors, force CPU:
+
+```bash
+python src/backend/scripts/segment_receipts.py --input /path/to/image_or_dir --device cpu
+```
+
 ### Web Interface
 
 The web interface provides:
@@ -184,6 +219,35 @@ ollama:
 chandra:
   endpoint: "http://localhost:11435"
   model: "chandra"
+
+# Watch mode settings
+watch:
+  interval: 5
+  recursive: true
+  exclude_paths:
+    - "data/segmented_receipts"
+
+# Optional: receipt image segmentation (SAM3)
+segmentation:
+  enable: false
+  output_dir: "data/segmented_receipts"
+  device: "auto"       # auto|mps|cpu
+  checkpoint_path: ""  # required when enable=true
+
+  # Text prompt used to ground receipt-like regions
+  text_prompt: "receipt"
+  # Confidence threshold for returned masks/boxes
+  confidence_threshold: 0.5
+
+  # Limits / heuristics
+  max_masks: 128
+  max_segments: 10
+  min_area_ratio: 0.02
+  min_width_px: 200
+  min_height_px: 200
+  min_fill_ratio: 0.35
+  iou_dedup_threshold: 0.85
+  bbox_padding_px: 12
 
 # Web server settings
 webapp:
@@ -311,6 +375,12 @@ chandra:
 - Use batch processing for multiple files
 - Consider GPU acceleration for Ollama if available
 - Reduce model size for faster inference
+
+**Receipt segmentation (SAM3)**
+- Ensure you have installed SAM3 from `https://github.com/facebookresearch/sam3`
+- Ensure `segmentation.enable: true` and `segmentation.checkpoint_path` is set in `src/backend/config/config.yaml`
+- On Apple Silicon, use `segmentation.device: auto` (or explicitly `mps`) to enable Metal acceleration
+- Use the standalone CLI to validate segmentation output:\n  - `python src/backend/scripts/segment_receipts.py --input /path/to/image_or_dir`
 
 ### Getting Help
 

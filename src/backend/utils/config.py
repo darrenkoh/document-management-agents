@@ -27,11 +27,13 @@ class Config:
         
         with open(self.config_path, 'r') as f:
             config = yaml.safe_load(f)
+
+        def _expand_abs_path(p: str) -> str:
+            return os.path.abspath(os.path.expanduser(p))
         
         # Expand user paths and make them absolute
         if 'source_path' in config:
-            config['source_path'] = os.path.expanduser(config['source_path'])
-            config['source_path'] = os.path.abspath(config['source_path'])
+            config['source_path'] = _expand_abs_path(config['source_path'])
 
         if 'source_paths' in config:
             if isinstance(config['source_paths'], str):
@@ -39,13 +41,30 @@ class Config:
                 config['source_paths'] = [config['source_paths']]
             # Expand user paths and make them absolute
             config['source_paths'] = [
-                os.path.abspath(os.path.expanduser(path))
+                _expand_abs_path(path)
                 for path in config['source_paths']
             ]
         
         if 'destination_path' in config:
-            config['destination_path'] = os.path.expanduser(config['destination_path'])
-            config['destination_path'] = os.path.abspath(config['destination_path'])
+            config['destination_path'] = _expand_abs_path(config['destination_path'])
+
+        # Expand watch exclude paths (if any)
+        watch_config = config.get('watch', {}) or {}
+        exclude_paths = watch_config.get('exclude_paths')
+        if exclude_paths:
+            if isinstance(exclude_paths, str):
+                exclude_paths = [exclude_paths]
+            watch_config['exclude_paths'] = [_expand_abs_path(p) for p in exclude_paths]
+            config['watch'] = watch_config
+
+        # Expand segmentation paths (if any)
+        seg_config = config.get('segmentation', {}) or {}
+        if 'output_dir' in seg_config and seg_config['output_dir']:
+            seg_config['output_dir'] = _expand_abs_path(seg_config['output_dir'])
+        if 'checkpoint_path' in seg_config and seg_config['checkpoint_path']:
+            seg_config['checkpoint_path'] = _expand_abs_path(seg_config['checkpoint_path'])
+        if seg_config:
+            config['segmentation'] = seg_config
         
         return config
     
@@ -118,6 +137,17 @@ class Config:
         """Get watch mode recursive setting."""
         watch_config = self._config.get('watch', {})
         return watch_config.get('recursive', True)
+
+    @property
+    def watch_exclude_paths(self) -> List[str]:
+        """Get watch mode exclude paths (absolute paths)."""
+        watch_config = self._config.get('watch', {})
+        exclude_paths = watch_config.get('exclude_paths', [])
+        if not exclude_paths:
+            return []
+        if isinstance(exclude_paths, str):
+            return [exclude_paths]
+        return list(exclude_paths)
     
     @property
     def log_level(self) -> str:
@@ -386,4 +416,84 @@ class Config:
         """Get whether to enable debug logging for similarity calculations."""
         search_config = self._config.get('semantic_search', {})
         return search_config.get('debug_similarity', False)
+
+    # ----------------------------
+    # Optional image segmentation
+    # ----------------------------
+
+    @property
+    def segmentation_enable(self) -> bool:
+        """Whether receipt segmentation is enabled."""
+        seg_config = self._config.get('segmentation', {})
+        return bool(seg_config.get('enable', False))
+
+    @property
+    def segmentation_output_dir(self) -> str:
+        """Directory to write segmented receipt PNGs to (absolute path when loaded from config.yaml)."""
+        seg_config = self._config.get('segmentation', {})
+        return seg_config.get('output_dir', os.path.abspath('data/segmented_receipts'))
+
+    @property
+    def segmentation_device(self) -> str:
+        """Device for segmentation: auto|mps|cpu."""
+        seg_config = self._config.get('segmentation', {})
+        return seg_config.get('device', 'auto')
+
+    @property
+    def segmentation_checkpoint_path(self) -> Optional[str]:
+        """Path to SAM3 checkpoint file/directory (absolute path when loaded from config.yaml)."""
+        seg_config = self._config.get('segmentation', {})
+        return seg_config.get('checkpoint_path')
+
+    @property
+    def segmentation_text_prompt(self) -> str:
+        """Text prompt to use for SAM3 grounding on images."""
+        seg_config = self._config.get('segmentation', {})
+        return seg_config.get('text_prompt', 'receipt')
+
+    @property
+    def segmentation_confidence_threshold(self) -> float:
+        """Minimum confidence threshold for masks/boxes returned by SAM3 processor."""
+        seg_config = self._config.get('segmentation', {})
+        return float(seg_config.get('confidence_threshold', 0.5))
+
+    @property
+    def segmentation_max_masks(self) -> int:
+        seg_config = self._config.get('segmentation', {})
+        return int(seg_config.get('max_masks', 128))
+
+    @property
+    def segmentation_max_segments(self) -> int:
+        seg_config = self._config.get('segmentation', {})
+        return int(seg_config.get('max_segments', 10))
+
+    @property
+    def segmentation_min_area_ratio(self) -> float:
+        seg_config = self._config.get('segmentation', {})
+        return float(seg_config.get('min_area_ratio', 0.02))
+
+    @property
+    def segmentation_min_width_px(self) -> int:
+        seg_config = self._config.get('segmentation', {})
+        return int(seg_config.get('min_width_px', 200))
+
+    @property
+    def segmentation_min_height_px(self) -> int:
+        seg_config = self._config.get('segmentation', {})
+        return int(seg_config.get('min_height_px', 200))
+
+    @property
+    def segmentation_min_fill_ratio(self) -> float:
+        seg_config = self._config.get('segmentation', {})
+        return float(seg_config.get('min_fill_ratio', 0.35))
+
+    @property
+    def segmentation_iou_dedup_threshold(self) -> float:
+        seg_config = self._config.get('segmentation', {})
+        return float(seg_config.get('iou_dedup_threshold', 0.85))
+
+    @property
+    def segmentation_bbox_padding_px(self) -> int:
+        seg_config = self._config.get('segmentation', {})
+        return int(seg_config.get('bbox_padding_px', 12))
 

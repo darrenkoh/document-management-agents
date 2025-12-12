@@ -44,7 +44,7 @@ class FileHandler:
                  chandra_detect_repeat_tokens: bool = True, hunyuan_endpoint: str = "http://localhost:11434",
                  hunyuan_model: str = "tencent/HunyuanOCR", hunyuan_timeout: int = 1800,
                  hunyuan_max_tokens: int = 16384, hunyuan_max_retries: int = 3,
-                 hunyuan_retry_base_delay: float = 1.0):
+                 hunyuan_retry_base_delay: float = 1.0, exclude_paths: Optional[List[str]] = None):
         """Initialize file handler.
 
         Args:
@@ -70,8 +70,10 @@ class FileHandler:
             hunyuan_max_tokens: Maximum tokens for HunyuanOCR
             hunyuan_max_retries: Maximum retries for HunyuanOCR
             hunyuan_retry_base_delay: Base delay for HunyuanOCR retries
+            exclude_paths: Optional list of paths to exclude from ingestion (absolute or relative)
         """
         self.source_paths = [Path(path) for path in source_paths]
+        self.exclude_paths = [Path(p) for p in (exclude_paths or [])]
         self.ollama_endpoint = ollama_endpoint
         self.ocr_model = ocr_model
         self.ocr_timeout = ocr_timeout
@@ -119,6 +121,26 @@ class FileHandler:
         # Ensure source directories exist
         for source_path in self.source_paths:
             source_path.mkdir(parents=True, exist_ok=True)
+
+    def _is_excluded(self, file_path: Path) -> bool:
+        """Check if a file path should be excluded from ingestion."""
+        if not self.exclude_paths:
+            return False
+        try:
+            resolved = Path(file_path).resolve()
+        except Exception:
+            resolved = Path(file_path)
+        for ex in self.exclude_paths:
+            try:
+                ex_resolved = ex.resolve()
+            except Exception:
+                ex_resolved = ex
+            try:
+                resolved.relative_to(ex_resolved)
+                return True
+            except Exception:
+                continue
+        return False
 
     def _call_ocr_generate(self, prompt: str, images: Optional[List[str]] = None, options: Optional[dict] = None) -> dict:
         """Make OCR LLM generate call with retry logic (deprecated - use provider-specific methods)."""
@@ -356,6 +378,8 @@ class FileHandler:
 
             for file_path in source_path.glob(pattern):
                 if file_path.is_file():
+                    if self._is_excluded(file_path):
+                        continue
                     # Check if file should be included
                     if self._is_included(file_path, extensions):
                         files.append(file_path)

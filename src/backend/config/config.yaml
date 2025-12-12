@@ -182,6 +182,46 @@ watch:
   interval: 5
   # Recursively watch subdirectories
   recursive: true
+  # Optional: exclude paths from being ingested in watch/scan modes.
+  # Use this to prevent generated/derived files from triggering re-processing loops.
+  # NOTE: paths are expanded to absolute paths at runtime.
+  exclude_paths:
+    - "data/segmented_receipts"
+
+# Optional: receipt image segmentation (SAM3)
+segmentation:
+  # When enabled, image inputs (png/jpg/jpeg/...) can be segmented into multiple receipts.
+  # The original combined image is NOT ingested; each segment PNG is ingested as its own document.
+  enable: false
+
+  # Directory to write segmented receipt PNGs to.
+  # This is excluded from watch/scan by default above to prevent loops.
+  output_dir: "data/segmented_receipts"
+
+  # Device for segmentation: auto|mps|cpu
+  # - auto: use MPS on Apple Silicon if available, otherwise CPU
+  device: "auto"
+
+  # Path to SAM3 checkpoint (file or directory, depending on SAM3 install).
+  # Required when enable=true.
+  checkpoint_path: "~/.cache/huggingface/hub/models--facebook--sam3/snapshots/3c879f39826c281e95690f02c7821c4de09afae7/sam3.pt"
+
+  # Text prompt used to ground receipt regions (SAM3 is detector+segmenter conditioned on text).
+  # Tweak if your receipts are missed (e.g. "paper receipt", "invoice", "document").
+  text_prompt: "receipt"
+
+  # Confidence threshold for returned masks/boxes. Higher = fewer results.
+  confidence_threshold: 0.5
+
+  # Limits / heuristics
+  max_masks: 128
+  max_segments: 10
+  min_area_ratio: 0.02
+  min_width_px: 200
+  min_height_px: 200
+  min_fill_ratio: 0.35
+  iou_dedup_threshold: 0.85
+  bbox_padding_px: 12
 
 # Web app configuration
 webapp:
