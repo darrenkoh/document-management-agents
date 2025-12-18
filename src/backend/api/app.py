@@ -1197,6 +1197,130 @@ def api_delete_record(table_name, record_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/embeddings/search', methods=['POST'])
+def api_search_embeddings():
+    """Search embedding database using a keyword.
+    
+    Accepts JSON body with:
+        - keyword: The search keyword/phrase
+        - limit: Optional number of results (default: 10)
+    
+    Returns tokenization info, embedding metadata, and matching documents.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        keyword = data.get('keyword', '').strip()
+        if not keyword:
+            return jsonify({'error': 'Keyword is required'}), 400
+        
+        limit = data.get('limit', 10)
+        try:
+            limit = int(limit)
+            if limit < 1:
+                limit = 10
+            elif limit > 100:
+                limit = 100
+        except (ValueError, TypeError):
+            limit = 10
+        
+        # Check if embedding generator is available
+        if not hasattr(agent, 'embedding_generator') or not agent.embedding_generator:
+            return jsonify({'error': 'Embedding generator not available'}), 503
+        
+        # Check if vector store is available
+        if not agent.database.vector_store:
+            return jsonify({'error': 'Vector store not available'}), 503
+        
+        app.logger.info(f"Generating embedding for keyword: '{keyword}'")
+        
+        # Generate embedding for the keyword
+        embedding = agent.embedding_generator.generate_query_embedding(keyword)
+        
+        if not embedding:
+            return jsonify({'error': 'Failed to generate embedding for keyword'}), 500
+        
+        # Prepare embedding info
+        embedding_info = {
+            'dimension': len(embedding),
+            'model': agent.embedding_generator.model,
+            'sample_values': embedding[:10] if len(embedding) >= 10 else embedding,  # First 10 values
+            'min_value': min(embedding),
+            'max_value': max(embedding),
+            'mean_value': sum(embedding) / len(embedding) if embedding else 0
+        }
+        
+        # Tokenize the keyword (simple word-based tokenization for display)
+        import re
+        words = re.findall(r'\b\w+\b', keyword.lower())
+        
+        app.logger.info(f"Searching vector store with embedding (dim={len(embedding)})")
+        
+        # Search the vector store
+        search_results = agent.database.vector_store.search_similar(
+            query_embedding=embedding,
+            top_k=limit,
+            threshold=-1.0  # Return all results, let frontend filter if needed
+        )
+        
+        app.logger.info(f"Found {len(search_results)} results")
+        
+        # Format results
+        results = []
+        for doc_id, similarity, metadata in search_results:
+            # Get full document info from database if available
+            doc_info = {
+                'id': doc_id,
+                'similarity': round(similarity, 4),
+                'filename': metadata.get('filename', 'Unknown'),
+                'categories': metadata.get('categories', 'Unknown'),
+                'sub_categories': [],
+                'content_preview': metadata.get('content_preview', '')[:500] if metadata.get('content_preview') else '',
+                'metadata': metadata
+            }
+            
+            # Parse sub_categories if present
+            sub_cats = metadata.get('sub_categories', [])
+            if isinstance(sub_cats, str):
+                import json
+                try:
+                    sub_cats = json.loads(sub_cats)
+                except (json.JSONDecodeError, TypeError):
+                    try:
+                        if sub_cats.startswith('[') and sub_cats.endswith(']'):
+                            content = sub_cats[1:-1].strip()
+                            if content:
+                                items = [item.strip().strip("'\"") for item in content.split(',')]
+                                sub_cats = [item for item in items if item]
+                            else:
+                                sub_cats = []
+                        else:
+                            sub_cats = []
+                    except:
+                        sub_cats = []
+            elif not isinstance(sub_cats, list):
+                sub_cats = []
+            
+            doc_info['sub_categories'] = sub_cats
+            results.append(doc_info)
+        
+        return jsonify({
+            'keyword': keyword,
+            'words': words,
+            'embedding_info': embedding_info,
+            'results': results,
+            'count': len(results)
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Error in embedding search: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/verbose', methods=['GET', 'POST'])
 def toggle_verbose():
     """Get or set verbose logging state."""
