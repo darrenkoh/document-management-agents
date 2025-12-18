@@ -7,9 +7,7 @@
 #   - "./documents"
 #   - "/path/to/other/folder"
 source_paths:
-#  - "/Volumes/1TB/Private"
-#  - "/Volumes/Documents/Private"
-  - "/Volumes/Documents/Private"
+  - "/Volumes/Documents/Private/costco"
   
 
 # File extensions to process (REQUIRED - only files with these extensions will be processed)
@@ -192,7 +190,7 @@ watch:
 segmentation:
   # When enabled, image inputs (png/jpg/jpeg/...) can be segmented into multiple receipts.
   # The original combined image is NOT ingested; each segment PNG is ingested as its own document.
-  enable: false
+  enable: true
 
   # Directory to write segmented receipt PNGs to.
   # This is excluded from watch/scan by default above to prevent loops.

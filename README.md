@@ -115,7 +115,7 @@ Place your documents in the `data/input/` directory. Supported formats:
 - PDF documents (text-based and image-based with OCR)
 - Microsoft Word (.docx, .doc)
 - Text files (.txt)
-- Images (.png, .jpg, .jpeg, .gif, .tiff)
+- Images (.png, .jpg, .jpeg, .heic, .gif, .tiff)
 
 ### CLI Commands
 
@@ -200,6 +200,7 @@ file_extensions:
   - ".png"
   - ".jpg"
   - ".jpeg"
+  - ".heic"
   - ".gif"
   - ".tiff"
 
