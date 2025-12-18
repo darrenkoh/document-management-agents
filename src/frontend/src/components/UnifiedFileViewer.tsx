@@ -47,7 +47,7 @@ export const UnifiedFileViewer = ({ document, className }: UnifiedFileViewerProp
     const mimeType = document.metadata.mime_type || '';
 
     // Image Viewer
-    if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(extension) || mimeType.startsWith('image/')) {
+    if (['.jpg', '.jpeg', '.png', '.heic', '.gif', '.webp', '.svg'].includes(extension) || mimeType.startsWith('image/')) {
       return (
         <div className="flex items-center justify-center h-full overflow-auto p-4 bg-gray-100/50">
           <img 

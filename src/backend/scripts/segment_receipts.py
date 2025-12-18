@@ -28,7 +28,7 @@ def _iter_images(path: Path):
         yield path
         return
 
-    exts = {'.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp'}
+    exts = {'.png', '.jpg', '.jpeg', '.heic', '.gif', '.tiff', '.bmp'}
     for p in path.rglob('*'):
         if p.is_file() and p.suffix.lower() in exts:
             yield p

@@ -21,6 +21,7 @@ file_extensions:
   - ".png"
   - ".jpg"
   - ".jpeg"
+  - ".heic"
   - ".gif"
   - ".tiff"
 

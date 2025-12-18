@@ -11,6 +11,11 @@ from typing import Optional, List
 from pypdf import PdfReader
 from docx import Document
 from PIL import Image
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
 import ollama
 
 try:
@@ -455,7 +460,7 @@ class FileHandler:
                 return (self._extract_from_doc(file_path), 0.0, False)
             elif suffix == '.txt':
                 return (self._extract_from_txt(file_path), 0.0, False)
-            elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
+            elif suffix in ['.png', '.jpg', '.jpeg', '.heic', '.gif', '.tiff', '.bmp']:
                 if self.ocr_available:
                     text, ocr_duration = self._extract_from_image(file_path)
                     if text is not None:

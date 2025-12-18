@@ -440,7 +440,7 @@ class DocumentAgent:
             return False
 
         suffix = file_path.suffix.lower()
-        if suffix not in {'.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp'}:
+        if suffix not in {'.png', '.jpg', '.jpeg', '.heic', '.gif', '.tiff', '.bmp'}:
             return False
 
         # Avoid re-segmenting already-segmented outputs
