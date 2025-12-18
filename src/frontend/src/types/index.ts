@@ -83,6 +83,8 @@ export interface DocumentsRequest {
   search?: string;
   category?: string;
   sub_category?: string;
+  sort?: string;
+  direction?: 'asc' | 'desc';
 }
 
 // Theme types

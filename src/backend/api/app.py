@@ -523,6 +523,8 @@ def api_documents():
     search = request.args.get('search', '').strip()
     category = request.args.get('category', '').strip()
     sub_category = request.args.get('sub_category', '').strip()
+    sort = request.args.get('sort', 'classification_date').strip()
+    direction = request.args.get('direction', 'desc').strip()
 
     # Refresh data to ensure we have latest documents
     refresh_database()
@@ -565,8 +567,23 @@ def api_documents():
                 filtered_docs.append(doc)
         all_docs = filtered_docs
 
-    # Sort by classification date
-    all_docs.sort(key=lambda x: x.get('classification_date', ''), reverse=True)
+    # Sort documents
+    reverse = (direction.lower() == 'desc')
+    
+    # Map frontend sort keys to backend keys if necessary
+    sort_key_map = {
+        'filename': 'filename',
+        'classification_date': 'classification_date',
+        'date': 'classification_date',
+        'file_size': 'metadata.file_size', # Special case for nested metadata
+    }
+    
+    actual_sort_key = sort_key_map.get(sort, sort)
+    
+    if actual_sort_key == 'metadata.file_size':
+        all_docs.sort(key=lambda x: x.get('metadata', {}).get('file_size', 0), reverse=reverse)
+    else:
+        all_docs.sort(key=lambda x: x.get(actual_sort_key, ''), reverse=reverse)
 
     # Pagination
     total_docs = len(all_docs)
