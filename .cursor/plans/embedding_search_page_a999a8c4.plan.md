@@ -111,5 +111,3 @@ The API client already has `searchEmbeddings()` method in [`src/frontend/src/lib
 | File | Change ||------|--------|| `src/backend/api/app.py` | Add `/api/embeddings/search` endpoint || `src/frontend/src/pages/EmbeddingSearchPage.tsx` | New file - search page component || `src/frontend/src/App.tsx` | Add route for new page || `src/frontend/src/components/Layout.tsx` | Add navigation link || `src/frontend/src/types/index.ts` | Add types for search response |
 
 ## Notes
-
-- The Ollama embedding model (`qwen3-embedding:8b`) doesn't expose token IDs directly - we'll show the word breakdown and embedding vector metadata instead
