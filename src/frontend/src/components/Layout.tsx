@@ -9,7 +9,8 @@ import {
   X,
   RefreshCw,
   Terminal,
-  ScatterChart
+  ScatterChart,
+  Sparkles
 } from 'lucide-react';
 import { NavItem } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +20,7 @@ const navigation: NavItem[] = [
   { label: 'Documents', href: '/documents', icon: FileText },
   { label: 'Database', href: '/database', icon: Database },
   { label: 'Embeddings', href: '/embeddings', icon: ScatterChart },
+  { label: 'Embed Search', href: '/embedding-search', icon: Sparkles },
   { label: 'Statistics', href: '/stats', icon: BarChart3 },
 ];
 

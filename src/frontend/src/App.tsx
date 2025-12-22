@@ -7,6 +7,7 @@ import DocumentDetailPage from '@/pages/DocumentDetailPage';
 import DatabasePage from '@/pages/DatabasePage';
 import StatsPage from '@/pages/StatsPage';
 import { EmbeddingPage } from '@/pages/EmbeddingPage';
+import EmbeddingSearchPage from '@/pages/EmbeddingSearchPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
           <Route path="/document/:id" element={<DocumentDetailPage />} />
           <Route path="/database" element={<DatabasePage />} />
           <Route path="/embeddings" element={<EmbeddingPage />} />
+          <Route path="/embedding-search" element={<EmbeddingSearchPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

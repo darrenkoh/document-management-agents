@@ -1,320 +1,388 @@
 # Document Management Agent
 
-An intelligent document classification and search system that uses local AI models to automatically categorize documents, extract text content, and provide semantic search capabilities. Built with Python (FastAPI) backend and React frontend, featuring OCR support and vector-based semantic search.
+An intelligent document classification and search system that uses **local AI models** to automatically categorize documents, extract text content, and provide semantic search capabilities. All processing runs entirely on your hardware using local LLMs - no cloud dependencies.
 
-## ✨ Features
+## Description
 
-- **🤖 AI-Powered Classification**: Automatically categorizes documents using local Ollama LLMs
-- **🔍 Semantic Search**: Vector-based search with RAG (Retrieval-Augmented Generation) for precise results
-- **📄 Multi-Format Support**: Handles PDFs, Word docs, text files, and images with OCR fallback
-- **🖥️ Modern Web UI**: Clean React interface for browsing and searching documents
-- **⚡ High Performance**: Batch processing, duplicate detection, and optimized embeddings
-- **🔒 Local AI**: No cloud dependencies - runs entirely on your hardware
-- **📊 Analytics Dashboard**: View statistics and processing metrics
-- **🔄 Real-time Monitoring**: Watch mode for automatic processing of new files
+This system automatically processes, classifies, and indexes your documents using local AI services. Here's how it works:
 
-## 🚀 Quick Start
+### Processing Pipeline
 
-### Prerequisites
+1. **Text Extraction**: Documents are parsed using format-specific libraries (PDF, Word, images). For image-based documents or scanned PDFs, OCR is performed using local AI models (Ollama, Chandra, or HunyuanOCR).
 
-- **Python 3.8+**
-- **Node.js 18+**
+2. **Content Hashing**: Each document is hashed (SHA256) to detect duplicates and prevent reprocessing.
+
+3. **AI Classification**: A local LLM (via Ollama) analyzes the document content and filename to assign categories and sub-categories (e.g., "Finance", "Travel", "Shopping").
+
+4. **Semantic Embeddings**: Document content is converted into high-dimensional vectors using a local embedding model (qwen3-embedding:8b). These embeddings enable semantic search - finding documents by meaning, not just keywords.
+
+5. **Storage**: 
+   - **SQLite Database**: Stores document metadata, categories, file paths, and content previews
+   - **ChromaDB Vector Store**: Stores embeddings for fast semantic similarity search
+
+6. **Search & Retrieval**: When you search, your query is converted to an embedding and compared against stored document embeddings. An optional RAG (Retrieval-Augmented Generation) agent can further analyze results for relevance.
+
+### Local Services Used
+
+- **Ollama**: Local LLM server for document classification, embeddings, and OCR
+- **Chandra/HunyuanOCR** (optional): Alternative OCR engines via vLLM
+- **SQLite**: Lightweight database for document metadata
+- **ChromaDB**: Vector database for semantic embeddings
+- **SAM3** (optional): Image segmentation for multi-receipt images
+
+All services run locally - your documents never leave your machine.
+
+## Architecture
+
+```mermaid
+graph TB
+    A[Document Files] --> B[File Handler]
+    B --> C{Text Extraction}
+    C -->|PDF/Word/TXT| D[Native Parsers]
+    C -->|Images/Scanned PDF| E[OCR Service]
+    E -->|Ollama/Chandra/Hunyuan| F[Text Content]
+    D --> F
+    
+    F --> G[Content Hash]
+    G --> H{Duplicate Check}
+    H -->|New| I[AI Classifier]
+    H -->|Duplicate| Z[Skip]
+    
+    I -->|Ollama LLM| J[Categories & Metadata]
+    F --> K[Embedding Generator]
+    K -->|qwen3-embedding| L[Vector Embeddings]
+    
+    J --> M[SQLite Database]
+    L --> N[ChromaDB Vector Store]
+    
+    O[User Query] --> P[Query Embedding]
+    P --> Q[Semantic Search]
+    Q --> N
+    Q --> R[RAG Agent]
+    R -->|Ollama LLM| S[Relevance Analysis]
+    S --> T[Search Results]
+    Q --> T
+    T --> M
+    M --> U[Web UI / CLI]
+    
+    style A fill:#e1f5ff
+    style I fill:#fff4e1
+    style K fill:#fff4e1
+    style R fill:#fff4e1
+    style M fill:#e8f5e9
+    style N fill:#e8f5e9
+    style U fill:#f3e5f5
+```
+
+## Dependencies
+
+### System Requirements
+
+- **Python 3.12+**
+- **Node.js 18+** (for frontend)
 - **Ollama** installed and running locally
 
-### 1. Install Ollama Models
+### Python Dependencies
+
+Install from `requirements.txt`:
 
 ```bash
-# Install required AI models
-ollama pull deepseek-r1:8b        # Document classification
-ollama pull qwen3-embedding:8b    # Text embeddings for search
-ollama pull deepseek-ocr:3b       # OCR for image-based PDFs
+pip install -r requirements.txt
 ```
 
-### 2. Clone and Setup
+Key dependencies:
+- `ollama` - Ollama client for LLM interactions
+- `chromadb` - Vector database for embeddings
+- `flask` - Web API backend
+- `pypdf`, `python-docx` - Document parsers
+- `Pillow`, `pdf2image` - Image processing
+- `watchdog` - File system monitoring
+
+### Frontend Dependencies
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd document-management-agents
-
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Install frontend dependencies
 cd src/frontend
 npm install
-cd ../..
 ```
 
-### 3. Configure (Optional)
+### AI Models (Ollama)
 
-Edit `src/backend/config/config.yaml` to customize:
-- Source directories for document monitoring
-- File extensions to include for processing (required)
-- Database and vector store locations
-- Ollama model settings
-- Web server configuration
-
-### 4. Running File Processing and Web App for Browsing
-
-**File Processing**
+Install required models:
 
 ```bash
-# Classify documents in your input directory
-python document_ingestion.py classify
-
-# Monitor directory for new files
-python document_ingestion.py watch
+ollama pull deepseek-r1:8b        # Document classification
+ollama pull qwen3-embedding:8b    # Text embeddings
+ollama pull deepseek-ocr:3b       # OCR (optional, if not using Chandra/Hunyuan)
 ```
 
-**Web Interface**
-```bash
-# Terminal 1: Start the backend API
-python src/backend/api/app.py
+### Optional Dependencies
 
-# Terminal 2: Start the frontend
-cd src/frontend && npm run dev
-```
+- **SAM3** (for receipt segmentation): Install from [facebookresearch/sam3](https://github.com/facebookresearch/sam3)
+- **Chandra OCR**: Install via `pip install chandra-ocr` and run vLLM server
+- **HunyuanOCR**: Configure vLLM server with HunyuanOCR model
 
-Then open http://localhost:5173 in your browser.
+## How to Run
 
+### 1. Configure the System
 
-## 📁 Project Structure
-
-```
-├── src/
-│   ├── backend/                 # Python FastAPI backend
-│   │   ├── api/                 # REST API endpoints
-│   │   ├── core/                # AI agents (classifier, RAG)
-│   │   ├── database/            # SQLite database layer
-│   │   ├── services/            # File handling, embeddings, OCR
-│   │   ├── utils/               # Configuration and utilities
-│   │   └── config/              # YAML configuration files
-│   └── frontend/                # React TypeScript frontend
-│       ├── src/
-│       │   ├── components/      # Reusable UI components
-│       │   ├── pages/          # Main application pages
-│       │   ├── lib/            # API clients and utilities
-│       │   └── types/          # TypeScript type definitions
-│       └── dist/               # Built frontend assets
-├── data/
-│   ├── input/                  # Place your documents here
-│   ├── databases/              # SQLite database files
-│   ├── vector_store/           # ChromaDB vector embeddings
-│   └── exports/                # JSON export of classifications
-├── document_ingestion.py      # CLI entry point for document processing
-└── requirements.txt            # Python dependencies
-```
-
-## 🛠️ Usage
-
-### Adding Documents
-
-Place your documents in the `data/input/` directory. Supported formats:
-- PDF documents (text-based and image-based with OCR)
-- Microsoft Word (.docx, .doc)
-- Text files (.txt)
-- Images (.png, .jpg, .jpeg, .gif, .tiff)
-
-### CLI Commands
-
-```bash
-# Process all documents in input directory
-python document_ingestion.py classify
-
-# Continuous monitoring for new files
-python document_ingestion.py watch
-
-# Semantic search through documents
-python document_ingestion.py search "travel booking confirmation"
-
-# Find documents by category
-python document_ingestion.py category invoice
-
-# Enable verbose logging
-python document_ingestion.py --verbose classify
-```
-
-### Web Interface
-
-The web interface provides:
-
-- **Dashboard**: Overview of processed documents and statistics
-- **Document Browser**: View all classified documents with filtering
-- **Search Interface**: Semantic search with AI-powered relevance ranking
-- **Document Details**: View full content and metadata
-- **Real-time Logs**: Monitor processing status
-
-## ⚙️ Configuration
-
-Key settings in `src/backend/config/config.yaml`:
+Edit `src/backend/config/config.yaml`:
 
 ```yaml
-# Document source directories
 source_paths:
-  - "data/input"
+  - "data/input"  # Directory to monitor for documents
 
-# File extensions to process (REQUIRED)
-# Only files with these extensions will be processed
-# Empty list means NO files will be processed
 file_extensions:
   - ".pdf"
   - ".docx"
-  - ".doc"
   - ".txt"
   - ".png"
   - ".jpg"
-  - ".jpeg"
-  - ".gif"
-  - ".tiff"
+  # ... add your file types
 
-# Database settings
-database:
-  path: "data/databases/documents.db"
-
-# AI model configuration
 ollama:
   endpoint: "http://localhost:11434"
   model: "deepseek-r1:8b"
   embedding_model: "qwen3-embedding:8b"
-  # OCR model: 'deepseek-ocr:3b' for Ollama or 'chandra' for vLLM
-  ocr_model: "chandra"
+```
 
-# Chandra OCR configuration (when ocr_model is set to 'chandra')
+### 2. Process Documents
+
+**One-time processing:**
+```bash
+python document_ingestion.py classify
+```
+
+**Continuous monitoring (watch mode):**
+```bash
+python document_ingestion.py watch
+```
+
+**CLI search:**
+```bash
+python document_ingestion.py search "travel booking"
+python document_ingestion.py category invoice
+```
+
+### 3. Start Web Interface
+
+**Terminal 1 - Backend API:**
+```bash
+python src/backend/api/app.py
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd src/frontend
+npm run dev
+```
+
+Open http://localhost:5173 in your browser.
+
+## How to Configure/Customize
+
+### Configuration File
+
+Main configuration is in `src/backend/config/config.yaml`:
+
+#### Source Directories
+```yaml
+source_paths:
+  - "data/input"
+  - "/path/to/other/directory"
+```
+
+#### File Types
+```yaml
+file_extensions:
+  - ".pdf"
+  - ".docx"
+  # Only files with these extensions will be processed
+```
+
+#### Database & Vector Store
+```yaml
+database:
+  path: "data/databases/documents.db"
+  vector_store:
+    type: "chromadb"
+    persist_directory: "data/vector_store"
+    dimension: 4096
+```
+
+#### AI Models
+```yaml
+ollama:
+  endpoint: "http://localhost:11434"
+  model: "deepseek-r1:8b"
+  embedding_model: "qwen3-embedding:8b"
+  ocr_model: "deepseek-ocr:3b"  # or "chandra" or "hunyuan"
+```
+
+#### OCR Configuration
+```yaml
+# For Chandra OCR (vLLM-based)
 chandra:
   endpoint: "http://localhost:11435"
   model: "chandra"
 
-# Web server settings
+# For HunyuanOCR (vLLM-based)
+hunyuan:
+  endpoint: "http://localhost:11435"
+  model: "tencent/HunyuanOCR"
+```
+
+#### Receipt Segmentation (Optional)
+```yaml
+segmentation:
+  enable: true
+  checkpoint_path: "~/.cache/huggingface/.../sam3.pt"
+  output_dir: "data/segmented_receipts"
+  text_prompt: "receipt"
+  confidence_threshold: 0.5
+```
+
+#### Search Settings
+```yaml
+semantic_search:
+  top_k: 30
+  min_similarity_threshold: 0.1
+  enable_rag: true
+  rag_relevance_threshold: 0.3
+```
+
+#### Watch Mode
+```yaml
+watch:
+  interval: 5  # seconds
+  recursive: true
+  exclude_paths:
+    - "data/segmented_receipts"
+```
+
+#### Web Server
+```yaml
 webapp:
   port: 8081
   host: "0.0.0.0"
+  debug: true
 ```
 
-## 🔧 Development
+### Custom Categories
 
-### Backend Development
+Edit the classification prompt in `config.yaml`:
 
-```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run with auto-reload
-python src/backend/api/app.py --debug
-```
-
-### Frontend Development
-
-```bash
-cd src/frontend
-
-# Development server with hot reload
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-```
-
-### Testing
-
-```bash
-# Backend tests
-python -m pytest
-
-# Frontend tests
-cd src/frontend && npm test
-```
-
-## 🤖 How It Works
-
-1. **Document Ingestion**: Files are processed in batches for optimal performance
-2. **Text Extraction**: Content is extracted using format-specific parsers with OCR fallback
-3. **Duplicate Detection**: Content-based hashing prevents reprocessing identical files
-4. **AI Classification**: Local LLM analyzes content and assigns relevant categories
-5. **Vector Embeddings**: Documents are converted to semantic vectors for search
-6. **Storage**: Metadata and embeddings stored in SQLite + ChromaDB
-7. **Search**: Semantic similarity search with optional RAG relevance filtering
-
-## 📊 Performance Features
-
-- **Batch Processing**: Handles multiple documents simultaneously
-- **Content-Based Deduplication**: Skips files with identical content
-- **Optimized Embeddings**: Efficient vector storage and retrieval
-- **Caching**: Database lookups prevent redundant operations
-- **Progress Tracking**: Real-time status updates and performance metrics
-
-## 🔍 Supported Categories
-
-The AI automatically detects categories including:
-- invoice, receipt, contract, agreement
-- confirmation, booking, ticket, itinerary
-- report, memo, letter, email
-- certificate, form, manual, presentation
-- image, document, other
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📝 License
-
-This project is open source and available under the MIT License.
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-**Ollama connection failed**
-- Ensure Ollama is running: `ollama serve`
-- Check endpoint URL in config.yaml
-- Verify required models are installed
-
-**OCR not working**
-- For Ollama OCR: Install deepseek-ocr model: `ollama pull deepseek-ocr:3b`
-- For Chandra OCR: Install Chandra and start vLLM server on port 11435
-- Check poppler-utils and tesseract are installed for PDF processing
-
-**Chandra OCR Setup**
-```bash
-# Install Chandra OCR
-pip install chandra-ocr
-
-# Start Chandra vLLM server (runs on port 11435 by default)
-chandra_vllm
-
-# Or use custom configuration
-VLLM_API_BASE=http://localhost:11435/v1 VLLM_MODEL_NAME=chandra chandra_vllm
-```
-
-Update `config.yaml` to use Chandra:
 ```yaml
-ollama:
-  ocr_model: "chandra"  # Instead of "deepseek-ocr:3b"
-
-chandra:
-  endpoint: "http://localhost:11435"
-  model: "chandra"
+prompt_template: |
+  You are an expert document classifier...
+  Available main categories:
+  - Finance
+  - Shopping
+  - Travel
+  # Add your custom categories
 ```
 
-**Frontend not loading**
-- Ensure backend API is running on port 8081
+## Troubleshooting
+
+### Ollama Connection Issues
+
+**Problem**: `Connection refused` or `Failed to connect to Ollama`
+
+**Solutions**:
+- Ensure Ollama is running: `ollama serve`
+- Check endpoint in `config.yaml` matches your Ollama server
+- Verify models are installed: `ollama list`
+- Test connection: `curl http://localhost:11434/api/tags`
+
+### OCR Not Working
+
+**Problem**: Images/PDFs not extracting text
+
+**Solutions**:
+- For Ollama OCR: Install model: `ollama pull deepseek-ocr:3b`
+- For Chandra OCR: 
+  ```bash
+  pip install chandra-ocr
+  chandra_vllm  # Starts server on port 11435
+  ```
+- Check OCR model setting in `config.yaml`: `ollama.ocr_model`
+- Verify poppler-utils installed (for PDF processing): `brew install poppler` (macOS) or `apt-get install poppler-utils` (Linux)
+
+### No Documents Processed
+
+**Problem**: Files in source directory not being processed
+
+**Solutions**:
+- Check `file_extensions` in `config.yaml` includes your file types
+- Verify `source_paths` point to correct directories
+- Check file permissions
+- Enable verbose logging: `python document_ingestion.py --verbose classify`
+- Review logs: `data/agent.log`
+
+### Slow Processing
+
+**Problem**: Documents taking too long to process
+
+**Solutions**:
+- Use GPU acceleration for Ollama (if available)
+- Reduce `max_ocr_pages` in config to limit OCR processing
+- Use smaller/faster models
+- Process in batches (already implemented)
+- Disable RAG analysis: `semantic_search.enable_rag: false`
+
+### Frontend Not Loading
+
+**Problem**: Web UI shows errors or won't connect
+
+**Solutions**:
+- Ensure backend is running on port 8081: `python src/backend/api/app.py`
 - Check CORS settings if accessing from different domain
+- Verify frontend dev server is running: `cd src/frontend && npm run dev`
+- Check browser console for errors
+- Verify API endpoint in frontend config matches backend
 
-**Slow processing**
-- Use batch processing for multiple files
-- Consider GPU acceleration for Ollama if available
-- Reduce model size for faster inference
+### Receipt Segmentation Issues
 
-### Getting Help
+**Problem**: SAM3 segmentation not working
 
-- Check the logs in `data/agent.log`
-- Enable verbose mode: `python document_ingestion.py --verbose classify`
-- Review configuration in `src/backend/config/config.yaml`
+**Solutions**:
+- Ensure SAM3 is installed: `git clone https://github.com/facebookresearch/sam3.git && cd sam3 && pip install -e .`
+- Verify `segmentation.checkpoint_path` is set correctly
+- On Apple Silicon, use `device: "auto"` or `device: "mps"` for Metal acceleration
+- For CPU-only: `device: "cpu"`
+- Test standalone: `python src/backend/scripts/segment_receipts.py --input /path/to/image`
 
+### Database/Vector Store Errors
+
+**Problem**: Database corruption or vector store issues
+
+**Solutions**:
+- Check disk space
+- Verify write permissions on `data/` directory
+- Try recreating database (backup first)
+- Check ChromaDB logs in `data/vector_store/`
+- Ensure embedding dimension matches model output
+
+### General Debugging
+
+- Enable verbose logging: `python document_ingestion.py --verbose classify`
+- Check log file: `data/agent.log`
+- Test Ollama directly: `ollama run deepseek-r1:8b "test"`
+- Verify Python environment: `python --version` (should be 3.12+)
+- Check all dependencies: `pip list | grep -E "ollama|chromadb|flask"`
+
+## Screenshots
+
+<!-- Add screenshots here -->
+<!-- 
+### Dashboard
+![Dashboard Screenshot](screenshots/dashboard.png)
+
+### Document Browser
+![Document Browser Screenshot](screenshots/browser.png)
+
+### Search Interface
+![Search Screenshot](screenshots/search.png)
+
+### Document Details
+![Document Details Screenshot](screenshots/details.png)
+-->

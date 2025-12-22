@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Download, Eye, FileText, Trash2, AlertTriangle, ScanText, Clock } from 'lucide-react';
+import { Download, Eye, FileText, Trash2, AlertTriangle, ScanText, Clock, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -22,6 +22,8 @@ export default function DocumentsPage() {
   const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '');
   const [subCategoryFilter, setSubCategoryFilter] = useState(searchParams.get('sub_category') || '');
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1'));
+  const [sortColumn, setSortColumn] = useState(searchParams.get('sort') || 'classification_date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>((searchParams.get('direction') as 'asc' | 'desc') || 'desc');
   const [totalPages, setTotalPages] = useState(1);
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
@@ -86,7 +88,7 @@ export default function DocumentsPage() {
     if (hasInitialized && !isSemanticSearch) {
       loadDocuments();
     }
-  }, [hasInitialized, currentPage, searchQuery, categoryFilter, subCategoryFilter, isSemanticSearch]);
+  }, [hasInitialized, currentPage, searchQuery, categoryFilter, subCategoryFilter, sortColumn, sortDirection, isSemanticSearch]);
 
   useEffect(() => {
     // Update URL params when filters change
@@ -95,8 +97,10 @@ export default function DocumentsPage() {
     if (categoryFilter) params.set('category', categoryFilter);
     if (subCategoryFilter) params.set('sub_category', subCategoryFilter);
     if (currentPage > 1) params.set('page', currentPage.toString());
+    if (sortColumn !== 'classification_date') params.set('sort', sortColumn);
+    if (sortDirection !== 'desc') params.set('direction', sortDirection);
     setSearchParams(params);
-  }, [searchQuery, categoryFilter, subCategoryFilter, currentPage, setSearchParams]);
+  }, [searchQuery, categoryFilter, subCategoryFilter, currentPage, sortColumn, sortDirection, setSearchParams]);
 
   // Clear selection when documents change
   useEffect(() => {
@@ -112,6 +116,8 @@ export default function DocumentsPage() {
         search: searchQuery || undefined,
         category: categoryFilter || undefined,
         sub_category: subCategoryFilter || undefined,
+        sort: sortColumn,
+        direction: sortDirection,
       });
 
       setDocuments(response.documents);
@@ -182,6 +188,8 @@ export default function DocumentsPage() {
     setCategoryFilter('');
     setSubCategoryFilter('');
     setCurrentPage(1);
+    setSortColumn('classification_date');
+    setSortDirection('desc');
     setIsSemanticSearch(false);
     setSemanticSearchQuery('');
     clearLogs();
@@ -269,6 +277,23 @@ export default function DocumentsPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc'); // Default to descending for new column
+    }
+    setCurrentPage(1);
+  };
+
+  const getSortIcon = (column: string) => {
+    if (sortColumn !== column) return <ArrowUpDown className="w-3.5 h-3.5 text-primary-300 group-hover:text-primary-400" />;
+    return sortDirection === 'asc' ?
+      <ChevronUp className="w-3.5 h-3.5 text-primary-600" /> :
+      <ChevronDown className="w-3.5 h-3.5 text-primary-600" />;
   };
 
   const hasActiveFilters = searchQuery || categoryFilter || subCategoryFilter || isSemanticSearch;
@@ -455,14 +480,26 @@ export default function DocumentsPage() {
                         className="w-4 h-4 rounded border-primary-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                       />
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
-                      Filename
+                    <th
+                      className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider cursor-pointer group hover:bg-primary-100/50 transition-colors"
+                      onClick={() => handleSort('filename')}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        Filename
+                        {!isSemanticSearch && getSortIcon('filename')}
+                      </div>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
                       Categories
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
-                      Date
+                    <th
+                      className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider cursor-pointer group hover:bg-primary-100/50 transition-colors"
+                      onClick={() => handleSort('classification_date')}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        Date
+                        {!isSemanticSearch && getSortIcon('classification_date')}
+                      </div>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-primary-600 uppercase tracking-wider">
                       Size

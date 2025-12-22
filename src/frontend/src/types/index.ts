@@ -83,6 +83,8 @@ export interface DocumentsRequest {
   search?: string;
   category?: string;
   sub_category?: string;
+  sort?: string;
+  direction?: 'asc' | 'desc';
 }
 
 // Theme types
@@ -185,6 +187,35 @@ export interface EmbeddingResponse {
   // Raw embeddings response
   raw?: boolean;
   embeddings?: any[];
+}
+
+// Embedding Search types
+export interface EmbeddingSearchResult {
+  id: string | number;
+  similarity: number;
+  filename: string;
+  categories: string;
+  sub_categories: string[];
+  content_preview: string;
+  metadata: Record<string, any>;
+}
+
+export interface EmbeddingInfo {
+  dimension: number;
+  model: string;
+  sample_values: number[];
+  min_value: number;
+  max_value: number;
+  mean_value: number;
+}
+
+export interface EmbeddingSearchResponse {
+  keyword: string;
+  words: string[];
+  embedding_info: EmbeddingInfo;
+  results: EmbeddingSearchResult[];
+  count: number;
+  error?: string;
 }
 
 // Answer types

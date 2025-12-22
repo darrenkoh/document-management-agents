@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Document } from '@/types';
 import { apiClient } from '@/lib/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { AlertCircle, Download, ExternalLink, FileText } from 'lucide-react';
+import { AlertCircle, Download, ExternalLink, FileText, ZoomIn, ZoomOut, Maximize, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { motion } from 'framer-motion';
+import { motion, useAnimation } from 'framer-motion';
 
 interface UnifiedFileViewerProps {
   document: Document;
@@ -15,14 +15,37 @@ export const UnifiedFileViewer = ({ document, className }: UnifiedFileViewerProp
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Zoom and Pan state
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const controls = useAnimation();
 
   useEffect(() => {
     // Construct the URL directly since we have a proxy set up
     // But we can also fetch it as blob if we need to handle auth headers in the future
     // For now, direct URL is more efficient for browser caching and native handling
     setFileUrl(`/api/document/${document.id}/file/view`);
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
     setLoading(false);
   }, [document.id]);
+
+  const handleZoomIn = () => setScale(prev => Math.min(prev + 0.25, 5));
+  const handleZoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5));
+  const handleReset = () => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setScale(prev => Math.min(Math.max(prev + delta, 0.5), 5));
+    }
+  };
 
   const getViewerContent = () => {
     if (loading) {
@@ -47,14 +70,45 @@ export const UnifiedFileViewer = ({ document, className }: UnifiedFileViewerProp
     const mimeType = document.metadata.mime_type || '';
 
     // Image Viewer
-    if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(extension) || mimeType.startsWith('image/')) {
+    if (['.jpg', '.jpeg', '.png', '.heic', '.gif', '.webp', '.svg'].includes(extension) || mimeType.startsWith('image/')) {
       return (
-        <div className="flex items-center justify-center h-full overflow-auto p-4 bg-gray-100/50">
-          <img 
-            src={fileUrl} 
-            alt={document.filename} 
-            className="max-w-full max-h-full object-contain shadow-lg rounded-lg"
-          />
+        <div 
+          ref={containerRef}
+          className="relative h-full w-full overflow-hidden bg-gray-100/50 flex items-center justify-center cursor-grab active:cursor-grabbing"
+          onWheel={handleWheel}
+        >
+          {/* Zoom Controls */}
+          <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+            <Button size="sm" variant="outline" className="bg-white/90 backdrop-blur shadow-sm p-2" onClick={handleZoomIn} title="Zoom In">
+              <ZoomIn className="w-4 h-4" />
+            </Button>
+            <Button size="sm" variant="outline" className="bg-white/90 backdrop-blur shadow-sm p-2" onClick={handleZoomOut} title="Zoom Out">
+              <ZoomOut className="w-4 h-4" />
+            </Button>
+            <Button size="sm" variant="outline" className="bg-white/90 backdrop-blur shadow-sm p-2" onClick={handleReset} title="Reset View">
+              <RotateCcw className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur px-3 py-1 rounded-full text-xs font-medium text-gray-600 shadow-sm border border-gray-200">
+            {Math.round(scale * 100)}% • Drag to pan • Ctrl+Scroll to zoom
+          </div>
+
+          <motion.div
+            drag
+            dragMomentum={false}
+            animate={{ scale, x: position.x, y: position.y }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="flex items-center justify-center"
+            style={{ touchAction: 'none' }}
+          >
+            <img 
+              src={fileUrl} 
+              alt={document.filename} 
+              className="max-w-full max-h-[80vh] object-contain shadow-2xl rounded-sm pointer-events-none select-none"
+              onLoad={() => setLoading(false)}
+            />
+          </motion.div>
         </div>
       );
     }
