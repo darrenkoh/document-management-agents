@@ -207,24 +207,6 @@ class Config:
         return ollama_config.get('summarizer_model', 'deepseek-r1:8b')
 
     @property
-    def ollama_ocr_model(self) -> str:
-        """Get the OCR model name."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('ocr_model', 'deepseek-ocr:3b')
-
-    @property
-    def ollama_ocr_timeout(self) -> int:
-        """Get the OCR timeout in seconds."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('ocr_timeout', 60)
-
-    @property
-    def max_ocr_pages(self) -> int:
-        """Get the maximum number of PDF pages to process with OCR."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('max_ocr_pages', 12)
-
-    @property
     def ollama_max_retries(self) -> int:
         """Get the maximum number of retry attempts for failed LLM API calls."""
         ollama_config = self._config.get('ollama', {})
@@ -238,106 +220,152 @@ class Config:
         retry_config = ollama_config.get('retry', {})
         return retry_config.get('base_delay', 1.0)
 
+    # OCR configuration properties
     @property
     def ocr_provider(self) -> str:
         """Get the OCR provider ('ollama', 'chandra', or 'hunyuan')."""
-        ollama_config = self._config.get('ollama', {})
-        ocr_model = ollama_config.get('ocr_model', 'deepseek-ocr:3b')
-        # If ocr_model is 'chandra', use chandra provider
-        if ocr_model == 'chandra':
-            return 'chandra'
-        # If ocr_model is 'hunyuan', use hunyuan provider
-        if ocr_model == 'hunyuan':
-            return 'hunyuan'
-        # Otherwise, assume ollama
-        return 'ollama'
+        ocr_config = self._config.get('ocr', {})
+        return ocr_config.get('provider', 'ollama')
 
+    @property
+    def max_ocr_pages(self) -> int:
+        """Get the maximum number of PDF pages to process with OCR."""
+        ocr_config = self._config.get('ocr', {})
+        return ocr_config.get('max_pages', 12)
+
+    # Ollama OCR properties
+    @property
+    def ollama_ocr_model(self) -> str:
+        """Get the Ollama OCR model name."""
+        ocr_config = self._config.get('ocr', {})
+        ollama_ocr = ocr_config.get('ollama', {})
+        return ollama_ocr.get('model', 'deepseek-ocr:3b')
+
+    @property
+    def ollama_ocr_timeout(self) -> int:
+        """Get the Ollama OCR timeout in seconds."""
+        ocr_config = self._config.get('ocr', {})
+        ollama_ocr = ocr_config.get('ollama', {})
+        return ollama_ocr.get('timeout', 300)
+
+    @property
+    def ollama_ocr_max_retries(self) -> int:
+        """Get the maximum number of retry attempts for Ollama OCR API calls."""
+        ocr_config = self._config.get('ocr', {})
+        ollama_ocr = ocr_config.get('ollama', {})
+        retry_config = ollama_ocr.get('retry', {})
+        return retry_config.get('max_retries', 3)
+
+    @property
+    def ollama_ocr_retry_base_delay(self) -> float:
+        """Get the base delay in seconds between Ollama OCR retry attempts."""
+        ocr_config = self._config.get('ocr', {})
+        ollama_ocr = ocr_config.get('ollama', {})
+        retry_config = ollama_ocr.get('retry', {})
+        return retry_config.get('base_delay', 1.0)
+
+    # Chandra OCR properties
     @property
     def chandra_endpoint(self) -> str:
         """Get the Chandra vLLM API endpoint."""
-        chandra_config = self._config.get('chandra', {})
-        return chandra_config.get('endpoint', 'http://localhost:11435')
+        ocr_config = self._config.get('ocr', {})
+        chandra_ocr = ocr_config.get('chandra', {})
+        return chandra_ocr.get('endpoint', 'http://localhost:11435')
 
     @property
     def chandra_model(self) -> str:
         """Get the Chandra model name."""
-        chandra_config = self._config.get('chandra', {})
-        return chandra_config.get('model', 'chandra')
+        ocr_config = self._config.get('ocr', {})
+        chandra_ocr = ocr_config.get('chandra', {})
+        return chandra_ocr.get('model', 'chandra')
 
     @property
     def chandra_timeout(self) -> int:
         """Get the Chandra OCR timeout in seconds."""
-        chandra_config = self._config.get('chandra', {})
-        return chandra_config.get('timeout', 300)
+        ocr_config = self._config.get('ocr', {})
+        chandra_ocr = ocr_config.get('chandra', {})
+        return chandra_ocr.get('timeout', 1800)
 
     @property
     def chandra_max_tokens(self) -> int:
         """Get the maximum tokens for Chandra OCR."""
-        chandra_config = self._config.get('chandra', {})
-        return chandra_config.get('max_tokens', 8192)
+        ocr_config = self._config.get('ocr', {})
+        chandra_ocr = ocr_config.get('chandra', {})
+        return chandra_ocr.get('max_tokens', 16384)
 
     @property
     def chandra_max_retries(self) -> int:
         """Get the maximum number of retry attempts for Chandra API calls."""
-        chandra_config = self._config.get('chandra', {})
-        retry_config = chandra_config.get('retry', {})
+        ocr_config = self._config.get('ocr', {})
+        chandra_ocr = ocr_config.get('chandra', {})
+        retry_config = chandra_ocr.get('retry', {})
         return retry_config.get('max_retries', 3)
 
     @property
     def chandra_retry_base_delay(self) -> float:
         """Get the base delay in seconds between Chandra retry attempts."""
-        chandra_config = self._config.get('chandra', {})
-        retry_config = chandra_config.get('retry', {})
+        ocr_config = self._config.get('ocr', {})
+        chandra_ocr = ocr_config.get('chandra', {})
+        retry_config = chandra_ocr.get('retry', {})
         return retry_config.get('base_delay', 1.0)
 
     @property
     def chandra_frequency_penalty(self) -> float:
         """Get the frequency penalty for Chandra OCR."""
-        chandra_config = self._config.get('chandra', {})
-        return chandra_config.get('frequency_penalty', 0.02)
+        ocr_config = self._config.get('ocr', {})
+        chandra_ocr = ocr_config.get('chandra', {})
+        return chandra_ocr.get('frequency_penalty', 0.0)
 
     @property
     def chandra_detect_repeat_tokens(self) -> bool:
         """Get whether to detect and retry on repetitive OCR output for Chandra."""
-        chandra_config = self._config.get('chandra', {})
-        return chandra_config.get('detect_repeat_tokens', True)
+        ocr_config = self._config.get('ocr', {})
+        chandra_ocr = ocr_config.get('chandra', {})
+        return chandra_ocr.get('detect_repeat_tokens', False)
 
+    # HunyuanOCR properties
     @property
     def hunyuan_endpoint(self) -> str:
         """Get the HunyuanOCR vLLM API endpoint."""
-        hunyuan_config = self._config.get('hunyuan', {})
-        return hunyuan_config.get('endpoint', 'http://localhost:11434')
+        ocr_config = self._config.get('ocr', {})
+        hunyuan_ocr = ocr_config.get('hunyuan', {})
+        return hunyuan_ocr.get('endpoint', 'http://localhost:11435')
 
     @property
     def hunyuan_model(self) -> str:
         """Get the HunyuanOCR model name."""
-        hunyuan_config = self._config.get('hunyuan', {})
-        return hunyuan_config.get('model', 'tencent/HunyuanOCR')
+        ocr_config = self._config.get('ocr', {})
+        hunyuan_ocr = ocr_config.get('hunyuan', {})
+        return hunyuan_ocr.get('model', 'tencent/HunyuanOCR')
 
     @property
     def hunyuan_timeout(self) -> int:
         """Get the HunyuanOCR timeout in seconds."""
-        hunyuan_config = self._config.get('hunyuan', {})
-        return hunyuan_config.get('timeout', 1800)
+        ocr_config = self._config.get('ocr', {})
+        hunyuan_ocr = ocr_config.get('hunyuan', {})
+        return hunyuan_ocr.get('timeout', 1800)
 
     @property
     def hunyuan_max_tokens(self) -> int:
         """Get the maximum tokens for HunyuanOCR."""
-        hunyuan_config = self._config.get('hunyuan', {})
-        return hunyuan_config.get('max_tokens', 16384)
+        ocr_config = self._config.get('ocr', {})
+        hunyuan_ocr = ocr_config.get('hunyuan', {})
+        return hunyuan_ocr.get('max_tokens', 16384)
 
     @property
     def hunyuan_max_retries(self) -> int:
         """Get the maximum number of retry attempts for HunyuanOCR API calls."""
-        hunyuan_config = self._config.get('hunyuan', {})
-        retry_config = hunyuan_config.get('retry', {})
+        ocr_config = self._config.get('ocr', {})
+        hunyuan_ocr = ocr_config.get('hunyuan', {})
+        retry_config = hunyuan_ocr.get('retry', {})
         return retry_config.get('max_retries', 3)
 
     @property
     def hunyuan_retry_base_delay(self) -> float:
         """Get the base delay in seconds between HunyuanOCR retry attempts."""
-        hunyuan_config = self._config.get('hunyuan', {})
-        retry_config = hunyuan_config.get('retry', {})
+        ocr_config = self._config.get('ocr', {})
+        hunyuan_ocr = ocr_config.get('hunyuan', {})
+        retry_config = hunyuan_ocr.get('retry', {})
         return retry_config.get('base_delay', 1.0)
 
     @property

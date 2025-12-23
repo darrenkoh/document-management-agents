@@ -7,7 +7,7 @@
 #   - "./documents"
 #   - "/path/to/other/folder"
 source_paths:
-  - "/Volumes/Documents/Private/costco"
+  - "/Volumes/Documents/Private"
   
 
 # File extensions to process (REQUIRED - only files with these extensions will be processed)
@@ -43,7 +43,7 @@ database:
     # 'cosine' is recommended for semantic search with normalized embeddings
     distance_metric: "cosine"
 
-# Ollama configuration
+# Ollama configuration for LLM operations (classification, embedding, summarization)
 ollama:
   # Ollama API endpoint (default: http://localhost:11434)
   endpoint: "http://spark-7819.local:11434"
@@ -57,14 +57,6 @@ ollama:
   embedding_model: "qwen3-embedding:8b"
   # Summarizer model for document summaries (default: deepseek-r1:8b)
   summarizer_model: "deepseek-r1:8b"
-  # OCR model for fallback text extraction from images/PDFs
-  # Set to 'chandra' to use Chandra OCR via vLLM (port 11435), 'hunyuan' to use HunyuanOCR via vLLM (port 11434), or 'deepseek-ocr:3b' for Ollama (port 11434)
-  ocr_model: "hunyuan"
-  # Timeout for OCR operations (can be longer than regular models)
-  ocr_timeout: 300
-  # Maximum number of PDF pages to process with OCR (default: 12)
-  # This limits OCR processing to the first N pages of PDFs to reduce processing time
-  max_ocr_pages: 12
   # Retry configuration for failed LLM API calls
   retry:
     # Maximum number of retry attempts for failed API calls
@@ -72,43 +64,58 @@ ollama:
     # Delay in seconds between retry attempts (exponential backoff)
     base_delay: 1.0
 
-# Chandra OCR configuration (vLLM-based)
-chandra:
-  # vLLM API endpoint for Chandra OCR (default: http://localhost:11435)
-  endpoint: "http://spark-7819.local:11435"
-  # Model name for Chandra in vLLM (default: chandra)
-  model: "chandra"
-  # Timeout for Chandra OCR operations in seconds
-  timeout: 1800
-  # Maximum output tokens for Chandra OCR
-  max_tokens: 16384
-  # Retry configuration for failed Chandra API calls
-  retry:
-    # Maximum number of retry attempts for failed API calls
-    max_retries: 3
-    # Delay in seconds between retry attempts (exponential backoff)
-    base_delay: 1.0
-  # Frequency penalty to reduce repetition in generated text (0.0 to 2.0)
-  frequency_penalty: 0.0
-  # Whether to detect and retry on repetitive OCR output
-  detect_repeat_tokens: false
-
-# HunyuanOCR configuration (vLLM-based)
-hunyuan:
-  # vLLM API endpoint for HunyuanOCR (default: http://localhost:11434)
-  endpoint: "http://spark-7819.local:11435"
-  # Model name for HunyuanOCR in vLLM (default: tencent/HunyuanOCR)
-  model: "tencent/HunyuanOCR"
-  # Timeout for HunyuanOCR operations in seconds
-  timeout: 1800
-  # Maximum output tokens for HunyuanOCR
-  max_tokens: 16384
-  # Retry configuration for failed HunyuanOCR API calls
-  retry:
-    # Maximum number of retry attempts for failed API calls
-    max_retries: 3
-    # Delay in seconds between retry attempts (exponential backoff)
-    base_delay: 1.0
+# OCR configuration for text extraction from images/PDFs
+ocr:
+  # OCR provider to use: 'ollama', 'chandra', or 'hunyuan'
+  provider: "hunyuan"
+  # Maximum number of PDF pages to process with OCR (default: 12)
+  # This limits OCR processing to the first N pages of PDFs to reduce processing time
+  max_pages: 12
+  
+  # Ollama OCR configuration
+  ollama:
+    # OCR model name (e.g., 'deepseek-ocr:3b')
+    model: "deepseek-ocr:3b"
+    # Timeout for OCR operations in seconds
+    timeout: 300
+    # Retry configuration
+    retry:
+      max_retries: 3
+      base_delay: 1.0
+  
+  # Chandra OCR configuration (vLLM-based)
+  chandra:
+    # vLLM API endpoint (default: http://localhost:11435)
+    endpoint: "http://spark-7819.local:11435"
+    # Model name in vLLM (default: chandra)
+    model: "chandra"
+    # Timeout for OCR operations in seconds
+    timeout: 1800
+    # Maximum output tokens
+    max_tokens: 16384
+    # Frequency penalty to reduce repetition in generated text (0.0 to 2.0)
+    frequency_penalty: 0.0
+    # Whether to detect and retry on repetitive OCR output
+    detect_repeat_tokens: false
+    # Retry configuration
+    retry:
+      max_retries: 3
+      base_delay: 1.0
+  
+  # HunyuanOCR configuration (vLLM-based)
+  hunyuan:
+    # vLLM API endpoint (default: http://localhost:11435)
+    endpoint: "http://spark-7819.local:11435"
+    # Model name in vLLM (default: tencent/HunyuanOCR)
+    model: "tencent/HunyuanOCR"
+    # Timeout for OCR operations in seconds
+    timeout: 1800
+    # Maximum output tokens
+    max_tokens: 16384
+    # Retry configuration
+    retry:
+      max_retries: 3
+      base_delay: 1.0
 
 # Optional: Predefined classification categories
 # If empty, the agent will auto-detect categories
