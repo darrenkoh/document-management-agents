@@ -255,6 +255,9 @@ def api_search_stream():
     """API endpoint for streaming semantic search with real-time logs."""
     data = request.get_json()
     query = data.get('query', '').strip()
+    # Default to False for "Find Documents" use case (faster, no RAG analysis)
+    # Set to True if you want RAG relevance analysis (slower but more accurate)
+    use_rag = data.get('use_rag', False)
 
     if not query:
         return jsonify({'error': 'Query required'}), 400
@@ -278,10 +281,10 @@ def api_search_stream():
         def search_worker():
             """Background thread that performs the search"""
             try:
-                app.logger.info(f"Starting search for query: {query}")
+                app.logger.info(f"Starting search for query: {query} (use_rag={use_rag})")
                 # Use config default for top_k instead of hardcoded 50
                 top_k = config.semantic_search_top_k
-                results = agent.search(query, top_k=top_k, progress_callback=progress_callback)
+                results = agent.search(query, top_k=top_k, use_rag=use_rag, progress_callback=progress_callback)
                 search_results['data'] = results
                 app.logger.info(f"Search completed with {len(results)} results")
             except Exception as e:

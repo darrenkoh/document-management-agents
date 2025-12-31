@@ -152,7 +152,7 @@ export function useStreamingLogs(onLogReceived?: (log: StreamingLogMessage) => v
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, use_rag: false }), // Disable RAG for faster "Find Documents" search
       });
 
       if (!response.ok) {
