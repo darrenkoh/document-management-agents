@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, FileText, ExternalLink, AlertCircle } from 'lucide-react';
+import { MessageSquare, FileText, ExternalLink, AlertCircle, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -17,6 +17,7 @@ interface AnswerSectionProps {
   isAnswering?: boolean;
   answerError?: string;
   onAnswerQuestion?: (query: string) => void;
+  onClear?: () => void;
   className?: string;
 }
 
@@ -28,6 +29,7 @@ export function AnswerSection({
   isAnswering: externalIsAnswering,
   answerError: externalAnswerError,
   onAnswerQuestion: externalOnAnswerQuestion,
+  onClear,
   className = '',
 }: AnswerSectionProps) {
   const navigate = useNavigate();
@@ -132,9 +134,19 @@ export function AnswerSection({
                   placeholder="Ask a question about your documents..."
                   value={questionQuery}
                   onChange={(e) => setQuestionQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 pr-10"
                   disabled={isAnswering}
                 />
+                {questionQuery && onClear && (
+                  <button
+                    type="button"
+                    onClick={onClear}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-accent-400 hover:text-accent-600 transition-colors"
+                    disabled={isAnswering}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               <Button
                 type="submit"

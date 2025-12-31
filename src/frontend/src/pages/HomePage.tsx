@@ -113,6 +113,13 @@ export default function HomePage() {
     clearLogs();
   };
 
+  const clearQuestion = () => {
+    setQuestionQuery('');
+    setAnswer('');
+    setAnswerCitations([]);
+    setAnswerError(undefined);
+  };
+
 
   return (
     <div className="space-y-5">
@@ -141,6 +148,7 @@ export default function HomePage() {
           isSemanticSearch={false}
           streamingLogs={streamingLogs}
           isStreaming={isStreaming}
+          onClear={clearSearchResults}
         />
       </div>
 
@@ -153,6 +161,7 @@ export default function HomePage() {
           answerCitations={answerCitations}
           isAnswering={isAnswering}
           answerError={answerError}
+          onClear={clearQuestion}
           onAnswerQuestion={async (query) => {
             setIsAnswering(true);
             setAnswer('');

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Filter, Brain, ChevronDown, Check } from 'lucide-react';
+import { Search, Filter, Brain, ChevronDown, Check, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -28,6 +28,9 @@ interface DocumentSearchAndQuestionProps {
   streamingLogs?: StreamingLogMessage[];
   isStreaming?: boolean;
 
+  // Clear props
+  onClear?: () => void;
+
   // Layout props
   className?: string;
 }
@@ -51,6 +54,7 @@ export function DocumentSearchAndQuestion({
   isSemanticSearch = false,
   streamingLogs = [],
   isStreaming = false,
+  onClear,
   className = '',
 }: DocumentSearchAndQuestionProps) {
   // Category combobox state
@@ -119,9 +123,19 @@ export function DocumentSearchAndQuestion({
                 placeholder={searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => onSearchQueryChange(e.target.value)}
-                className="pl-10"
+                className="pl-10 pr-10"
                 disabled={isSearching}
               />
+              {searchQuery && onClear && (
+                <button
+                  type="button"
+                  onClick={onClear}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary-400 hover:text-primary-600 transition-colors"
+                  disabled={isSearching}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {/* Category Combobox */}
