@@ -73,7 +73,9 @@ from document_ingestion import setup_logging
 setup_logging(config, verbose=(config.log_level.upper() == 'DEBUG'))
 
 # Initialize components
-database = SQLiteDocumentDatabase(config.database_path)
+# Note: Database is initialized separately here for API endpoints, but agent also creates its own
+# Both should use the same config. The agent's database has the vector store.
+database = SQLiteDocumentDatabase(config.database_path, vector_store=None, config=config)
 agent = DocumentAgent(config)
 
 # Global function to refresh database data
@@ -956,6 +958,113 @@ def api_get_tables():
 
     except Exception as e:
         app.logger.error(f"Error getting tables: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/database/bm25')
+def api_get_bm25_info():
+    """Get BM25 index information and statistics."""
+    try:
+        bm25_index = database.bm25_index
+        # Read directly from config to get current value (not cached from initialization)
+        bm25_enabled = config.semantic_search_enable_bm25
+        
+        # If BM25 is enabled but index is not built, try to build it
+        if bm25_enabled and bm25_index and not bm25_index.is_built():
+            app.logger.info("BM25 is enabled but index not built, attempting to build now...")
+            try:
+                database._build_bm25_index()
+                # Update the enabled flag in database instance
+                database._bm25_enabled = True
+            except Exception as e:
+                app.logger.warning(f"Failed to build BM25 index: {e}")
+        
+        info = {
+            'enabled': bm25_enabled,
+            'is_built': bm25_index.is_built() if bm25_index else False,
+            'document_count': bm25_index.get_document_count() if bm25_index else 0,
+            'status': 'active' if (bm25_enabled and bm25_index and bm25_index.is_built()) else 'inactive'
+        }
+        
+        # Get total documents in database for comparison
+        try:
+            all_docs = database.get_all_documents()
+            info['total_documents_in_db'] = len(all_docs)
+            if bm25_enabled and bm25_index:
+                info['index_coverage'] = f"{info['document_count']}/{info['total_documents_in_db']}"
+                if info['total_documents_in_db'] > 0:
+                    info['coverage_percentage'] = round((info['document_count'] / info['total_documents_in_db']) * 100, 1)
+                else:
+                    info['coverage_percentage'] = 0.0
+            else:
+                info['index_coverage'] = 'N/A'
+                info['coverage_percentage'] = 0.0
+        except Exception as e:
+            app.logger.warning(f"Could not get total document count: {e}")
+            info['total_documents_in_db'] = 0
+            info['index_coverage'] = 'N/A'
+            info['coverage_percentage'] = 0.0
+        
+        return jsonify(info)
+
+    except Exception as e:
+        app.logger.error(f"Error getting BM25 info: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/database/bm25/details')
+def api_get_bm25_details():
+    """Get detailed BM25 index information including document IDs and token information."""
+    try:
+        bm25_index = database.bm25_index
+        bm25_enabled = config.semantic_search_enable_bm25
+        
+        if not bm25_enabled or not bm25_index:
+            return jsonify({
+                'error': 'BM25 is not enabled',
+                'enabled': False
+            }), 400
+        
+        if not bm25_index.is_built():
+            return jsonify({
+                'error': 'BM25 index is not built',
+                'is_built': False
+            }), 400
+        
+        # Get limit from query params (default 100)
+        limit = request.args.get('limit', 100, type=int)
+        if limit < 1 or limit > 1000:
+            limit = 100
+        
+        # Get index details
+        details = bm25_index.get_index_details(limit=limit)
+        
+        # Enrich with document metadata from database
+        enriched_details = []
+        for doc_detail in details['document_details']:
+            doc_id = doc_detail['doc_id']
+            try:
+                # Get document metadata from database
+                doc = database.get_document_by_id(doc_id)
+                if doc:
+                    doc_detail['filename'] = doc.get('filename', 'Unknown')
+                    doc_detail['content_preview'] = doc.get('content_preview', '')[:200]  # First 200 chars
+                else:
+                    doc_detail['filename'] = 'Unknown'
+                    doc_detail['content_preview'] = ''
+            except Exception as e:
+                app.logger.warning(f"Could not get metadata for document {doc_id}: {e}")
+                doc_detail['filename'] = 'Unknown'
+                doc_detail['content_preview'] = ''
+            
+            enriched_details.append(doc_detail)
+        
+        details['document_details'] = enriched_details
+        
+        return jsonify(details)
+    
+    except Exception as e:
+        app.logger.error(f"Error getting BM25 details: {e}")
         return jsonify({'error': str(e)}), 500
 
 

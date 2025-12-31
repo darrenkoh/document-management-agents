@@ -723,12 +723,38 @@ class DocumentAgent:
         if progress_callback:
             progress_callback(f"Generated {len(query_embedding)}-dimensional embedding vector", "log")
 
+        # Check if BM25/hybrid search is enabled
+        enable_bm25 = getattr(self.config, 'semantic_search_enable_bm25', False)
+        bm25_weight = getattr(self.config, 'semantic_search_bm25_weight', 0.3)
+        semantic_weight = getattr(self.config, 'semantic_search_semantic_weight', 0.7)
+
         # Search database
         if progress_callback:
-            progress_callback("Searching document database for semantic matches...", "log")
-        logger.info("Searching database for semantic matches...")
+            if enable_bm25:
+                progress_callback("Searching document database using hybrid search (BM25 + semantic)...", "log")
+            else:
+                progress_callback("Searching document database for semantic matches...", "log")
+        
+        if enable_bm25:
+            logger.info(f"Using hybrid search (BM25 weight: {bm25_weight}, Semantic weight: {semantic_weight})")
+        else:
+            logger.info("Searching database for semantic matches...")
+        
         try:
-            results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold, max_candidates=max_candidates)
+            if enable_bm25:
+                # Use hybrid search
+                results = self.database.search_hybrid(
+                    query=processed_query,
+                    query_embedding=query_embedding,
+                    top_k=top_k,
+                    threshold=threshold,
+                    max_candidates=max_candidates,
+                    bm25_weight=bm25_weight,
+                    semantic_weight=semantic_weight
+                )
+            else:
+                # Use semantic search only
+                results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold, max_candidates=max_candidates)
         except Exception as e:
             logger.error(f"Exception during database search: {e}")
             return []
@@ -838,13 +864,36 @@ class DocumentAgent:
             yield ("I couldn't process your question. Please try again.", None)
             return
 
+        # Check if BM25/hybrid search is enabled
+        enable_bm25 = getattr(self.config, 'semantic_search_enable_bm25', False)
+        bm25_weight = getattr(self.config, 'semantic_search_bm25_weight', 0.3)
+        semantic_weight = getattr(self.config, 'semantic_search_semantic_weight', 0.7)
+
         # Search database
         if progress_callback:
-            progress_callback("Searching document database...", "log")
+            if enable_bm25:
+                progress_callback("Searching document database using hybrid search (BM25 + semantic)...", "log")
+            else:
+                progress_callback("Searching document database...", "log")
+        
         try:
             threshold = self.config.semantic_search_min_threshold
             max_candidates = self.config.semantic_search_max_candidates
-            results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold, max_candidates=max_candidates)
+            
+            if enable_bm25:
+                # Use hybrid search
+                results = self.database.search_hybrid(
+                    query=processed_query,
+                    query_embedding=query_embedding,
+                    top_k=top_k,
+                    threshold=threshold,
+                    max_candidates=max_candidates,
+                    bm25_weight=bm25_weight,
+                    semantic_weight=semantic_weight
+                )
+            else:
+                # Use semantic search only
+                results = self.database.search_semantic(query_embedding, top_k=top_k, threshold=threshold, max_candidates=max_candidates)
         except Exception as e:
             logger.error(f"Exception during database search: {e}")
             if progress_callback:

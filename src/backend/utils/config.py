@@ -454,6 +454,24 @@ class Config:
         search_config = self._config.get('semantic_search', {})
         return search_config.get('debug_similarity', False)
 
+    @property
+    def semantic_search_enable_bm25(self) -> bool:
+        """Get whether BM25 keyword search is enabled for hybrid search."""
+        search_config = self._config.get('semantic_search', {})
+        return search_config.get('enable_bm25', False)
+
+    @property
+    def semantic_search_bm25_weight(self) -> float:
+        """Get weight for BM25 scores in hybrid search (0.0 to 1.0)."""
+        search_config = self._config.get('semantic_search', {})
+        return float(search_config.get('bm25_weight', 0.3))
+
+    @property
+    def semantic_search_semantic_weight(self) -> float:
+        """Get weight for semantic search scores in hybrid search (0.0 to 1.0)."""
+        search_config = self._config.get('semantic_search', {})
+        return float(search_config.get('semantic_weight', 0.7))
+
     # ----------------------------
     # Optional image segmentation
     # ----------------------------

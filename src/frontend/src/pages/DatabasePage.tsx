@@ -1,32 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Database, Table, Plus, Search, Filter, SortAsc, SortDesc, Edit, Trash2, MoreHorizontal } from 'lucide-react';
+import { Database, Table, Plus, Search, SortAsc, SortDesc, Edit, Trash2, FileSearch } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { apiClient } from '@/lib/api';
-import { TableInfo, TableData, CreateRecordRequest, UpdateRecordRequest } from '@/types';
+import { TableInfo, TableData, ColumnInfo } from '@/types';
 import toast from 'react-hot-toast';
-
-interface TableInfo {
-  name: string;
-  rowCount: number;
-  columns: ColumnInfo[];
-}
-
-interface ColumnInfo {
-  name: string;
-  type: string;
-  nullable: boolean;
-  primaryKey: boolean;
-}
-
-interface TableData {
-  columns: string[];
-  rows: any[][];
-  totalRows: number;
-  page: number;
-  totalPages: number;
-}
 
 export default function DatabasePage() {
   const [tables, setTables] = useState<TableInfo[]>([]);
@@ -44,13 +23,75 @@ export default function DatabasePage() {
   // CRUD state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<any>(null);
   const [editingRecordId, setEditingRecordId] = useState<number | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
 
+  // BM25 index state
+  const [bm25Info, setBm25Info] = useState<{
+    enabled: boolean;
+    is_built: boolean;
+    document_count: number;
+    status: string;
+    total_documents_in_db: number;
+    index_coverage: string;
+    coverage_percentage: number;
+  } | null>(null);
+  const [showBm25Info, setShowBm25Info] = useState(false);
+  const [showBm25Details, setShowBm25Details] = useState(false);
+  const [bm25Details, setBm25Details] = useState<{
+    document_ids: number[];
+    document_details: Array<{
+      doc_id: number;
+      filename: string;
+      token_count: number;
+      unique_token_count: number;
+      sample_tokens: string[];
+      content_preview: string;
+    }>;
+    total_documents: number;
+    total_tokens: number;
+    vocabulary_size: number;
+    showing_first_n: number;
+  } | null>(null);
+  const [loadingBm25Details, setLoadingBm25Details] = useState(false);
+
   useEffect(() => {
     loadTables();
+    loadBm25Info();
   }, []);
+
+  const loadBm25Info = async () => {
+    try {
+      const info = await apiClient.getBm25Info();
+      setBm25Info(info);
+    } catch (error) {
+      console.error('Failed to load BM25 info:', error);
+      // Don't show error toast, BM25 might not be enabled
+    }
+  };
+
+  const loadBm25Details = async () => {
+    if (!bm25Info?.enabled || !bm25Info?.is_built) {
+      return;
+    }
+    
+    try {
+      setLoadingBm25Details(true);
+      const details = await apiClient.getBm25Details(200); // Get up to 200 documents
+      setBm25Details(details);
+    } catch (error) {
+      console.error('Failed to load BM25 details:', error);
+      toast.error('Failed to load BM25 index details');
+    } finally {
+      setLoadingBm25Details(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showBm25Details && !bm25Details && bm25Info?.enabled && bm25Info?.is_built) {
+      loadBm25Details();
+    }
+  }, [showBm25Details, bm25Info]);
 
   // Effect to set table info and defaults when table is selected
   useEffect(() => {
@@ -205,7 +246,6 @@ export default function DatabasePage() {
     }
 
     setFormData(recordData);
-    setEditingRecord(recordData);
     setShowEditModal(true);
   };
 
@@ -259,7 +299,6 @@ export default function DatabasePage() {
       await apiClient.updateRecord(selectedTable, editingRecordId, formData);
       toast.success('Record updated successfully');
       setShowEditModal(false);
-      setEditingRecord(null);
       setEditingRecordId(null);
       setFormData({});
       loadTableData(); // Refresh data
@@ -297,7 +336,6 @@ export default function DatabasePage() {
   const closeModals = () => {
     setShowCreateModal(false);
     setShowEditModal(false);
-    setEditingRecord(null);
     setEditingRecordId(null);
     setFormData({});
   };
@@ -317,7 +355,239 @@ export default function DatabasePage() {
             <p className="text-primary-600">View and manage SQLite database tables</p>
           </div>
         </div>
+        {bm25Info && (
+          <Button
+            variant="outline"
+            onClick={() => setShowBm25Info(!showBm25Info)}
+            className="flex items-center gap-2"
+          >
+            <FileSearch className="w-4 h-4" />
+            BM25 Index
+          </Button>
+        )}
       </div>
+
+      {/* BM25 Index Info Card */}
+      {showBm25Info && bm25Info && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <FileSearch className="w-5 h-5 text-primary-600" />
+              <h2 className="text-lg font-semibold text-primary-900">BM25 Index Information</h2>
+            </div>
+            <button
+              onClick={() => setShowBm25Info(false)}
+              className="text-primary-400 hover:text-primary-600"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div className="text-sm text-primary-600 mb-1">Status</div>
+              <div className={`text-lg font-semibold ${
+                bm25Info.status === 'active' ? 'text-green-600' : 'text-gray-500'
+              }`}>
+                {bm25Info.status === 'active' ? 'Active' : 'Inactive'}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-primary-600 mb-1">Enabled</div>
+              <div className={`text-lg font-semibold ${
+                bm25Info.enabled ? 'text-green-600' : 'text-gray-500'
+              }`}>
+                {bm25Info.enabled ? 'Yes' : 'No'}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-primary-600 mb-1">Index Built</div>
+              <div className={`text-lg font-semibold ${
+                bm25Info.is_built ? 'text-green-600' : 'text-yellow-600'
+              }`}>
+                {bm25Info.is_built ? 'Yes' : 'No'}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-primary-600 mb-1">Documents Indexed</div>
+              <div className="text-lg font-semibold text-primary-900">
+                {bm25Info.document_count}
+              </div>
+            </div>
+            {bm25Info.enabled && (
+              <>
+                <div>
+                  <div className="text-sm text-primary-600 mb-1">Total Documents</div>
+                  <div className="text-lg font-semibold text-primary-900">
+                    {bm25Info.total_documents_in_db}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-primary-600 mb-1">Coverage</div>
+                  <div className="text-lg font-semibold text-primary-900">
+                    {bm25Info.index_coverage}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-primary-600 mb-1">Coverage %</div>
+                  <div className={`text-lg font-semibold ${
+                    bm25Info.coverage_percentage >= 95 ? 'text-green-600' :
+                    bm25Info.coverage_percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {bm25Info.coverage_percentage}%
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          {bm25Info.enabled && !bm25Info.is_built && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                BM25 index is enabled but not built. The index will be built automatically when documents are processed.
+              </p>
+            </div>
+          )}
+          {!bm25Info.enabled && (
+            <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <p className="text-sm text-gray-600">
+                BM25 keyword search is disabled. Enable it in config.yaml by setting <code className="bg-gray-100 px-1 rounded">semantic_search.enable_bm25: true</code>
+              </p>
+            </div>
+          )}
+          
+          {/* Expandable Index Details Section */}
+          {bm25Info.enabled && bm25Info.is_built && (
+            <div className="mt-4">
+              <button
+                onClick={() => {
+                  setShowBm25Details(!showBm25Details);
+                  if (!showBm25Details && !bm25Details) {
+                    loadBm25Details();
+                  }
+                }}
+                className="w-full flex items-center justify-between p-3 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+              >
+                <span className="font-medium text-primary-900">
+                  {showBm25Details ? 'Hide' : 'Show'} Index Details
+                </span>
+                <span className="text-primary-600">
+                  {showBm25Details ? '▲' : '▼'}
+                </span>
+              </button>
+              
+              {showBm25Details && (
+                <div className="mt-4 space-y-4">
+                  {loadingBm25Details ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                    </div>
+                  ) : bm25Details ? (
+                    <>
+                      {/* Index Statistics */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-primary-50 rounded-lg">
+                        <div>
+                          <div className="text-sm text-primary-600 mb-1">Total Documents</div>
+                          <div className="text-lg font-semibold text-primary-900">
+                            {bm25Details.total_documents}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-primary-600 mb-1">Total Tokens</div>
+                          <div className="text-lg font-semibold text-primary-900">
+                            {bm25Details.total_tokens.toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-primary-600 mb-1">Vocabulary Size</div>
+                          <div className="text-lg font-semibold text-primary-900">
+                            {bm25Details.vocabulary_size.toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-primary-600 mb-1">Showing</div>
+                          <div className="text-lg font-semibold text-primary-900">
+                            {bm25Details.showing_first_n} / {bm25Details.total_documents}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Document List */}
+                      <div className="border border-primary-200 rounded-lg overflow-hidden">
+                        <div className="bg-primary-100 px-4 py-2 font-semibold text-primary-900">
+                          Indexed Documents ({bm25Details.document_details.length} shown)
+                        </div>
+                        <div className="max-h-96 overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-primary-50 sticky top-0">
+                              <tr>
+                                <th className="text-left py-2 px-4 font-semibold text-primary-900">ID</th>
+                                <th className="text-left py-2 px-4 font-semibold text-primary-900">Filename</th>
+                                <th className="text-right py-2 px-4 font-semibold text-primary-900">Tokens</th>
+                                <th className="text-right py-2 px-4 font-semibold text-primary-900">Unique</th>
+                                <th className="text-left py-2 px-4 font-semibold text-primary-900">Sample Tokens</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {bm25Details.document_details.map((doc, idx) => (
+                                <tr key={doc.doc_id} className={idx % 2 === 0 ? 'bg-white' : 'bg-primary-50'}>
+                                  <td className="py-2 px-4 text-primary-700 font-mono">{doc.doc_id}</td>
+                                  <td className="py-2 px-4 text-primary-900 truncate max-w-xs" title={doc.filename}>
+                                    {doc.filename}
+                                  </td>
+                                  <td className="py-2 px-4 text-right text-primary-700">{doc.token_count.toLocaleString()}</td>
+                                  <td className="py-2 px-4 text-right text-primary-700">{doc.unique_token_count.toLocaleString()}</td>
+                                  <td className="py-2 px-4">
+                                    <div className="flex flex-wrap gap-1">
+                                      {doc.sample_tokens.slice(0, 10).map((token, tokenIdx) => (
+                                        <span
+                                          key={tokenIdx}
+                                          className="px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded text-xs"
+                                          title={token}
+                                        >
+                                          {token}
+                                        </span>
+                                      ))}
+                                      {doc.sample_tokens.length > 10 && (
+                                        <span className="text-primary-500 text-xs">+{doc.sample_tokens.length - 10}</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Document IDs List */}
+                      <div className="border border-primary-200 rounded-lg p-4">
+                        <div className="font-semibold text-primary-900 mb-2">
+                          Document IDs in Index ({bm25Details.document_ids.length} shown)
+                        </div>
+                        <div className="max-h-32 overflow-y-auto">
+                          <div className="flex flex-wrap gap-2">
+                            {bm25Details.document_ids.map((docId) => (
+                              <span
+                                key={docId}
+                                className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-sm font-mono"
+                              >
+                                {docId}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-4 text-primary-500">
+                      Failed to load index details
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Table Selection - Horizontal Layout */}
       <Card className="p-4">

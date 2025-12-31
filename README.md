@@ -20,7 +20,11 @@ This system automatically processes, classifies, and indexes your documents usin
    - **SQLite Database**: Stores document metadata, categories, file paths, and content previews
    - **ChromaDB Vector Store**: Stores embeddings for fast semantic similarity search
 
-6. **Search & Retrieval**: When you search, your query is converted to an embedding and compared against stored document embeddings. An optional RAG (Retrieval-Augmented Generation) agent can further analyze results for relevance.
+6. **Search & Retrieval**: The system uses hybrid search combining:
+   - **BM25 keyword search**: Fast keyword-based matching for exact term queries
+   - **Semantic search**: Vector similarity matching for conceptual queries
+   - Results from both methods are combined with configurable weights
+   - An optional RAG (Retrieval-Augmented Generation) agent can further analyze results for relevance
 
 ### Local Services Used
 
@@ -56,12 +60,16 @@ graph TB
     L --> N[ChromaDB Vector Store]
     
     O[User Query] --> P[Query Embedding]
+    O --> V[BM25 Index]
     P --> Q[Semantic Search]
     Q --> N
-    Q --> R[RAG Agent]
+    V --> W[BM25 Search]
+    Q --> X[Hybrid Search]
+    W --> X
+    X --> R[RAG Agent]
     R -->|Ollama LLM| S[Relevance Analysis]
     S --> T[Search Results]
-    Q --> T
+    X --> T
     T --> M
     M --> U[Web UI / CLI]
     
@@ -71,6 +79,8 @@ graph TB
     style R fill:#fff4e1
     style M fill:#e8f5e9
     style N fill:#e8f5e9
+    style V fill:#e8f5e9
+    style X fill:#fff4e1
     style U fill:#f3e5f5
 ```
 
@@ -93,6 +103,7 @@ pip install -r requirements.txt
 Key dependencies:
 - `ollama` - Ollama client for LLM interactions
 - `chromadb` - Vector database for embeddings
+- `rank-bm25` - BM25 keyword-based search
 - `flask` - Web API backend
 - `pypdf`, `python-docx` - Document parsers
 - `Pillow`, `pdf2image` - Image processing
@@ -248,6 +259,10 @@ semantic_search:
   min_similarity_threshold: 0.1
   enable_rag: true
   rag_relevance_threshold: 0.3
+  # Hybrid search: combine BM25 (keyword) and semantic (vector) search
+  enable_bm25: true
+  bm25_weight: 0.3      # Weight for keyword matching (0.0-1.0)
+  semantic_weight: 0.7  # Weight for semantic similarity (0.0-1.0)
 ```
 
 #### Watch Mode
@@ -328,6 +343,7 @@ prompt_template: |
 - Use smaller/faster models
 - Process in batches (already implemented)
 - Disable RAG analysis: `semantic_search.enable_rag: false`
+- Disable BM25 if not needed: `semantic_search.enable_bm25: false` (uses semantic-only search)
 
 ### Frontend Not Loading
 

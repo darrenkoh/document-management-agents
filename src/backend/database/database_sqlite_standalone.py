@@ -7,6 +7,13 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import threading
 from contextlib import contextmanager
+import sys
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.backend.services.bm25_index import BM25Index
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +39,14 @@ class SQLiteDocumentDatabase:
 
         # Create database and tables
         self._create_tables()
+
+        # Initialize BM25 index
+        self.bm25_index = BM25Index()
+        self._bm25_enabled = getattr(config, 'semantic_search_enable_bm25', False) if config else False
+        
+        # Build BM25 index from existing documents if enabled
+        if self._bm25_enabled:
+            self._build_bm25_index()
 
     @property
     def connection(self):
@@ -172,6 +187,14 @@ class SQLiteDocumentDatabase:
                 values = list(doc_data.values()) + [doc_id]
                 cursor.execute(f'UPDATE documents SET {update_fields} WHERE id = ?', values)
                 logger.info(f"Updated classification for {Path(file_path).name} in database")
+                
+                # Update BM25 index if enabled
+                if self._bm25_enabled:
+                    try:
+                        self.bm25_index.update_document(doc_id, content)
+                    except Exception as e:
+                        logger.warning(f"Failed to update document {doc_id} in BM25 index: {e}")
+                
                 return doc_id
             else:
                 # Insert new
@@ -182,6 +205,14 @@ class SQLiteDocumentDatabase:
                 cursor.execute(f'INSERT INTO documents ({columns}) VALUES ({placeholders})', values)
                 doc_id = cursor.lastrowid
                 logger.info(f"Stored classification for {Path(file_path).name} in database (ID: {doc_id})")
+                
+                # Update BM25 index if enabled
+                if self._bm25_enabled:
+                    try:
+                        self.bm25_index.add_document(doc_id, content)
+                    except Exception as e:
+                        logger.warning(f"Failed to add document {doc_id} to BM25 index: {e}")
+                
                 return doc_id
 
     def get_document(self, file_path: str) -> Optional[Dict]:
@@ -269,6 +300,182 @@ class SQLiteDocumentDatabase:
             rows = cursor.fetchall()
 
         return [self._row_to_dict(row) for row in rows]
+
+    def _build_bm25_index(self):
+        """Build BM25 index from all documents in database."""
+        try:
+            all_docs = self.get_all_documents()
+            if all_docs:
+                success = self.bm25_index.build_index(all_docs)
+                if success:
+                    logger.info(f"BM25 index built with {self.bm25_index.get_document_count()} documents")
+                else:
+                    logger.warning("Failed to build BM25 index")
+            else:
+                logger.info("No documents in database to index for BM25")
+        except Exception as e:
+            logger.error(f"Error building BM25 index: {e}")
+
+    def search_bm25(self, query: str, top_k: int = 10) -> List[Dict]:
+        """Perform BM25 keyword-based search.
+
+        Args:
+            query: Search query text
+            top_k: Number of top results to return
+
+        Returns:
+            List of documents sorted by BM25 score (highest first)
+        """
+        if not self._bm25_enabled:
+            logger.warning("BM25 search requested but not enabled")
+            return []
+
+        if not self.bm25_index.is_built():
+            logger.warning("BM25 index not built, attempting to build now")
+            self._build_bm25_index()
+            if not self.bm25_index.is_built():
+                logger.error("Failed to build BM25 index")
+                return []
+
+        try:
+            # Search BM25 index
+            bm25_results = self.bm25_index.search(query, top_k=top_k * 2)  # Get more for filtering
+
+            if not bm25_results:
+                return []
+
+            # Get document details for results
+            results = []
+            doc_ids = [doc_id for doc_id, _ in bm25_results]
+            
+            with self._get_cursor() as cursor:
+                for doc_id, bm25_score in bm25_results:
+                    try:
+                        cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
+                        row = cursor.fetchone()
+                        if row:
+                            doc_copy = self._row_to_dict(row)
+                            doc_copy['bm25_score'] = bm25_score
+                            results.append(doc_copy)
+                    except Exception as e:
+                        logger.error(f"Error retrieving document {doc_id}: {e}")
+                        continue
+
+            # Sort by BM25 score and take top_k
+            results.sort(key=lambda x: x.get('bm25_score', 0.0), reverse=True)
+            return results[:top_k]
+
+        except Exception as e:
+            logger.error(f"Error in BM25 search: {e}")
+            return []
+
+    def search_hybrid(self, query: str, query_embedding: List[float], top_k: int = 10,
+                     threshold: float = None, max_candidates: int = None,
+                     bm25_weight: float = 0.3, semantic_weight: float = 0.7) -> List[Dict]:
+        """Perform hybrid search combining BM25 and semantic search.
+
+        Args:
+            query: Search query text
+            query_embedding: Query embedding vector for semantic search
+            top_k: Number of top results to return
+            threshold: Minimum similarity threshold for semantic search
+            max_candidates: Maximum candidates for semantic search
+            bm25_weight: Weight for BM25 scores (0.0-1.0)
+            semantic_weight: Weight for semantic scores (0.0-1.0)
+
+        Returns:
+            List of documents sorted by combined score (highest first)
+        """
+        # Normalize weights to sum to 1.0
+        total_weight = bm25_weight + semantic_weight
+        if total_weight > 0:
+            bm25_weight = bm25_weight / total_weight
+            semantic_weight = semantic_weight / total_weight
+        else:
+            # Fallback to default weights
+            bm25_weight = 0.3
+            semantic_weight = 0.7
+
+        # Get BM25 results
+        bm25_results = []
+        if self._bm25_enabled:
+            bm25_results = self.search_bm25(query, top_k=max_candidates or top_k * 3)
+            # Create dict mapping doc_id to BM25 score
+            bm25_scores = {doc['id']: doc.get('bm25_score', 0.0) for doc in bm25_results}
+        else:
+            bm25_scores = {}
+
+        # Get semantic search results
+        semantic_results = []
+        if self.vector_store and query_embedding:
+            semantic_results = self.search_semantic(
+                query_embedding, 
+                top_k=max_candidates or top_k * 3,
+                threshold=threshold,
+                max_candidates=max_candidates
+            )
+            # Create dict mapping doc_id to semantic similarity
+            semantic_scores = {doc['id']: doc.get('similarity', 0.0) for doc in semantic_results}
+        else:
+            semantic_scores = {}
+
+        # Combine results
+        all_doc_ids = set(list(bm25_scores.keys()) + list(semantic_scores.keys()))
+
+        if not all_doc_ids:
+            return []
+
+        # Normalize BM25 scores to 0-1 range
+        if bm25_scores:
+            max_bm25 = max(bm25_scores.values()) if bm25_scores.values() else 1.0
+            min_bm25 = min(bm25_scores.values()) if bm25_scores.values() else 0.0
+            bm25_range = max_bm25 - min_bm25 if max_bm25 > min_bm25 else 1.0
+        else:
+            max_bm25 = 1.0
+            min_bm25 = 0.0
+            bm25_range = 1.0
+
+        # Calculate combined scores
+        combined_scores = {}
+        for doc_id in all_doc_ids:
+            # Normalize BM25 score
+            bm25_score = bm25_scores.get(doc_id, 0.0)
+            normalized_bm25 = (bm25_score - min_bm25) / bm25_range if bm25_range > 0 else 0.0
+
+            # Get semantic score (already 0-1 for cosine similarity)
+            semantic_score = semantic_scores.get(doc_id, 0.0)
+
+            # Combine scores
+            combined_score = (bm25_weight * normalized_bm25) + (semantic_weight * semantic_score)
+            combined_scores[doc_id] = {
+                'combined_score': combined_score,
+                'bm25_score': bm25_score,
+                'normalized_bm25': normalized_bm25,
+                'semantic_score': semantic_score
+            }
+
+        # Get document details for top results
+        results = []
+        sorted_docs = sorted(combined_scores.items(), key=lambda x: x[1]['combined_score'], reverse=True)[:top_k]
+
+        with self._get_cursor() as cursor:
+            for doc_id, score_info in sorted_docs:
+                try:
+                    cursor.execute('SELECT * FROM documents WHERE id = ?', (doc_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        doc_copy = self._row_to_dict(row)
+                        doc_copy['similarity'] = score_info['combined_score']  # Use 'similarity' for compatibility
+                        doc_copy['bm25_score'] = score_info['bm25_score']
+                        doc_copy['normalized_bm25'] = score_info['normalized_bm25']
+                        doc_copy['semantic_score'] = score_info['semantic_score']
+                        results.append(doc_copy)
+                except Exception as e:
+                    logger.error(f"Error retrieving document {doc_id}: {e}")
+                    continue
+
+        logger.info(f"Hybrid search returned {len(results)} documents (BM25 weight: {bm25_weight:.2f}, Semantic weight: {semantic_weight:.2f})")
+        return results
 
     def refresh(self):
         """Refresh database connections (no-op for SQLite - connections are persistent)."""
@@ -591,6 +798,15 @@ class SQLiteDocumentDatabase:
                 )
                 result['deleted_count'] = cursor.rowcount
                 logger.info(f"Deleted {result['deleted_count']} documents from SQLite database")
+                
+                # Update BM25 index if enabled
+                if self._bm25_enabled:
+                    try:
+                        for doc_id in doc_ids:
+                            self.bm25_index.remove_document(doc_id)
+                        logger.info(f"Removed {len(doc_ids)} documents from BM25 index")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove documents from BM25 index: {e}")
 
         except Exception as e:
             error_msg = f"Error deleting documents: {e}"

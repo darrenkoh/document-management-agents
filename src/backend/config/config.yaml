@@ -255,6 +255,15 @@ semantic_search:
   # Minimum relevance score threshold for RAG filtering (0.0 to 1.0)
   # Documents below this score may be filtered out
   rag_relevance_threshold: 0.3
+  # Enable BM25 keyword-based search for hybrid search
+  # When enabled, combines BM25 (keyword) and semantic (vector) search
+  enable_bm25: true
+  # Weight for BM25 scores in hybrid search (0.0 to 1.0)
+  # Higher values give more weight to keyword matching
+  bm25_weight: 0.3
+  # Weight for semantic search scores in hybrid search (0.0 to 1.0)
+  # Higher values give more weight to semantic similarity
+  semantic_weight: 0.7
 
 # RAG answer generation prompt template
 # Use {query} and {documents} as placeholders
