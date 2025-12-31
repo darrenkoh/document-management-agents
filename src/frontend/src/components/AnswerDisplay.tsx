@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { AnswerCitation } from '@/types';
 import { MessageSquare, FileText, ExternalLink, AlertCircle } from 'lucide-react';
@@ -92,12 +93,26 @@ export function AnswerDisplay({ answer, citations, isStreaming, error, question 
         {/* Citations */}
         {citations && citations.length > 0 && (
           <div className="mt-6 pt-6 border-t border-primary-200">
-            <div className="flex items-center gap-2 mb-3">
-              <FileText className="w-4 h-4 text-primary-600" />
-              <h4 className="text-sm font-semibold text-primary-900">Sources</h4>
-              <span className="text-xs text-primary-500 bg-primary-100 px-2 py-0.5 rounded-full">
-                {citations.length}
-              </span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary-600" />
+                <h4 className="text-sm font-semibold text-primary-900">Sources</h4>
+                <span className="text-xs text-primary-500 bg-primary-100 px-2 py-0.5 rounded-full">
+                  {citations.length}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Navigate to documents page - could be enhanced to filter by these IDs
+                  navigate('/documents');
+                }}
+                className="text-xs"
+              >
+                View All Sources
+                <ExternalLink className="w-3 h-3 ml-1" />
+              </Button>
             </div>
             <div className="space-y-2">
               {citations.map((citation, index) => (

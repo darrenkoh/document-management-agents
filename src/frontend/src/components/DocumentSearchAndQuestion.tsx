@@ -3,6 +3,7 @@ import { Search, Filter, Brain, ChevronDown, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { StreamingLogs, StreamingLogMessage } from '@/components/ui/StreamingLogs';
 
 interface DocumentSearchAndQuestionProps {
   // Search props
@@ -22,6 +23,10 @@ interface DocumentSearchAndQuestionProps {
   showClearFilters?: boolean;
   onClearFilters?: () => void;
   isSemanticSearch?: boolean;
+
+  // Streaming logs props
+  streamingLogs?: StreamingLogMessage[];
+  isStreaming?: boolean;
 
   // Layout props
   className?: string;
@@ -44,6 +49,8 @@ export function DocumentSearchAndQuestion({
   showClearFilters = false,
   onClearFilters,
   isSemanticSearch = false,
+  streamingLogs = [],
+  isStreaming = false,
   className = '',
 }: DocumentSearchAndQuestionProps) {
   // Category combobox state
@@ -92,6 +99,8 @@ export function DocumentSearchAndQuestion({
     }
     setIsSubCategoryOpen(false);
   };
+
+  const hasStreamingContent = isStreaming || streamingLogs.length > 0;
 
   return (
     <div className={`${className}`}>
@@ -240,6 +249,17 @@ export function DocumentSearchAndQuestion({
               </Button>
             )}
           </form>
+
+          {/* Streaming Logs */}
+          {hasStreamingContent && (
+            <div className="mt-6 pt-6 border-t border-primary-200">
+              <StreamingLogs
+                isVisible={true}
+                logs={streamingLogs}
+                isStreaming={isStreaming}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

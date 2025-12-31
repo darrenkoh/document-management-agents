@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, ArrowRight, Clock } from 'lucide-react';
+import { FileText, ArrowRight, Clock, Search, MessageSquare } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { StreamingLogs, useStreamingLogs, StreamingLogMessage } from '@/components/ui/StreamingLogs';
+import { useStreamingLogs, StreamingLogMessage } from '@/components/ui/StreamingLogs';
 import { DocumentSearchAndQuestion } from '@/components/DocumentSearchAndQuestion';
 import { AnswerSection } from '@/components/AnswerSection';
 import { Document, SearchResult, AnswerCitation, AnswerStreamEvent } from '@/types';
@@ -118,20 +118,34 @@ export default function HomePage() {
     <div className="space-y-5">
       {/* Search Component */}
       <div className="max-w-4xl mx-auto">
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Search className="w-5 h-5 text-primary-600" />
+            <h2 className="text-xl font-semibold text-primary-900">Find Documents</h2>
+            <span className="text-xs px-2 py-1 bg-primary-100 text-primary-700 rounded-full font-medium">
+              Browse & Filter
+            </span>
+          </div>
+          <p className="text-sm text-primary-600 ml-7">
+            Search for specific documents by name, category, or content. You'll get a list of matching documents to browse.
+          </p>
+        </div>
         <DocumentSearchAndQuestion
           searchQuery={query}
           onSearchQueryChange={setQuery}
           onSearch={handleSearch}
           isSearching={isSearching}
           showCategoryFilter={false}
-          searchPlaceholder="Search documents, categories, or content..."
+          searchPlaceholder="e.g., 'tax documents 2022', 'Amazon receipts', 'medical expenses'..."
           showClearFilters={false}
           isSemanticSearch={false}
+          streamingLogs={streamingLogs}
+          isStreaming={isStreaming}
         />
       </div>
 
       {/* Question Answering Section */}
-      <div className="max-w-4xl mx-auto">
+      <div id="question-section" className="max-w-4xl mx-auto">
         <AnswerSection
           questionQuery={questionQuery}
           onQuestionQueryChange={setQuestionQuery}
@@ -178,24 +192,6 @@ export default function HomePage() {
         />
       </div>
 
-      {/* Streaming Logs - Always reserve space to prevent layout shifts */}
-      <div className="max-w-3xl mx-auto">
-        <div
-          className={`bg-primary-900 rounded-xl shadow-2xl overflow-hidden border border-primary-800 transition-all duration-300 ease-in-out ${
-            (isStreaming || streamingLogs.length > 0) ? 'p-6 opacity-100 max-h-96' : 'p-0 opacity-0 max-h-0'
-          }`}
-          style={{ overflowAnchor: 'auto' }}
-        >
-          {(isStreaming || streamingLogs.length > 0) && (
-            <StreamingLogs
-              isVisible={true}
-              logs={streamingLogs}
-              isStreaming={isStreaming}
-            />
-          )}
-        </div>
-      </div>
-
       {/* Content Section */}
       <div className="space-y-8">
         {hasSearchResults ? (
@@ -207,9 +203,25 @@ export default function HomePage() {
                   Found {searchResults.length} document{searchResults.length !== 1 ? 's' : ''} matching "{query.trim()}"
                 </p>
               </div>
-              <Button variant="outline" onClick={clearSearchResults}>
-                Clear Results
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setQuestionQuery(`Tell me about these documents: ${query.trim()}`);
+                    // Scroll to question section
+                    setTimeout(() => {
+                      document.getElementById('question-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                  }}
+                  className="bg-accent-50 border-accent-200 text-accent-700 hover:bg-accent-100"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Ask About These
+                </Button>
+                <Button variant="outline" onClick={clearSearchResults}>
+                  Clear Results
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
