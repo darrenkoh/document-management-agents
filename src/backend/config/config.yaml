@@ -48,7 +48,7 @@ ollama:
   # Ollama API endpoint (default: http://localhost:11434)
   endpoint: "http://spark-7819.local:11434"
   # Model name to use for classification
-  model: "deepseek-r1:8b"
+  model: "gpt-oss:20b"
   # Timeout in seconds for API calls
   timeout: 300
   # Maximum number of tokens to predict (higher for reasoning models)
@@ -56,7 +56,7 @@ ollama:
   # Embedding model for semantic search (default: qwen3-embedding:8b)
   embedding_model: "qwen3-embedding:8b"
   # Summarizer model for document summaries (default: deepseek-r1:8b)
-  summarizer_model: "deepseek-r1:8b"
+  summarizer_model: "gpt-oss:20b"
   # Retry configuration for failed LLM API calls
   retry:
     # Maximum number of retry attempts for failed API calls

@@ -39,6 +39,7 @@ export default function DatabasePage() {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filterInputs, setFilterInputs] = useState<Record<string, string>>({});
 
   // CRUD state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -76,6 +77,13 @@ export default function DatabasePage() {
           }
         });
         setFilters(validFilters);
+        
+        // Sync filter inputs with valid filters (so inputs show current applied filters)
+        const validFilterInputs: Record<string, string> = {};
+        Object.entries(validFilters).forEach(([key, value]) => {
+          validFilterInputs[key] = value;
+        });
+        setFilterInputs(validFilterInputs);
       }
     }
   }, [selectedTable, tables]);
@@ -143,9 +151,20 @@ export default function DatabasePage() {
     }
   };
 
-  const handleFilterChange = (column: string, value: string) => {
+  const handleFilterInputChange = (column: string, value: string) => {
+    setFilterInputs(prev => ({ ...prev, [column]: value }));
+  };
+
+  const handleFilterApply = (column: string) => {
+    const value = filterInputs[column] || '';
     setFilters(prev => ({ ...prev, [column]: value }));
     setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  const handleFilterKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, column: string) => {
+    if (e.key === 'Enter') {
+      handleFilterApply(column);
+    }
   };
 
   const handleAddRecord = () => {
@@ -386,8 +405,9 @@ export default function DatabasePage() {
                               {/* Filter input */}
                               <Input
                                 placeholder={`Filter ${column}...`}
-                                value={filters[column] || ''}
-                                onChange={(e) => handleFilterChange(column, e.target.value)}
+                                value={filterInputs[column] || ''}
+                                onChange={(e) => handleFilterInputChange(column, e.target.value)}
+                                onKeyDown={(e) => handleFilterKeyDown(e, column)}
                                 className="mt-1 text-sm h-8"
                               />
                             </th>
