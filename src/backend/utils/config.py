@@ -169,6 +169,15 @@ class Config:
             Prompt template string with {filename} and {content} placeholders, or None for default
         """
         return self._config.get('prompt_template')
+    
+    @property
+    def rag_answer_prompt_template(self) -> Optional[str]:
+        """Get the RAG answer generation prompt template.
+
+        Returns:
+            Prompt template string with {query} and {documents} placeholders, or None for default
+        """
+        return self._config.get('rag_answer_prompt_template')
 
     @property
     def webapp_port(self) -> int:

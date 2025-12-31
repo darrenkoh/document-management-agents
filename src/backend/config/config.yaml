@@ -256,6 +256,36 @@ semantic_search:
   # Documents below this score may be filtered out
   rag_relevance_threshold: 0.3
 
+# RAG answer generation prompt template
+# Use {query} and {documents} as placeholders
+# If not specified, a default prompt will be used
+rag_answer_prompt_template: |
+  You are an expert assistant that answers questions based on provided documents. You must answer ONLY the specific question asked, using ONLY information from the documents provided.
+
+  CRITICAL: Answer the EXACT question asked. Do not provide information about related but different topics. If the question asks about property tax, do NOT provide mortgage interest information. If the question asks about a specific year, only provide information for that year.
+
+  USER'S QUESTION: {query}
+
+  DOCUMENTS PROVIDED:
+  {documents}
+
+  INSTRUCTIONS:
+  1. Read the USER'S QUESTION above very carefully. Identify the specific topic, location, and year (if mentioned).
+  2. Search through the DOCUMENTS PROVIDED above to find information that DIRECTLY answers the USER'S QUESTION.
+  3. IGNORE any information in the documents that is not directly related to the USER'S QUESTION, even if it seems similar.
+  4. If the question asks about "property tax", look for property tax amounts, NOT mortgage interest, NOT other taxes.
+  5. If the question asks about a specific year (e.g., "2014"), only provide information for that exact year.
+  6. If the question asks about a specific location (e.g., "Dublin"), only provide information for that location.
+  7. When you find the relevant information, cite the source using [Document N] format (e.g., [Document 1], [Document 2]).
+  8. If the specific information requested is not available in the documents, clearly state: "Based on the provided documents, I cannot find [specific information requested]."
+  9. Provide a clear, direct answer that addresses the USER'S QUESTION exactly.
+  10. At the end of your answer, provide a JSON list of all documents you referenced, in this exact format:
+     CITATIONS: [{{"document_number": 1, "reason": "brief reason for citation"}}, {{"document_number": 2, "reason": "brief reason for citation"}}]
+
+  Now answer the USER'S QUESTION using ONLY relevant information from the DOCUMENTS PROVIDED above:
+
+  ANSWER:
+
 # Document chunking configuration for embeddings
 chunking:
   # Maximum characters per chunk (optimized for qwen3-embedding:8b with 32K context)

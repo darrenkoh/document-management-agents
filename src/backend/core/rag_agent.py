@@ -21,7 +21,7 @@ class RAGAgent:
     """Agent that analyzes retrieved documents using LLM to determine relevance."""
 
     def __init__(self, endpoint: str, model: str, timeout: int = 300, num_predict: int = 6000,
-                 max_retries: int = 3, retry_base_delay: float = 1.0):
+                 max_retries: int = 3, retry_base_delay: float = 1.0, answer_prompt_template: Optional[str] = None):
         """Initialize RAG agent.
 
         Args:
@@ -31,6 +31,8 @@ class RAGAgent:
             num_predict: Maximum number of tokens to predict
             max_retries: Maximum number of retry attempts for failed API calls
             retry_base_delay: Base delay in seconds between retry attempts
+            answer_prompt_template: Optional custom prompt template for answer generation
+                                   Use {query} and {documents} as placeholders
         """
         self.endpoint = endpoint
         self.model = model
@@ -38,6 +40,7 @@ class RAGAgent:
         self.num_predict = num_predict
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
+        self.answer_prompt_template = answer_prompt_template
         self.client = ollama.Client(host=endpoint, timeout=timeout)
 
     def _clean_llm_response(self, response: str) -> str:
@@ -339,12 +342,23 @@ Reasoning: This is a grocery receipt; no connection to the query about passport 
         Yields:
             Tuples of (chunk, None) for answer chunks, and (full_answer, citations) at the end
         """
+        # Validate and log query
+        if not query or not query.strip():
+            logger.error("Empty query provided to generate_answer")
+            yield ("I received an empty question. Please provide a valid question.", None)
+            return
+        
+        logger.info(f"generate_answer called with query: '{query}' and {len(documents) if documents else 0} documents")
+        
         if not documents:
             yield ("I couldn't find any relevant documents to answer your question.", None)
             return
 
         # Build answer generation prompt
         prompt = self._build_answer_prompt(query, documents)
+        
+        if verbose:
+            logger.debug(f"Generated prompt (first 500 chars): {prompt[:500]}")
 
         if verbose:
             logger.info("=" * 80)
@@ -402,17 +416,51 @@ Reasoning: This is a grocery receipt; no connection to the query about passport 
         Returns:
             Formatted prompt for LLM
         """
+        # Validate query
+        if not query or not query.strip():
+            logger.warning("Empty query provided to _build_answer_prompt")
+            query = "No question provided"
+        
+        # Validate documents
+        if not documents:
+            logger.warning("No documents provided to _build_answer_prompt")
+            return f"""You are an expert assistant. No documents were provided to answer the question.
+
+QUESTION: {query}
+
+Please inform the user that no documents are available to answer their question."""
+
         # Build document context section
         doc_contexts = []
+        content_stats = {'has_content': 0, 'has_preview_only': 0, 'no_content': 0}
+        
         for i, doc in enumerate(documents[:10], 1):  # Limit to top 10 documents
             filename = doc.get('filename', 'unknown')
             doc_id = doc.get('id') or doc.get('doc_id', 'unknown')
-            content_preview = doc.get('content_preview', '')
+            # Use full content instead of content_preview for better answer quality
+            content = doc.get('content', '')
+            if not content:
+                content = doc.get('content_preview', '')
+                if content:
+                    logger.warning(f"Document {doc_id} ({filename}) has no 'content' field, using 'content_preview' ({len(content)} chars)")
+                    content_stats['has_preview_only'] += 1
+                else:
+                    logger.error(f"Document {doc_id} ({filename}) has neither 'content' nor 'content_preview' field!")
+                    content_stats['no_content'] += 1
+            else:
+                content_stats['has_content'] += 1
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"Document {doc_id} ({filename}) has 'content' field ({len(content)} chars)")
+            
             categories = doc.get('categories', '')
             
-            # Truncate content to reasonable length (keep first 3000 chars per doc)
-            if len(content_preview) > 3000:
-                content_preview = content_preview[:3000] + "..."
+            # Truncate content to reasonable length (keep first 12000 chars per doc)
+            # This allows access to much more of the document than the 500-char preview
+            original_content_len = len(content)
+            if len(content) > 12000:
+                content = content[:12000] + "..."
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"Truncated document {doc_id} content from {original_content_len} to 12000 chars")
             
             doc_context = f"""
 [Document {i}]
@@ -420,29 +468,63 @@ Reasoning: This is a grocery receipt; no connection to the query about passport 
 - Filename: {filename}
 - Categories: {categories}
 - Content:
-{content_preview}
+{content}
 """
             doc_contexts.append(doc_context)
 
         documents_text = "\n".join(doc_contexts)
 
-        prompt = f"""You are an expert assistant that answers questions based on provided documents. Use only the information from the documents below to answer the question. If the information is not available in the documents, clearly state that.
+        # Ensure query is not empty
+        query_text = query.strip() if query else "No question provided"
+        if not query_text or query_text == "No question provided":
+            logger.error(f"Invalid query in _build_answer_prompt: original='{query}'")
+            query_text = "No question was provided - please ask a question"
+        
+        # Use custom template if provided, otherwise use default
+        if self.answer_prompt_template:
+            prompt = self.answer_prompt_template.format(
+                query=query_text,
+                documents=documents_text
+            )
+        else:
+            # Default prompt template
+            prompt = f"""You are an expert assistant that answers questions based on provided documents. You must answer ONLY the specific question asked, using ONLY information from the documents provided.
 
-QUESTION: {query}
+CRITICAL: Answer the EXACT question asked. Do not provide information about related but different topics. If the question asks about property tax, do NOT provide mortgage interest information. If the question asks about a specific year, only provide information for that year.
 
-DOCUMENTS:
+USER'S QUESTION: {query_text}
+
+DOCUMENTS PROVIDED:
 {documents_text}
 
 INSTRUCTIONS:
-1. Answer the question comprehensively using information from the documents above
-2. When referencing information, cite the source using [Document N] format (e.g., [Document 1], [Document 2])
-3. If information is not available in the documents, clearly state "Based on the provided documents, I cannot find information about..."
-4. Provide a well-structured, clear answer
-5. Include specific details and examples from the documents when relevant
-6. At the end of your answer, provide a JSON list of all documents you referenced, in this exact format:
+1. Read the USER'S QUESTION above very carefully. Identify the specific topic, location, and year (if mentioned).
+2. Search through the DOCUMENTS PROVIDED above to find information that DIRECTLY answers the USER'S QUESTION.
+3. IGNORE any information in the documents that is not directly related to the USER'S QUESTION, even if it seems similar.
+4. If the question asks about "property tax", look for property tax amounts, NOT mortgage interest, NOT other taxes.
+5. If the question asks about a specific year (e.g., "2014"), only provide information for that exact year.
+6. If the question asks about a specific location (e.g., "Dublin"), only provide information for that location.
+7. When you find the relevant information, cite the source using [Document N] format (e.g., [Document 1], [Document 2]).
+8. If the specific information requested is not available in the documents, clearly state: "Based on the provided documents, I cannot find [specific information requested]."
+9. Provide a clear, direct answer that addresses the USER'S QUESTION exactly.
+10. At the end of your answer, provide a JSON list of all documents you referenced, in this exact format:
    CITATIONS: [{{"document_number": 1, "reason": "brief reason for citation"}}, {{"document_number": 2, "reason": "brief reason for citation"}}]
 
+Now answer the USER'S QUESTION using ONLY relevant information from the DOCUMENTS PROVIDED above:
+
 ANSWER:"""
+
+        # Log prompt statistics
+        total_content_length = sum(len(doc.get('content', '') or doc.get('content_preview', '')) for doc in documents[:10])
+        prompt_length = len(prompt)
+        logger.info(f"Built answer prompt: query='{query.strip()}', {len(documents[:10])} documents, "
+                   f"content stats: {content_stats}, total content={total_content_length} chars, prompt={prompt_length} chars")
+        
+        if content_stats['has_preview_only'] > 0:
+            logger.warning(f"{content_stats['has_preview_only']} documents only have content_preview (500 chars), not full content!")
+        
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Prompt preview (first 1000 chars):\n{prompt[:1000]}")
 
         return prompt
 

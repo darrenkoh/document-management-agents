@@ -132,7 +132,8 @@ class DocumentAgent:
             timeout=config.ollama_timeout,
             num_predict=config.ollama_num_predict,
             max_retries=config.ollama_max_retries,
-            retry_base_delay=config.ollama_retry_base_delay
+            retry_base_delay=config.ollama_retry_base_delay,
+            answer_prompt_template=config.rag_answer_prompt_template
         )
 
         # Optional: receipt segmentation (SAM3)
