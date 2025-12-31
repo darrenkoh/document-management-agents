@@ -76,18 +76,46 @@ class SQLiteDocumentDatabase:
                     metadata TEXT,  -- JSON field
                     file_hash TEXT,
                     embedding_stored BOOLEAN DEFAULT FALSE,
-                    deepseek_ocr_used BOOLEAN DEFAULT FALSE,
+                    ocr_used BOOLEAN DEFAULT FALSE,
                     summary TEXT,  -- Document summary text
                     created_at REAL,
                     updated_at REAL
                 )
             ''')
 
-            # Add the deepseek_ocr_used column to existing tables (migration)
+            # Add the ocr_used column to existing tables (migration)
             try:
-                cursor.execute("ALTER TABLE documents ADD COLUMN deepseek_ocr_used BOOLEAN DEFAULT FALSE")
+                cursor.execute("ALTER TABLE documents ADD COLUMN ocr_used BOOLEAN DEFAULT FALSE")
             except sqlite3.OperationalError:
                 # Column already exists, skip
+                pass
+            
+            # Migration: Rename deepseek_ocr_used to ocr_used if old column exists
+            try:
+                # Check if old column exists by trying to query it
+                cursor.execute("PRAGMA table_info(documents)")
+                columns = [row[1] for row in cursor.fetchall()]
+                if 'deepseek_ocr_used' in columns and 'ocr_used' in columns:
+                    # Both columns exist, copy data and drop old column
+                    cursor.execute("UPDATE documents SET ocr_used = deepseek_ocr_used WHERE deepseek_ocr_used IS NOT NULL")
+                    # SQLite 3.25.0+ supports DROP COLUMN
+                    try:
+                        cursor.execute("ALTER TABLE documents DROP COLUMN deepseek_ocr_used")
+                    except sqlite3.OperationalError:
+                        # DROP COLUMN not supported, keep old column (it will be ignored)
+                        pass
+                elif 'deepseek_ocr_used' in columns and 'ocr_used' not in columns:
+                    # Old column exists but new doesn't, rename it
+                    try:
+                        # SQLite 3.25.0+ supports RENAME COLUMN
+                        cursor.execute("ALTER TABLE documents RENAME COLUMN deepseek_ocr_used TO ocr_used")
+                    except sqlite3.OperationalError:
+                        # RENAME COLUMN not supported, create new and copy data
+                        cursor.execute("ALTER TABLE documents ADD COLUMN ocr_used BOOLEAN DEFAULT FALSE")
+                        cursor.execute("UPDATE documents SET ocr_used = deepseek_ocr_used WHERE deepseek_ocr_used IS NOT NULL")
+            except Exception as e:
+                # Migration failed, but continue (old column may not exist)
+                logger.debug(f"OCR column migration: {e}")
                 pass
 
             # Add the sub_categories column to existing tables (migration)
@@ -140,7 +168,7 @@ class SQLiteDocumentDatabase:
 
     def store_classification(self, file_path: str, content: str, categories: str,
                            metadata: Optional[Dict[str, Any]] = None, file_hash: Optional[str] = None,
-                           deepseek_ocr_used: bool = False, sub_categories: Optional[List[str]] = None,
+                           ocr_used: bool = False, sub_categories: Optional[List[str]] = None,
                            summary: Optional[str] = None) -> int:
         """Store a document classification in the database.
 
@@ -150,7 +178,7 @@ class SQLiteDocumentDatabase:
             categories: Classification categories
             metadata: Optional additional metadata
             file_hash: Optional file hash for duplicate detection
-            deepseek_ocr_used: Whether DeepSeek OCR was used for text extraction
+            ocr_used: Whether OCR was used for text extraction
             sub_categories: Optional list of sub-categories
             summary: Optional document summary text
 
@@ -175,7 +203,7 @@ class SQLiteDocumentDatabase:
                 'metadata': json.dumps(metadata or {}),
                 'file_hash': file_hash,
                 'embedding_stored': False,
-                'deepseek_ocr_used': deepseek_ocr_used,
+                'ocr_used': ocr_used,
                 'summary': summary,
                 'updated_at': now
             }

@@ -402,7 +402,7 @@ class DocumentAgent:
                 categories=categories,
                 metadata=metadata,
                 file_hash=file_hash,
-                deepseek_ocr_used=ocr_used,
+                ocr_used=ocr_used,
                 sub_categories=sub_categories,
                 summary=embedding_result.get('summary_text')
             )
