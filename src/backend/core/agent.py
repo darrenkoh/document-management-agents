@@ -42,6 +42,7 @@ class DocumentAgent:
             max_retries=config.ollama_ocr_max_retries,
             retry_base_delay=config.ollama_ocr_retry_base_delay,
             ocr_provider=config.ocr_provider,
+            ocr_num_predict=config.ollama_ocr_num_predict,
             chandra_endpoint=config.chandra_endpoint,
             chandra_model=config.chandra_model,
             chandra_timeout=config.chandra_timeout,
@@ -489,10 +490,30 @@ class DocumentAgent:
 
         # Start with source directories
         for source_path in self.file_handler.source_paths:
-            if source_path.exists():
-                directories_to_process.append(source_path)
-            else:
+            if not source_path.exists():
                 logger.warning(f"Source path does not exist: {source_path}")
+                continue
+            
+            # Handle case where source_path is a file (not a directory)
+            if source_path.is_file():
+                # Check if file should be excluded
+                if self.file_handler._is_excluded(source_path):
+                    logger.info(f"Skipping excluded file: {source_path}")
+                    continue
+                # Check if file should be included based on extensions
+                if not self.file_handler._is_included(source_path, self.config.file_extensions if self.config.file_extensions else None):
+                    logger.info(f"Skipping file with disallowed extension: {source_path}")
+                    continue
+                # Add file to its parent directory's list
+                parent_dir = source_path.parent
+                if parent_dir not in files_by_directory:
+                    files_by_directory[parent_dir] = []
+                files_by_directory[parent_dir].append(source_path)
+                logger.info(f"Collected file: {source_path}")
+                continue
+            
+            # source_path is a directory - add to queue for BFS traversal
+            directories_to_process.append(source_path)
 
         # BFS traversal to collect all files
         while directories_to_process:

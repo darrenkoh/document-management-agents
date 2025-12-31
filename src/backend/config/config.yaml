@@ -67,7 +67,7 @@ ollama:
 # OCR configuration for text extraction from images/PDFs
 ocr:
   # OCR provider to use: 'ollama', 'chandra', or 'hunyuan'
-  provider: "hunyuan"
+  provider: "chandra"
   # Maximum number of PDF pages to process with OCR (default: 12)
   # This limits OCR processing to the first N pages of PDFs to reduce processing time
   max_pages: 12
@@ -78,6 +78,9 @@ ocr:
     model: "deepseek-ocr:3b"
     # Timeout for OCR operations in seconds
     timeout: 300
+    # Maximum number of tokens to predict (higher for reasoning models)
+    # Increase this if you see "done_reason='length'" in logs
+    num_predict: 12000
     # Retry configuration
     retry:
       max_retries: 3

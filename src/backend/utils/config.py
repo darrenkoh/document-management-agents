@@ -273,6 +273,13 @@ class Config:
         retry_config = ollama_ocr.get('retry', {})
         return retry_config.get('base_delay', 1.0)
 
+    @property
+    def ollama_ocr_num_predict(self) -> int:
+        """Get the maximum number of tokens to predict for Ollama OCR."""
+        ocr_config = self._config.get('ocr', {})
+        ollama_ocr = ocr_config.get('ollama', {})
+        return ollama_ocr.get('num_predict', 12000)  # Higher default for reasoning models
+
     # Chandra OCR properties
     @property
     def chandra_endpoint(self) -> str:

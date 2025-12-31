@@ -42,7 +42,8 @@ class FileHandler:
     def __init__(self, source_paths: List[str], ollama_endpoint: str = "http://localhost:11434",
                  ocr_model: str = "deepseek-ocr:3b", ocr_timeout: int = 60,
                  max_ocr_pages: int = 12, max_retries: int = 3, retry_base_delay: float = 1.0,
-                 ocr_provider: str = "ollama", chandra_endpoint: str = "http://localhost:11435",
+                 ocr_provider: str = "ollama", ocr_num_predict: int = 12000,
+                 chandra_endpoint: str = "http://localhost:11435",
                  chandra_model: str = "chandra", chandra_timeout: int = 300,
                  chandra_max_tokens: int = 8192, chandra_max_retries: int = 3,
                  chandra_retry_base_delay: float = 1.0, chandra_frequency_penalty: float = 0.02,
@@ -61,6 +62,7 @@ class FileHandler:
             max_retries: Maximum number of retry attempts for failed API calls
             retry_base_delay: Base delay in seconds between retry attempts
             ocr_provider: OCR provider ('ollama', 'chandra', or 'hunyuan')
+            ocr_num_predict: Maximum number of tokens to predict for OCR (default: 12000)
             chandra_endpoint: Chandra vLLM API endpoint
             chandra_model: Chandra model name
             chandra_timeout: Timeout for Chandra OCR operations
@@ -82,6 +84,7 @@ class FileHandler:
         self.ollama_endpoint = ollama_endpoint
         self.ocr_model = ocr_model
         self.ocr_timeout = ocr_timeout
+        self.ocr_num_predict = ocr_num_predict
         self.max_ocr_pages = max_ocr_pages
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
@@ -123,9 +126,30 @@ class FileHandler:
 
         self.ocr_available = self._check_ocr_availability()
 
-        # Ensure source directories exist
+        # Ensure source directories exist (skip if path is a file)
         for source_path in self.source_paths:
-            source_path.mkdir(parents=True, exist_ok=True)
+            if source_path.exists():
+                if source_path.is_file():
+                    # Path is a file, not a directory - skip mkdir
+                    continue
+                # Path exists and is a directory - no need to create
+            else:
+                # Path doesn't exist - create it as a directory
+                source_path.mkdir(parents=True, exist_ok=True)
+
+    def _get_ocr_provider_name(self) -> str:
+        """Get the display name for the OCR provider.
+        
+        Returns:
+            Display name for the OCR provider (e.g., "Chandra", "Hunyuan", or the actual model name for Ollama)
+        """
+        if self.ocr_provider == "chandra":
+            return "Chandra"
+        elif self.ocr_provider == "hunyuan":
+            return "Hunyuan"
+        else:
+            # For Ollama provider, use the actual model name
+            return self.ocr_model
 
     def _is_excluded(self, file_path: Path) -> bool:
         """Check if a file path should be excluded from ingestion."""
@@ -379,6 +403,18 @@ class FileHandler:
                 logger.warning(f"Source path does not exist: {source_path}")
                 continue
 
+            # Handle case where source_path is a file (not a directory)
+            if source_path.is_file():
+                if self._is_excluded(source_path):
+                    continue
+                # Check if file should be included
+                if self._is_included(source_path, extensions):
+                    files.append(source_path)
+                else:
+                    logger.info(f"Skipping file with disallowed extension: {source_path}")
+                continue
+
+            # source_path is a directory - search for files
             pattern = "**/*" if recursive else "*"
 
             for file_path in source_path.glob(pattern):
@@ -400,7 +436,7 @@ class FileHandler:
             file_path: Path to the file
 
         Returns:
-            Tuple of (extracted text content or None if extraction fails, OCR duration in seconds, whether DeepSeek-OCR was used)
+            Tuple of (extracted text content or None if extraction fails, OCR duration in seconds, whether OCR was used)
         """
         # Ensure file_path is a Path object
         if isinstance(file_path, str):
@@ -421,20 +457,20 @@ class FileHandler:
 
                 if should_use_ocr:
                     if self.ocr_available:
-                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
+                        ocr_provider_name = self._get_ocr_provider_name()
                         reason = "no content" if not text else "minimal content" if len(text.strip()) < 50 else "garbage text detected"
-                        logger.info(f"PDF text extraction returned {reason}, trying {ocr_provider_name}-OCR for {file_path}")
+                        logger.info(f"PDF text extraction returned {reason}, trying {ocr_provider_name} for {file_path}")
                         ocr_result = self._extract_text_with_ocr(file_path)
                         if ocr_result:
                             ocr_text, ocr_duration = ocr_result
-                            logger.info(f"{ocr_provider_name}-OCR successfully extracted text from {file_path}")
+                            logger.info(f"{ocr_provider_name} successfully extracted text from {file_path}")
                             return (ocr_text, ocr_duration, True)
                         else:
-                            logger.warning(f"{ocr_provider_name}-OCR failed, using extracted text (may be garbage)")
+                            logger.warning(f"{ocr_provider_name} failed, using extracted text (may be garbage)")
                             return (text, 0.0, False)
                     else:
-                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
-                        logger.warning(f"{ocr_provider_name}-OCR not available, using potentially garbage text from {file_path}")
+                        ocr_provider_name = self._get_ocr_provider_name()
+                        logger.warning(f"{ocr_provider_name} not available, using potentially garbage text from {file_path}")
                         return (text, 0.0, False)
                 return (text, 0.0, False)
             elif suffix == '.docx':
@@ -442,18 +478,18 @@ class FileHandler:
                 # If DOCX text extraction returns minimal content, try OCR as fallback
                 if not text or len(text.strip()) < 50:  # Threshold for "empty" content
                     if self.ocr_available:
-                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
-                        logger.info(f"DOCX text extraction returned minimal content, trying {ocr_provider_name}-OCR for {file_path}")
+                        ocr_provider_name = self._get_ocr_provider_name()
+                        logger.info(f"DOCX text extraction returned minimal content, trying {ocr_provider_name} for {file_path}")
                         ocr_result = self._extract_text_with_ocr(file_path)
                         if ocr_result:
                             ocr_text, ocr_duration = ocr_result
-                            logger.info(f"{ocr_provider_name}-OCR successfully extracted text from DOCX {file_path}")
+                            logger.info(f"{ocr_provider_name} successfully extracted text from DOCX {file_path}")
                             return (ocr_text, ocr_duration, True)
                         else:
                             return (text, 0.0, False)
                     else:
-                        ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
-                        logger.warning(f"{ocr_provider_name}-OCR not available, skipping OCR fallback for {file_path}")
+                        ocr_provider_name = self._get_ocr_provider_name()
+                        logger.warning(f"{ocr_provider_name} not available, skipping OCR fallback for {file_path}")
                         return (text, 0.0, False)
                 return (text, 0.0, False)
             elif suffix == '.doc':
@@ -469,8 +505,8 @@ class FileHandler:
                         logger.info(f"Skipping image {file_path} - no meaningful text content found")
                         return (None, ocr_duration, True)
                 else:
-                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
-                    logger.warning(f"{ocr_provider_name}-OCR not available, skipping image {file_path}")
+                    ocr_provider_name = self._get_ocr_provider_name()
+                    logger.warning(f"{ocr_provider_name} not available, skipping image {file_path}")
                     return (None, 0.0, False)
             else:
                 logger.warning(f"Unsupported file type: {suffix}")
@@ -579,16 +615,16 @@ class FileHandler:
                 # Check for meaningful content (not just whitespace or markdown boilerplate)
                 stripped_text = text.strip() if text else ""
                 if self._has_meaningful_content(stripped_text):
-                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
-                    logger.info(f"{ocr_provider_name}-OCR successfully extracted {len(stripped_text)} characters of meaningful content from {file_path}")
+                    ocr_provider_name = self._get_ocr_provider_name()
+                    logger.info(f"{ocr_provider_name} successfully extracted {len(stripped_text)} characters of meaningful content from {file_path}")
                     return (text, duration)
                 else:
-                    ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
-                    logger.info(f"{ocr_provider_name}-OCR found no meaningful text content in image {file_path} (likely a photo, chart, or empty image). Extracted: '{stripped_text[:100]}{'...' if len(stripped_text) > 100 else ''}'")
+                    ocr_provider_name = self._get_ocr_provider_name()
+                    logger.info(f"{ocr_provider_name} found no meaningful text content in image {file_path} (likely a photo, chart, or empty image). Extracted: '{stripped_text[:100]}{'...' if len(stripped_text) > 100 else ''}'")
                     return (None, duration)
             else:
-                ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
-                logger.warning(f"{ocr_provider_name}-OCR processing failed for {file_path}")
+                ocr_provider_name = self._get_ocr_provider_name()
+                logger.warning(f"{ocr_provider_name} processing failed for {file_path}")
                 return (None, 0.0)
         except Exception as e:
             logger.error(f"Failed to process image {file_path}: {e}")
@@ -772,7 +808,7 @@ class FileHandler:
         """
         try:
             suffix = file_path.suffix.lower()
-            ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
+            ocr_provider_name = self._get_ocr_provider_name()
 
             if suffix == '.pdf':
                 # Convert PDF to images first
@@ -793,7 +829,7 @@ class FileHandler:
                 all_text = []
                 total_ocr_duration = 0.0
                 for i, image in enumerate(images):
-                    logger.info(f"Processing page {i+1}/{len(images)} with {ocr_provider_name}-OCR")
+                    logger.info(f"Processing page {i+1}/{len(images)} with {ocr_provider_name}")
                     ocr_result = self._ocr_image(image)
                     if ocr_result:
                         text, duration = ocr_result
@@ -821,8 +857,8 @@ class FileHandler:
                 return None
 
         except Exception as e:
-            ocr_provider_name = "Chandra" if self.ocr_provider == "chandra" else "Hunyuan" if self.ocr_provider == "hunyuan" else "DeepSeek"
-            logger.error(f"{ocr_provider_name} OCR failed for {file_path}: {e}")
+            ocr_provider_name = self._get_ocr_provider_name()
+            logger.error(f"{ocr_provider_name} failed for {file_path}: {e}")
             return None
 
     def _ocr_image(self, image: Image.Image) -> Optional[tuple[str, float]]:
@@ -842,7 +878,7 @@ class FileHandler:
             return self._ocr_image_with_deepseek(image)
 
     def _ocr_image_with_deepseek(self, image: Image.Image) -> Optional[tuple[str, float]]:
-        """Perform OCR on a single image using DeepSeek-OCR.
+        """Perform OCR on a single image using Ollama OCR model.
 
         Args:
             image: PIL Image object
@@ -857,7 +893,7 @@ class FileHandler:
             image.save(buffer, format='PNG')
             image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-            # Call DeepSeek-OCR with timing and retry logic
+            # Call Ollama OCR with timing and retry logic
             # Based on https://ollama.com/library/deepseek-ocr examples
             start_time = time.time()
             response = self._call_ollama_ocr_generate(
@@ -865,28 +901,71 @@ class FileHandler:
                 images=[image_data],  # Base64 image data
                 options={
                     'temperature': 0.0,  # Deterministic output for OCR
-                    'num_predict': 2000,  # Increased for structured markdown output
+                    'num_predict': self.ocr_num_predict,  # Configurable token limit
                 }
             )
             ocr_duration = time.time() - start_time
 
+            # Check response field first
             extracted_text = response.get('response', '').strip()
+            
+            # For reasoning models, check thinking field as fallback if response is empty
+            # Some reasoning models output to thinking field when they hit token limits
+            if not extracted_text:
+                thinking = response.get('thinking', '').strip()
+                if thinking:
+                    # Check if thinking contains markdown patterns (final output)
+                    has_markdown = any(marker in thinking for marker in ['# ', '## ', '- ', '* ', '| ', '```'])
+                    
+                    # Also check the last portion of thinking for final output
+                    # Reasoning models sometimes put the answer at the end after reasoning
+                    last_portion = thinking[-2000:] if len(thinking) > 2000 else thinking
+                    has_final_output = any(marker in last_portion for marker in ['# ', '## ', '- ', '* ', '| ', '```'])
+                    
+                    if has_markdown or has_final_output:
+                        # Try to extract just the markdown portion if possible
+                        # Look for the start of markdown (first header or list)
+                        markdown_start = -1
+                        for marker in ['# ', '## ', '- ', '* ', '| ', '```']:
+                            idx = thinking.find(marker)
+                            if idx != -1 and (markdown_start == -1 or idx < markdown_start):
+                                markdown_start = idx
+                        
+                        if markdown_start > 0:
+                            # Extract from markdown start to end
+                            extracted_text = thinking[markdown_start:].strip()
+                            logger.info(f"{self._get_ocr_provider_name()} response was empty but found markdown in thinking field (starting at position {markdown_start}), using markdown portion")
+                        else:
+                            # Use entire thinking if we can't find a clear start
+                            extracted_text = thinking
+                            logger.info(f"{self._get_ocr_provider_name()} response was empty but found markdown in thinking field, using thinking content")
+                    else:
+                        # If thinking is just reasoning without output, log it but don't use it
+                        logger.warning(f"{self._get_ocr_provider_name()} response empty and thinking field contains only reasoning, not final output")
+            
+            ocr_provider_name = self._get_ocr_provider_name()
             if extracted_text:
-                logger.info(f"DeepSeek-OCR extracted text: {extracted_text[:100]}...")
+                logger.info(f"{ocr_provider_name} extracted text: {extracted_text[:100]}...")
                 return (extracted_text, ocr_duration)
             else:
-                logger.info(f"DeepSeek-OCR returned empty response. Full response: {response}")
+                # Check if it was cut off due to token limit
+                done_reason = response.get('done_reason', '')
+                if done_reason == 'length':
+                    logger.warning(f"{ocr_provider_name} hit token limit (num_predict={self.ocr_num_predict}). Consider increasing num_predict in config.yaml")
+                logger.info(f"{ocr_provider_name} returned empty response. Full response: {response}")
                 return None
 
         except RetryError as e:
-            logger.error(f"DeepSeek OCR failed after retries: {e.last_exception}")
+            ocr_provider_name = self._get_ocr_provider_name()
+            logger.error(f"{ocr_provider_name} failed after retries: {e.last_exception}")
             return None
         except Exception as e:
             # Log connection issues but don't spam the logs for each image
+            ocr_provider_name = self._get_ocr_provider_name()
             if "No route to host" in str(e) or "Connection refused" in str(e):
-                logger.warning(f"DeepSeek OCR unavailable: Cannot connect to Ollama at {self.ollama_endpoint}. OCR fallback disabled.")
+                logger.warning(f"{ocr_provider_name} unavailable: Cannot connect to Ollama at {self.ollama_endpoint}. OCR fallback disabled.")
             else:
-                logger.error(f"DeepSeek OCR failed: {e}")
+                logger.error(f"{ocr_provider_name} failed: {e}")
             return None
 
     def _ocr_image_with_chandra(self, image: Image.Image) -> Optional[tuple[str, float]]:
