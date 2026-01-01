@@ -26,6 +26,7 @@ export default function HomePage() {
   const [answerCitations, setAnswerCitations] = useState<AnswerCitation[]>([]);
   const [isAnswering, setIsAnswering] = useState(false);
   const [answerError, setAnswerError] = useState<string | undefined>();
+  const [answerLogMessages, setAnswerLogMessages] = useState<string[]>([]);
   
   const navigate = useNavigate();
 
@@ -161,12 +162,14 @@ export default function HomePage() {
           answerCitations={answerCitations}
           isAnswering={isAnswering}
           answerError={answerError}
+          answerLogMessages={answerLogMessages}
           onClear={clearQuestion}
           onAnswerQuestion={async (query) => {
             setIsAnswering(true);
             setAnswer('');
             setAnswerCitations([]);
             setAnswerError(undefined);
+            setAnswerLogMessages([]);
 
             try {
               await apiClient.answerQuestion(
@@ -175,7 +178,9 @@ export default function HomePage() {
                   setAnswer(prev => prev + chunk);
                 },
                 (event: AnswerStreamEvent) => {
-                  if (event.type === 'citations' && event.citations) {
+                  if (event.type === 'log' && event.message) {
+                    setAnswerLogMessages(prev => [...prev, event.message!]);
+                  } else if (event.type === 'citations' && event.citations) {
                     setAnswerCitations(event.citations);
                   } else if (event.type === 'complete') {
                     if (event.answer) {

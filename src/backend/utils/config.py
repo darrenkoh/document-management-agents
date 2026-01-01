@@ -485,6 +485,12 @@ class Config:
         search_config = self._config.get('semantic_search', {})
         return float(search_config.get('semantic_weight', 0.7))
 
+    @property
+    def semantic_search_sequential_processing(self) -> bool:
+        """Get whether sequential document processing is enabled for answer generation."""
+        search_config = self._config.get('semantic_search', {})
+        return bool(search_config.get('sequential_document_processing', False))
+
     # ----------------------------
     # Optional image segmentation
     # ----------------------------

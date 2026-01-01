@@ -21,7 +21,8 @@ class RAGAgent:
     """Agent that analyzes retrieved documents using LLM to determine relevance."""
 
     def __init__(self, endpoint: str, model: str, timeout: int = 300, num_predict: int = 6000,
-                 max_retries: int = 3, retry_base_delay: float = 1.0, answer_prompt_template: Optional[str] = None):
+                 max_retries: int = 3, retry_base_delay: float = 1.0, answer_prompt_template: Optional[str] = None,
+                 sequential_processing: bool = False):
         """Initialize RAG agent.
 
         Args:
@@ -33,6 +34,7 @@ class RAGAgent:
             retry_base_delay: Base delay in seconds between retry attempts
             answer_prompt_template: Optional custom prompt template for answer generation
                                    Use {query} and {documents} as placeholders
+            sequential_processing: If True, process documents one at a time to avoid context size limits
         """
         self.endpoint = endpoint
         self.model = model
@@ -41,6 +43,7 @@ class RAGAgent:
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
         self.answer_prompt_template = answer_prompt_template
+        self.sequential_processing = sequential_processing
         # Use a dummy API key since local servers often don't require authentication
         self.client = OpenAI(base_url=endpoint, api_key="dummy", timeout=timeout)
 
@@ -353,13 +356,14 @@ Reasoning: This is a grocery receipt; no connection to the query about passport 
 
         return sorted(documents, key=sort_key, reverse=True)
 
-    def generate_answer(self, query: str, documents: List[Dict], verbose: bool = False) -> Generator[Tuple[str, Optional[List[Dict]]], None, None]:
+    def generate_answer(self, query: str, documents: List[Dict], verbose: bool = False, progress_callback=None) -> Generator[Tuple[str, Optional[List[Dict]]], None, None]:
         """Generate an answer to a question using retrieved documents with streaming support.
 
         Args:
             query: The user's question
             documents: List of retrieved documents with content
             verbose: If True, log detailed LLM interactions
+            progress_callback: Optional callback function to report progress (message, type)
 
         Yields:
             Tuples of (chunk, None) for answer chunks, and (full_answer, citations) at the end
@@ -376,6 +380,14 @@ Reasoning: This is a grocery receipt; no connection to the query about passport 
             yield ("I couldn't find any relevant documents to answer your question.", None)
             return
 
+        # Use sequential processing if enabled
+        if self.sequential_processing:
+            yield from self._generate_answer_sequential(query, documents, verbose, progress_callback)
+        else:
+            yield from self._generate_answer_batch(query, documents, verbose)
+
+    def _generate_answer_batch(self, query: str, documents: List[Dict], verbose: bool = False) -> Generator[Tuple[str, Optional[List[Dict]]], None, None]:
+        """Generate answer using all documents in a single batch (original method)."""
         # Build answer generation prompt
         prompt = self._build_answer_prompt(query, documents)
         
@@ -428,6 +440,67 @@ Reasoning: This is a grocery receipt; no connection to the query about passport 
             yield (error_msg, None)
         except Exception as e:
             logger.error(f"Error generating answer: {e}")
+            error_msg = f"I encountered an error while generating an answer: {str(e)}"
+            yield (error_msg, None)
+
+    def _generate_answer_sequential(self, query: str, documents: List[Dict], verbose: bool = False, progress_callback=None) -> Generator[Tuple[str, Optional[List[Dict]]], None, None]:
+        """Generate answer by processing documents one at a time to avoid context size limits."""
+        if verbose:
+            logger.info("=" * 80)
+            logger.info(f"Generating answer using sequential processing for query: {query}")
+            logger.info(f"Processing {len(documents)} documents one at a time")
+            logger.info("=" * 80)
+
+        if progress_callback:
+            progress_callback(f"Processing {len(documents)} documents sequentially to extract relevant information...", "log")
+
+        try:
+            # Step 1: Extract relevant information from each document
+            extracted_info = []
+            for i, doc in enumerate(documents, 1):
+                filename = doc.get('filename', 'unknown')
+                status_msg = f"Processing document {i}/{len(documents)}: {filename}"
+                
+                if verbose:
+                    logger.info(status_msg)
+                
+                if progress_callback:
+                    progress_callback(status_msg, "log")
+                
+                try:
+                    info = self._extract_relevant_info(query, doc, i, verbose)
+                    if info and info.strip():
+                        extracted_info.append({
+                            'document_index': i,
+                            'document': doc,
+                            'extracted_info': info
+                        })
+                except Exception as e:
+                    logger.warning(f"Error extracting info from document {i}: {e}")
+                    if progress_callback:
+                        progress_callback(f"Warning: Error processing document {i} ({filename}): {str(e)}", "log")
+                    # Continue with other documents
+                    continue
+
+            if not extracted_info:
+                if progress_callback:
+                    progress_callback("No relevant information found in documents", "log")
+                yield ("I couldn't find any relevant information in the documents to answer your question.", None)
+                return
+
+            # Step 2: Synthesize final answer from extracted information
+            if verbose:
+                logger.info(f"Synthesizing final answer from {len(extracted_info)} documents with relevant information")
+            
+            if progress_callback:
+                progress_callback(f"Synthesizing final answer from {len(extracted_info)} document(s) with relevant information...", "log")
+            
+            yield from self._synthesize_answer(query, extracted_info, documents, verbose)
+
+        except Exception as e:
+            logger.error(f"Error in sequential answer generation: {e}")
+            if progress_callback:
+                progress_callback(f"Error in sequential answer generation: {str(e)}", "error")
             error_msg = f"I encountered an error while generating an answer: {str(e)}"
             yield (error_msg, None)
 
@@ -552,6 +625,183 @@ ANSWER:"""
             logger.debug(f"Prompt preview (first 1000 chars):\n{prompt[:1000]}")
 
         return prompt
+
+    def _extract_relevant_info(self, query: str, document: Dict, doc_index: int, verbose: bool = False) -> str:
+        """Extract relevant information from a single document for the query.
+
+        Args:
+            query: User's question
+            document: Single document dictionary
+            doc_index: Document index (1-based)
+            verbose: If True, log detailed LLM interactions
+
+        Returns:
+            Extracted relevant information as a string
+        """
+        filename = document.get('filename', 'unknown')
+        doc_id = document.get('id') or document.get('doc_id', 'unknown')
+        # Use full content instead of content_preview for better extraction
+        content = document.get('content', '')
+        if not content:
+            content = document.get('content_preview', '')
+        
+        categories = document.get('categories', '')
+        
+        # Truncate content to reasonable length to stay within context limits
+        # Use a conservative limit to ensure we have room for the prompt and response
+        max_content_length = 30000  # Conservative limit per document
+        original_content_len = len(content)
+        if len(content) > max_content_length:
+            content = content[:max_content_length] + "..."
+            if verbose:
+                logger.debug(f"Truncated document {doc_id} content from {original_content_len} to {max_content_length} chars")
+
+        prompt = f"""You are an expert assistant that extracts relevant information from documents to answer specific questions.
+
+USER'S QUESTION: {query}
+
+DOCUMENT INFORMATION:
+- Document Number: {doc_index}
+- ID: {doc_id}
+- Filename: {filename}
+- Categories: {categories}
+- Content:
+{content}
+
+TASK:
+Extract ONLY the information from this document that is directly relevant to answering the USER'S QUESTION above.
+
+INSTRUCTIONS:
+1. Read the USER'S QUESTION carefully to understand what information is needed.
+2. Search through the document content to find information that directly answers the question.
+3. Extract ONLY the relevant information. Do NOT include information that is not related to the question.
+4. If the question asks about a specific year, location, or topic, only extract information matching those criteria.
+5. If the document does not contain any relevant information, respond with: "No relevant information found."
+6. Format your response as clear, concise text that directly addresses the question.
+
+Extract the relevant information now:
+
+RELEVANT INFORMATION:"""
+
+        try:
+            response = self._call_llm_generate(
+                prompt=prompt,
+                options={
+                    'temperature': 0.1,  # Low temperature for consistent extraction
+                    'num_predict': min(self.num_predict, 4000),  # Limit response length
+                },
+                stream=False
+            )
+
+            extracted = response.get('response', '').strip()
+            extracted = self._clean_llm_response(extracted)
+            
+            if verbose:
+                logger.debug(f"Extracted {len(extracted)} chars from document {doc_index} ({filename})")
+            
+            return extracted
+
+        except Exception as e:
+            logger.error(f"Error extracting info from document {doc_index}: {e}")
+            return ""
+
+    def _synthesize_answer(self, query: str, extracted_info: List[Dict], all_documents: List[Dict], verbose: bool = False) -> Generator[Tuple[str, Optional[List[Dict]]], None, None]:
+        """Synthesize a final answer from extracted information from multiple documents.
+
+        Args:
+            query: User's question
+            extracted_info: List of dictionaries with 'document_index', 'document', and 'extracted_info'
+            all_documents: All original documents (for citation extraction)
+            verbose: If True, log detailed LLM interactions
+
+        Yields:
+            Tuples of (chunk, None) for answer chunks, and (full_answer, citations) at the end
+        """
+        # Build synthesis prompt with extracted information
+        info_sections = []
+        for item in extracted_info:
+            doc_index = item['document_index']
+            doc = item['document']
+            info = item['extracted_info']
+            filename = doc.get('filename', 'unknown')
+            
+            info_sections.append(f"""
+[Document {doc_index}]
+- Filename: {filename}
+- Extracted Information:
+{info}
+""")
+
+        extracted_text = "\n".join(info_sections)
+
+        prompt = f"""You are an expert assistant that synthesizes information from multiple documents to answer questions.
+
+USER'S QUESTION: {query}
+
+EXTRACTED INFORMATION FROM DOCUMENTS:
+{extracted_text}
+
+TASK:
+Synthesize a clear, comprehensive answer to the USER'S QUESTION using ONLY the extracted information provided above.
+
+INSTRUCTIONS:
+1. Read the USER'S QUESTION carefully.
+2. Review all the extracted information from the documents.
+3. Synthesize a coherent answer that directly addresses the question.
+4. If information from multiple documents is relevant, combine it logically.
+5. Cite sources using [Document N] format (e.g., [Document 1], [Document 2]).
+6. If the extracted information does not fully answer the question, clearly state what information is available and what is missing.
+7. Be precise and only use information that is actually present in the extracted information.
+8. At the end of your answer, provide a JSON list of all documents you referenced, in this exact format:
+   CITATIONS: [{{"document_number": 1, "reason": "brief reason for citation"}}, {{"document_number": 2, "reason": "brief reason for citation"}}]
+
+Now synthesize the answer:
+
+ANSWER:"""
+
+        try:
+            # Use streaming generation with retry logic
+            stream = self._call_llm_generate(
+                prompt=prompt,
+                options={
+                    'temperature': 0.3,  # Slightly higher for more natural answers
+                    'num_predict': self.num_predict,
+                },
+                stream=True
+            )
+
+            full_answer = ""
+            for chunk in stream:
+                # Handle OpenAI streaming format
+                if hasattr(chunk, 'choices') and chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, 'content') and delta.content:
+                        chunk_text = delta.content
+                        full_answer += chunk_text
+                        yield (chunk_text, None)
+
+            # Clean the answer
+            full_answer = self._clean_llm_response(full_answer)
+
+            # Extract citations from the answer
+            # Use all_documents since document numbers in synthesis match original indices
+            citations = self._extract_citations(full_answer, all_documents)
+
+            if verbose:
+                logger.info(f"Synthesized answer (length: {len(full_answer)})")
+                logger.info(f"Extracted {len(citations)} citations")
+
+            # Yield final answer with citations
+            yield (full_answer, citations)
+
+        except RetryError as e:
+            logger.error(f"Answer synthesis failed after retries: {e.last_exception}")
+            error_msg = f"I encountered an error while synthesizing the answer after retries: {str(e.last_exception)}"
+            yield (error_msg, None)
+        except Exception as e:
+            logger.error(f"Error synthesizing answer: {e}")
+            error_msg = f"I encountered an error while synthesizing the answer: {str(e)}"
+            yield (error_msg, None)
 
     def _extract_citations(self, answer: str, documents: List[Dict]) -> List[Dict]:
         """Extract cited documents from the answer text.

@@ -55,7 +55,7 @@ llm:
   # Maximum number of tokens to predict (higher for reasoning models)
   num_predict: 12000
   # Embedding endpoint (separate from main LLM endpoint if needed)
-  embedding_endpoint: "http://spark-7819.local:8080/v1"
+  embedding_endpoint: "http://spark-7819.local:8000/v1"
   # Embedding model for semantic search (default: text-embedding-3-small)
   embedding_model: "Qwen/Qwen3-Embedding-8B"
   # Summarizer model for document summaries (default: gpt-3.5-turbo)
@@ -247,7 +247,7 @@ webapp:
 # Semantic search configuration
 semantic_search:
   # Default number of results to return
-  top_k: 30
+  top_k: 5
   # Minimum similarity threshold (0.0 to 1.0)
   # Lower values return more results, higher values return more precise results
   min_similarity_threshold: 0.1
@@ -270,6 +270,10 @@ semantic_search:
   # Weight for semantic search scores in hybrid search (0.0 to 1.0)
   # Higher values give more weight to semantic similarity
   semantic_weight: 0.7
+  # Enable sequential document processing for answer generation
+  # When enabled, processes documents one at a time to avoid context size limits
+  # This is useful when documents are large or when the model has limited context
+  sequential_document_processing: true
 
 # RAG answer generation prompt template
 # Use {query} and {documents} as placeholders

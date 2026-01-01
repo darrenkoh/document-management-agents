@@ -17,6 +17,7 @@ interface AnswerSectionProps {
   answerCitations?: AnswerCitation[];
   isAnswering?: boolean;
   answerError?: string;
+  answerLogMessages?: string[];
   onAnswerQuestion?: (query: string) => void;
   onClear?: () => void;
   className?: string;
@@ -29,6 +30,7 @@ export function AnswerSection({
   answerCitations: externalAnswerCitations,
   isAnswering: externalIsAnswering,
   answerError: externalAnswerError,
+  answerLogMessages: externalAnswerLogMessages,
   onAnswerQuestion: externalOnAnswerQuestion,
   onClear,
   className = '',
@@ -43,6 +45,7 @@ export function AnswerSection({
   const [internalAnswerCitations, setInternalAnswerCitations] = useState<AnswerCitation[]>([]);
   const [internalIsAnswering, setIsInternalAnswering] = useState(false);
   const [internalAnswerError, setInternalAnswerError] = useState<string | undefined>();
+  const [internalLogMessages, setInternalLogMessages] = useState<string[]>([]);
 
   // Use external or internal state
   const questionQuery = externalQuestionQuery !== undefined ? externalQuestionQuery : internalQuestionQuery;
@@ -50,6 +53,7 @@ export function AnswerSection({
   const answerCitations = externalAnswerCitations !== undefined ? externalAnswerCitations : internalAnswerCitations;
   const isAnswering = externalIsAnswering !== undefined ? externalIsAnswering : internalIsAnswering;
   const answerError = externalAnswerError !== undefined ? externalAnswerError : internalAnswerError;
+  const logMessages = externalAnswerLogMessages !== undefined ? externalAnswerLogMessages : internalLogMessages;
 
   const setQuestionQuery = externalOnQuestionQueryChange || setInternalQuestionQuery;
 
@@ -83,6 +87,7 @@ export function AnswerSection({
     setInternalAnswer('');
     setInternalAnswerCitations([]);
     setInternalAnswerError(undefined);
+    setInternalLogMessages([]);
 
     try {
       await apiClient.answerQuestion(
@@ -91,7 +96,9 @@ export function AnswerSection({
           setInternalAnswer(prev => prev + chunk);
         },
         (event: AnswerStreamEvent) => {
-          if (event.type === 'citations' && event.citations) {
+          if (event.type === 'log' && event.message) {
+            setInternalLogMessages(prev => [...prev, event.message!]);
+          } else if (event.type === 'citations' && event.citations) {
             setInternalAnswerCitations(event.citations);
           } else if (event.type === 'complete') {
             if (event.answer) {
@@ -185,9 +192,37 @@ export function AnswerSection({
 
               {/* Loading State */}
               {!answer && !answerError && isAnswering && (
-                <div className="flex items-center gap-2 text-primary-600 py-4">
-                  <LoadingSpinner size="sm" />
-                  <span className="text-sm">Searching documents and generating answer...</span>
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center gap-2 text-primary-600">
+                    <LoadingSpinner size="sm" />
+                    <span className="text-sm">Searching documents and generating answer...</span>
+                  </div>
+                  
+                  {/* Log Messages */}
+                  {logMessages.length > 0 && (
+                    <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <div className="space-y-1">
+                        {logMessages.map((msg, idx) => (
+                          <div key={idx} className="text-xs text-primary-700 font-mono py-1">
+                            {msg}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Log Messages during answer streaming */}
+              {answer && isAnswering && logMessages.length > 0 && (
+                <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+                  <div className="space-y-1">
+                    {logMessages.slice(-5).map((msg, idx) => (
+                      <div key={idx} className="text-xs text-primary-600 font-mono py-0.5">
+                        {msg}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

@@ -135,7 +135,8 @@ class DocumentAgent:
             num_predict=config.llm_num_predict,
             max_retries=config.llm_max_retries,
             retry_base_delay=config.llm_retry_base_delay,
-            answer_prompt_template=config.rag_answer_prompt_template
+            answer_prompt_template=config.rag_answer_prompt_template,
+            sequential_processing=config.semantic_search_sequential_processing
         )
 
         # Optional: receipt segmentation (SAM3)
@@ -941,7 +942,7 @@ class DocumentAgent:
 
         try:
             # Use RAG agent to generate answer with streaming
-            answer_generator = self.rag_agent.generate_answer(query, results, verbose=debug_enabled)
+            answer_generator = self.rag_agent.generate_answer(query, results, verbose=debug_enabled, progress_callback=progress_callback)
             
             full_answer = ""
             citations = None
