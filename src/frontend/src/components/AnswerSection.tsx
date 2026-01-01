@@ -8,6 +8,7 @@ import { AnswerCitation, AnswerStreamEvent } from '@/types';
 import { apiClient, cleanContentPreview } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { ReasoningCollapse } from '@/components/ReasoningCollapse';
 
 interface AnswerSectionProps {
   questionQuery?: string;
@@ -195,10 +196,7 @@ export function AnswerSection({
                 <div className="mb-4">
                   <div className="prose prose-sm max-w-none">
                     <div className="text-primary-800 leading-relaxed whitespace-pre-wrap">
-                      {answer}
-                      {isAnswering && (
-                        <span className="inline-block w-2 h-4 bg-accent-500 ml-1 animate-pulse" />
-                      )}
+                      <ReasoningCollapse text={answer} isStreaming={isAnswering} />
                     </div>
                   </div>
                 </div>
