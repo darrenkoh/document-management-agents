@@ -35,7 +35,7 @@ class DocumentAgent:
         self.verbose = verbose
         self.file_handler = FileHandler(
             config.source_paths,
-            ollama_endpoint=config.ollama_endpoint,
+            ollama_endpoint=config.llm_endpoint,
             ocr_model=config.ollama_ocr_model,
             ocr_timeout=config.ollama_ocr_timeout,
             max_ocr_pages=config.max_ocr_pages,
@@ -75,12 +75,13 @@ class DocumentAgent:
 
         self.database = SQLiteDocumentDatabase(config.database_path, vector_store=vector_store, config=config)
         self.embedding_generator = EmbeddingGenerator(
-            endpoint=config.ollama_endpoint,
-            model=config.ollama_embedding_model,
-            summarizer_model=config.ollama_summarizer_model,
-            timeout=config.ollama_timeout,
-            max_retries=config.ollama_max_retries,
-            retry_base_delay=config.ollama_retry_base_delay
+            endpoint=config.llm_endpoint,
+            embedding_endpoint=config.llm_embedding_endpoint,
+            model=config.llm_embedding_model,
+            summarizer_model=config.llm_summarizer_model,
+            timeout=config.llm_timeout,
+            max_retries=config.llm_max_retries,
+            retry_base_delay=config.llm_retry_base_delay
         )
 
         # Create method to get existing categories for classifier
@@ -114,26 +115,26 @@ class DocumentAgent:
             return self.embedding_generator.generate_document_summary(text, max_length=max_length)
 
         self.classifier = Classifier(
-            endpoint=config.ollama_endpoint,
-            model=config.ollama_model,
-            timeout=config.ollama_timeout,
-            num_predict=config.ollama_num_predict,
+            endpoint=config.llm_endpoint,
+            model=config.llm_model,
+            timeout=config.llm_timeout,
+            num_predict=config.llm_num_predict,
             prompt_template=config.prompt_template,
             existing_categories_getter=get_existing_categories,
             existing_sub_categories_getter=get_existing_sub_categories,
             summarizer=summarize_for_classification,
-            max_retries=config.ollama_max_retries,
-            retry_base_delay=config.ollama_retry_base_delay
+            max_retries=config.llm_max_retries,
+            retry_base_delay=config.llm_retry_base_delay
         )
 
         # Initialize RAG agent for document analysis
         self.rag_agent = RAGAgent(
-            endpoint=config.ollama_endpoint,
-            model=config.ollama_model,  # Use same model as classifier (deepseek-r1:8b)
-            timeout=config.ollama_timeout,
-            num_predict=config.ollama_num_predict,
-            max_retries=config.ollama_max_retries,
-            retry_base_delay=config.ollama_retry_base_delay,
+            endpoint=config.llm_endpoint,
+            model=config.llm_model,  # Use same model as classifier
+            timeout=config.llm_timeout,
+            num_predict=config.llm_num_predict,
+            max_retries=config.llm_max_retries,
+            retry_base_delay=config.llm_retry_base_delay,
             answer_prompt_template=config.rag_answer_prompt_template
         )
 

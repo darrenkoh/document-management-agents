@@ -1,11 +1,11 @@
-"""LLM-based file classification using Ollama."""
+"""LLM-based file classification using OpenAI-compatible APIs."""
 import logging
-import ollama
+from openai import OpenAI
 from typing import Optional, Dict, List
 import re
 import time
 
-# Try to import httpx exceptions in case ollama uses httpx
+# Try to import httpx exceptions in case OpenAI uses httpx
 try:
     import httpx
     CONNECTION_EXCEPTIONS = (ConnectionError, TimeoutError, OSError,
@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 class Classifier:
-    """Classifies file content using Ollama LLM."""
+    """Classifies file content using OpenAI-compatible LLM APIs."""
 
     def __init__(self, endpoint: str, model: str, timeout: int = 30, num_predict: int = 200, prompt_template: Optional[str] = None, existing_categories_getter=None, existing_sub_categories_getter=None, summarizer=None, max_retries: int = 3, retry_base_delay: float = 1.0):
         """Initialize classifier.
 
         Args:
-            endpoint: Ollama API endpoint
+            endpoint: OpenAI-compatible API endpoint (e.g., http://localhost:11434/v1 for Ollama with OpenAI compatibility)
             model: Model name to use
             timeout: API timeout in seconds
             num_predict: Maximum number of tokens to predict
@@ -46,7 +46,8 @@ class Classifier:
         self.summarizer = summarizer
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
-        self.client = ollama.Client(host=endpoint, timeout=timeout)
+        # Use a dummy API key since local servers often don't require authentication
+        self.client = OpenAI(base_url=endpoint, api_key="dummy", timeout=timeout)
         self._cache: Dict[str, str] = {}
     
     def _call_llm_generate(self, prompt: str, options: Dict) -> Dict:
@@ -55,7 +56,23 @@ class Classifier:
                              base_delay=self.retry_base_delay,
                              exceptions=CONNECTION_EXCEPTIONS)
         def _generate():
-            return self.client.generate(model=self.model, prompt=prompt, options=options)
+            max_tokens = options.get('num_predict', 1000)
+            temperature = options.get('temperature', 0.7)
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+
+            # Convert OpenAI response format to Ollama-like format for compatibility
+            return {
+                'response': response.choices[0].message.content,
+                'done_reason': 'stop',  # Assume completion was successful
+                'eval_count': None,     # Not available in OpenAI API
+                'error': None
+            }
 
         return _generate()
 

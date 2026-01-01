@@ -1,11 +1,11 @@
 """Embedding generation for semantic search with semantic chunking."""
 import logging
-import ollama
+from openai import OpenAI
 import re
 import time
 from typing import List, Optional, Dict, Tuple
 
-# Try to import httpx exceptions in case ollama uses httpx
+# Try to import httpx exceptions in case OpenAI uses httpx
 try:
     import httpx
     CONNECTION_EXCEPTIONS = (ConnectionError, TimeoutError, OSError,
@@ -19,28 +19,32 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingGenerator:
-    """Generates embeddings for document content using Ollama with semantic chunking."""
+    """Generates embeddings for document content using OpenAI-compatible LLM APIs with semantic chunking."""
 
-    def __init__(self, endpoint: str, model: str = "qwen3-embedding:8b",
-                 summarizer_model: str = "deepseek-r1:8b", timeout: int = 30,
+    def __init__(self, endpoint: str, embedding_endpoint: str = None, model: str = "text-embedding-3-small",
+                 summarizer_model: str = "gpt-3.5-turbo", timeout: int = 30,
                  max_retries: int = 3, retry_base_delay: float = 1.0):
         """Initialize embedding generator.
 
         Args:
-            endpoint: Ollama API endpoint
-            model: Embedding model name (default: qwen3-embedding:8b)
-            summarizer_model: Model for document summarization (default: deepseek-r1:8b)
+            endpoint: OpenAI-compatible API endpoint for summarization (e.g., http://localhost:11434/v1 for Ollama with OpenAI compatibility)
+            embedding_endpoint: OpenAI-compatible API endpoint for embeddings (defaults to endpoint if not provided)
+            model: Embedding model name (default: text-embedding-3-small)
+            summarizer_model: Model for document summarization (default: gpt-3.5-turbo)
             timeout: API timeout in seconds
             max_retries: Maximum number of retry attempts for failed API calls
             retry_base_delay: Base delay in seconds between retry attempts
         """
         self.endpoint = endpoint
+        self.embedding_endpoint = embedding_endpoint or endpoint
         self.model = model
         self.summarizer_model = summarizer_model
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
-        self.client = ollama.Client(host=endpoint, timeout=timeout)
+        # Use a dummy API key since local servers often don't require authentication
+        self.client = OpenAI(base_url=endpoint, api_key="dummy", timeout=timeout)
+        self.embedding_client = OpenAI(base_url=self.embedding_endpoint, api_key="dummy", timeout=timeout)
 
     def _clean_llm_response(self, response: str) -> str:
         """Clean LLM response by removing encoding tokens and unwanted markup.
@@ -62,13 +66,14 @@ class EmbeddingGenerator:
 
         return response.strip()
 
-    def _call_llm_embeddings(self, model: str, prompt: str) -> Dict:
+    def _call_llm_embeddings(self, model: str, prompt: str) -> List[float]:
         """Make LLM embeddings call with retry logic."""
         @retry_on_llm_failure(max_retries=self.max_retries,
                              base_delay=self.retry_base_delay,
                              exceptions=CONNECTION_EXCEPTIONS)
         def _embeddings():
-            return self.client.embeddings(model=model, prompt=prompt)
+            response = self.embedding_client.embeddings.create(model=model, input=prompt)
+            return response.data[0].embedding
 
         return _embeddings()
 
@@ -88,12 +93,11 @@ class EmbeddingGenerator:
 
             logger.info(f"Generating embedding for text (length: {len(truncated_text)} chars)")
 
-            response = self._call_llm_embeddings(
+            embedding = self._call_llm_embeddings(
                 model=self.model,
                 prompt=truncated_text
             )
 
-            embedding = response.get('embedding', [])
             if embedding:
                 logger.info(f"Generated embedding of dimension {len(embedding)}")
                 return embedding
@@ -183,7 +187,23 @@ class EmbeddingGenerator:
                              base_delay=self.retry_base_delay,
                              exceptions=CONNECTION_EXCEPTIONS)
         def _generate():
-            return self.client.generate(model=model, prompt=prompt, options=options)
+            max_tokens = options.get('num_predict', 1000)
+            temperature = options.get('temperature', 0.7)
+
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+
+            # Convert OpenAI response format to Ollama-like format for compatibility
+            return {
+                'response': response.choices[0].message.content,
+                'done_reason': 'stop',  # Assume completion was successful
+                'eval_count': None,     # Not available in OpenAI API
+                'error': None
+            }
 
         return _generate()
 

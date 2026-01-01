@@ -12,9 +12,9 @@ This system automatically processes, classifies, and indexes your documents usin
 
 2. **Content Hashing**: Each document is hashed (SHA256) to detect duplicates and prevent reprocessing.
 
-3. **AI Classification**: A local LLM (via Ollama) analyzes the document content and filename to assign categories and sub-categories (e.g., "Finance", "Travel", "Shopping").
+3. **AI Classification**: A local LLM (via OpenAI-compatible API) analyzes the document content and filename to assign categories and sub-categories (e.g., "Finance", "Travel", "Shopping").
 
-4. **Semantic Embeddings**: Document content is converted into high-dimensional vectors using a local embedding model (qwen3-embedding:8b). These embeddings enable semantic search - finding documents by meaning, not just keywords.
+4. **Semantic Embeddings**: Document content is converted into high-dimensional vectors using a local embedding model (text-embedding-3-small). These embeddings enable semantic search - finding documents by meaning, not just keywords.
 
 5. **Storage**: 
    - **SQLite Database**: Stores document metadata, categories, file paths, and content previews
@@ -28,7 +28,7 @@ This system automatically processes, classifies, and indexes your documents usin
 
 ### Local Services Used
 
-- **Ollama**: Local LLM server for document classification, embeddings, and OCR
+- **OpenAI-compatible LLM Server**: Local LLM server (Ollama, vLLM, etc.) for document classification, embeddings, and OCR
 - **Chandra/HunyuanOCR** (optional): Alternative OCR engines via vLLM
 - **SQLite**: Lightweight database for document metadata
 - **ChromaDB**: Vector database for semantic embeddings
@@ -44,7 +44,7 @@ graph TB
     B --> C{Text Extraction}
     C -->|PDF/Word/TXT| D[Native Parsers]
     C -->|Images/Scanned PDF| E[OCR Service]
-    E -->|Ollama/Chandra/Hunyuan| F[Text Content]
+    E -->|OpenAI-compatible LLM| F[Text Content]
     D --> F
     
     F --> G[Content Hash]
@@ -52,9 +52,9 @@ graph TB
     H -->|New| I[AI Classifier]
     H -->|Duplicate| Z[Skip]
     
-    I -->|Ollama LLM| J[Categories & Metadata]
+    I -->|LLM| J[Categories & Metadata]
     F --> K[Embedding Generator]
-    K -->|qwen3-embedding| L[Vector Embeddings]
+    K -->|text-embedding-3-small| L[Vector Embeddings]
     
     J --> M[SQLite Database]
     L --> N[ChromaDB Vector Store]
@@ -67,7 +67,7 @@ graph TB
     Q --> X[Hybrid Search]
     W --> X
     X --> R[RAG Agent]
-    R -->|Ollama LLM| S[Relevance Analysis]
+    R -->|LLM| S[Relevance Analysis]
     S --> T[Search Results]
     X --> T
     T --> M
@@ -90,7 +90,7 @@ graph TB
 
 - **Python 3.12+**
 - **Node.js 18+** (for frontend)
-- **Ollama** installed and running locally
+- **Local LLM server** running with OpenAI-compatible API (Ollama, vLLM, LiteLLM, etc.)
 
 ### Python Dependencies
 
@@ -101,7 +101,7 @@ pip install -r requirements.txt
 ```
 
 Key dependencies:
-- `ollama` - Ollama client for LLM interactions
+- `openai` - OpenAI client for LLM interactions (works with any OpenAI-compatible server)
 - `chromadb` - Vector database for embeddings
 - `rank-bm25` - BM25 keyword-based search
 - `flask` - Web API backend
@@ -116,15 +116,22 @@ cd src/frontend
 npm install
 ```
 
-### AI Models (Ollama)
+### AI Models
 
-Install required models:
+The system works with any OpenAI-compatible LLM server. You can use the same endpoint for all operations, or separate endpoints for different services (e.g., embeddings on port 8080, main LLM on port 11434).
+
+For Ollama, install required models:
 
 ```bash
-ollama pull deepseek-r1:8b        # Document classification
-ollama pull qwen3-embedding:8b    # Text embeddings
+# For Ollama with OpenAI compatibility mode (--enable-openai)
+ollama pull gpt-4                 # Document classification
+ollama pull text-embedding-3-small # Text embeddings
 ollama pull deepseek-ocr:3b       # OCR (optional, if not using Chandra/Hunyuan)
 ```
+
+For other servers (vLLM, LiteLLM, etc.), ensure they provide OpenAI-compatible APIs and the models are available.
+
+**Separate Embedding Endpoint**: If you want to run embeddings on a different server/port, set `embedding_endpoint` in your config. This is useful for load balancing or using specialized embedding servers.
 
 ### Optional Dependencies
 
@@ -150,10 +157,11 @@ file_extensions:
   - ".jpg"
   # ... add your file types
 
-ollama:
-  endpoint: "http://localhost:11434"
-  model: "deepseek-r1:8b"
-  embedding_model: "qwen3-embedding:8b"
+llm:
+  endpoint: "http://localhost:11434/v1"  # Main LLM endpoint for chat/summarization
+  embedding_endpoint: "http://localhost:8080/v1"  # Optional: separate embedding endpoint
+  model: "gpt-4"
+  embedding_model: "text-embedding-3-small"
 ```
 
 ### 2. Process Documents
@@ -222,10 +230,10 @@ database:
 
 #### AI Models
 ```yaml
-ollama:
-  endpoint: "http://localhost:11434"
-  model: "deepseek-r1:8b"
-  embedding_model: "qwen3-embedding:8b"
+llm:
+  endpoint: "http://localhost:11434/v1"  # Add /v1 for OpenAI compatibility
+  model: "gpt-4"
+  embedding_model: "text-embedding-3-small"
   ocr_model: "deepseek-ocr:3b"  # or "chandra" or "hunyuan"
 ```
 
@@ -298,15 +306,16 @@ prompt_template: |
 
 ## Troubleshooting
 
-### Ollama Connection Issues
+### LLM Connection Issues
 
-**Problem**: `Connection refused` or `Failed to connect to Ollama`
+**Problem**: `Connection refused` or `Failed to connect to LLM server`
 
 **Solutions**:
-- Ensure Ollama is running: `ollama serve`
-- Check endpoint in `config.yaml` matches your Ollama server
-- Verify models are installed: `ollama list`
-- Test connection: `curl http://localhost:11434/api/tags`
+- Ensure your LLM server is running with OpenAI-compatible API enabled
+- For Ollama: Run with OpenAI compatibility: `ollama serve --enable-openai`
+- Check endpoint in `config.yaml` includes `/v1` suffix for OpenAI compatibility
+- Verify models are available on your server
+- Test connection: `curl http://localhost:11434/v1/models`
 
 ### OCR Not Working
 
@@ -319,7 +328,7 @@ prompt_template: |
   pip install chandra-ocr
   chandra_vllm  # Starts server on port 11435
   ```
-- Check OCR model setting in `config.yaml`: `ollama.ocr_model`
+- Check OCR model setting in `config.yaml`: `ocr.ollama.model`
 - Verify poppler-utils installed (for PDF processing): `brew install poppler` (macOS) or `apt-get install poppler-utils` (Linux)
 
 ### No Documents Processed
@@ -338,7 +347,7 @@ prompt_template: |
 **Problem**: Documents taking too long to process
 
 **Solutions**:
-- Use GPU acceleration for Ollama (if available)
+- Use GPU acceleration for your LLM server (if available)
 - Reduce `max_ocr_pages` in config to limit OCR processing
 - Use smaller/faster models
 - Process in batches (already implemented)
@@ -382,9 +391,9 @@ prompt_template: |
 
 - Enable verbose logging: `python document_ingestion.py --verbose classify`
 - Check log file: `data/agent.log`
-- Test Ollama directly: `ollama run deepseek-r1:8b "test"`
+- Test LLM server directly: `curl -X POST http://localhost:11434/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"gpt-4","messages":[{"role":"user","content":"test"}]}'`
 - Verify Python environment: `python --version` (should be 3.12+)
-- Check all dependencies: `pip list | grep -E "ollama|chromadb|flask"`
+- Check all dependencies: `pip list | grep -E "openai|chromadb|flask"`
 
 ## Screenshots
 

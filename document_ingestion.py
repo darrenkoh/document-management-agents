@@ -164,7 +164,7 @@ def main():
         source_paths_str = ", ".join(config.source_paths)
         logger.info(f"Source paths: {source_paths_str}")
         logger.info(f"Database: {config.database_path}")
-        logger.info(f"Ollama Model: {config.ollama_model}")
+        logger.info(f"LLM Model: {config.llm_model}")
         if verbose:
             logger.info("Verbose logging enabled - LLM requests and responses will be logged")
         

@@ -43,20 +43,23 @@ database:
     # 'cosine' is recommended for semantic search with normalized embeddings
     distance_metric: "cosine"
 
-# Ollama configuration for LLM operations (classification, embedding, summarization)
-ollama:
-  # Ollama API endpoint (default: http://localhost:11434)
-  endpoint: "http://spark-7819.local:11434"
+# OpenAI-compatible LLM configuration for operations (classification, embedding, summarization)
+# Works with Ollama (with OpenAI compatibility), vLLM, LiteLLM, and other OpenAI-compatible servers
+llm:
+  # OpenAI-compatible API endpoint (e.g., http://localhost:11434/v1 for Ollama with OpenAI compatibility)
+  endpoint: "http://spark-7819.local:11434/v1"
   # Model name to use for classification
-  model: "gpt-oss:20b"
+  model: "nvidia/Qwen3-30B-A3B-NVFP4"
   # Timeout in seconds for API calls
   timeout: 300
   # Maximum number of tokens to predict (higher for reasoning models)
   num_predict: 12000
-  # Embedding model for semantic search (default: qwen3-embedding:8b)
-  embedding_model: "qwen3-embedding:8b"
-  # Summarizer model for document summaries (default: deepseek-r1:8b)
-  summarizer_model: "gpt-oss:20b"
+  # Embedding endpoint (separate from main LLM endpoint if needed)
+  embedding_endpoint: "http://spark-7819.local:8080/v1"
+  # Embedding model for semantic search (default: text-embedding-3-small)
+  embedding_model: "Qwen/Qwen3-Embedding-8B"
+  # Summarizer model for document summaries (default: gpt-3.5-turbo)
+  summarizer_model: "nvidia/Qwen3-30B-A3B-NVFP4"
   # Retry configuration for failed LLM API calls
   retry:
     # Maximum number of retry attempts for failed API calls

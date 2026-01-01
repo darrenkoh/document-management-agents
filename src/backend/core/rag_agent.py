@@ -1,6 +1,6 @@
 """Agentic RAG implementation for document analysis using LLM."""
 import logging
-import ollama
+from openai import OpenAI
 import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Generator, Tuple
@@ -25,8 +25,8 @@ class RAGAgent:
         """Initialize RAG agent.
 
         Args:
-            endpoint: Ollama API endpoint
-            model: Model name to use (e.g., 'deepseek-r1:8b')
+            endpoint: OpenAI-compatible API endpoint (e.g., http://localhost:11434/v1 for Ollama with OpenAI compatibility)
+            model: Model name to use (e.g., 'gpt-4', 'deepseek-r1:8b')
             timeout: API timeout in seconds
             num_predict: Maximum number of tokens to predict
             max_retries: Maximum number of retry attempts for failed API calls
@@ -41,7 +41,8 @@ class RAGAgent:
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
         self.answer_prompt_template = answer_prompt_template
-        self.client = ollama.Client(host=endpoint, timeout=timeout)
+        # Use a dummy API key since local servers often don't require authentication
+        self.client = OpenAI(base_url=endpoint, api_key="dummy", timeout=timeout)
 
     def _clean_llm_response(self, response: str) -> str:
         """Clean LLM response by removing encoding tokens and unwanted markup.
@@ -69,14 +70,35 @@ class RAGAgent:
                              base_delay=self.retry_base_delay,
                              exceptions=(Exception,))  # RAG can fail for various reasons
         def _generate():
-            generate_kwargs = {
-                'model': self.model,
-                'prompt': prompt,
-                'options': options
-            }
+            max_tokens = options.get('num_predict', 1000)
+            temperature = options.get('temperature', 0.7)
+
             if stream:
-                generate_kwargs['stream'] = stream
-            return self.client.generate(**generate_kwargs)
+                # For streaming, return the stream iterator directly
+                return self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stream=True
+                )
+            else:
+                # For non-streaming, convert to Ollama-like format
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+
+                # Convert OpenAI response format to Ollama-like format for compatibility
+                return {
+                    'response': response.choices[0].message.content,
+                    'done_reason': 'stop',  # Assume completion was successful
+                    'eval_count': None,     # Not available in OpenAI API
+                    'error': None,
+                    'thinking': ''          # Not available in OpenAI API
+                }
 
         return _generate()
 
@@ -379,10 +401,13 @@ Reasoning: This is a grocery receipt; no connection to the query about passport 
 
             full_answer = ""
             for chunk in stream:
-                if 'response' in chunk:
-                    chunk_text = chunk['response']
-                    full_answer += chunk_text
-                    yield (chunk_text, None)
+                # Handle OpenAI streaming format
+                if hasattr(chunk, 'choices') and chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, 'content') and delta.content:
+                        chunk_text = delta.content
+                        full_answer += chunk_text
+                        yield (chunk_text, None)
 
             # Clean the answer
             full_answer = self._clean_llm_response(full_answer)

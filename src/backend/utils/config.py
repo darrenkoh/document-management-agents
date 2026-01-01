@@ -92,28 +92,28 @@ class Config:
         return self._config.get('destination_path', './output')
     
     @property
-    def ollama_endpoint(self) -> str:
-        """Get the Ollama API endpoint."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('endpoint', 'http://localhost:11434')
+    def llm_endpoint(self) -> str:
+        """Get the OpenAI-compatible LLM API endpoint."""
+        llm_config = self._config.get('llm', {})
+        return llm_config.get('endpoint', 'http://localhost:11434/v1')
     
     @property
-    def ollama_model(self) -> str:
-        """Get the Ollama model name."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('model', 'llama3.2')
-    
+    def llm_model(self) -> str:
+        """Get the LLM model name."""
+        llm_config = self._config.get('llm', {})
+        return llm_config.get('model', 'gpt-3.5-turbo')
+
     @property
-    def ollama_timeout(self) -> int:
-        """Get the Ollama API timeout."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('timeout', 30)
-    
+    def llm_timeout(self) -> int:
+        """Get the LLM API timeout."""
+        llm_config = self._config.get('llm', {})
+        return llm_config.get('timeout', 30)
+
     @property
-    def ollama_num_predict(self) -> int:
+    def llm_num_predict(self) -> int:
         """Get the maximum number of tokens to predict."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('num_predict', 200)
+        llm_config = self._config.get('llm', {})
+        return llm_config.get('num_predict', 200)
     
     @property
     def file_extensions(self) -> List[str]:
@@ -204,29 +204,35 @@ class Config:
         return db_config.get('path', 'documents.json')
 
     @property
-    def ollama_embedding_model(self) -> str:
+    def llm_embedding_endpoint(self) -> str:
+        """Get the embedding API endpoint."""
+        llm_config = self._config.get('llm', {})
+        return llm_config.get('embedding_endpoint', self.llm_endpoint)
+
+    @property
+    def llm_embedding_model(self) -> str:
         """Get the embedding model name."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('embedding_model', 'qwen3-embedding:8b')
+        llm_config = self._config.get('llm', {})
+        return llm_config.get('embedding_model', 'text-embedding-3-small')
 
     @property
-    def ollama_summarizer_model(self) -> str:
+    def llm_summarizer_model(self) -> str:
         """Get the summarizer model name."""
-        ollama_config = self._config.get('ollama', {})
-        return ollama_config.get('summarizer_model', 'deepseek-r1:8b')
+        llm_config = self._config.get('llm', {})
+        return llm_config.get('summarizer_model', 'gpt-3.5-turbo')
 
     @property
-    def ollama_max_retries(self) -> int:
+    def llm_max_retries(self) -> int:
         """Get the maximum number of retry attempts for failed LLM API calls."""
-        ollama_config = self._config.get('ollama', {})
-        retry_config = ollama_config.get('retry', {})
+        llm_config = self._config.get('llm', {})
+        retry_config = llm_config.get('retry', {})
         return retry_config.get('max_retries', 3)
 
     @property
-    def ollama_retry_base_delay(self) -> float:
+    def llm_retry_base_delay(self) -> float:
         """Get the base delay in seconds between retry attempts."""
-        ollama_config = self._config.get('ollama', {})
-        retry_config = ollama_config.get('retry', {})
+        llm_config = self._config.get('llm', {})
+        retry_config = llm_config.get('retry', {})
         return retry_config.get('base_delay', 1.0)
 
     # OCR configuration properties

@@ -16,7 +16,7 @@ try:
     register_heif_opener()
 except ImportError:
     pass
-import ollama
+from openai import OpenAI
 
 try:
     from openai import OpenAI
@@ -109,7 +109,8 @@ class FileHandler:
         self.hunyuan_retry_base_delay = hunyuan_retry_base_delay
 
         # Initialize OCR clients
-        self.ollama_ocr_client = ollama.Client(host=ollama_endpoint, timeout=ocr_timeout)
+        # Use OpenAI client for Ollama OCR (assuming Ollama is running with OpenAI compatibility mode)
+        self.ollama_ocr_client = OpenAI(base_url=ollama_endpoint, api_key="dummy", timeout=ocr_timeout)
         self.chandra_ocr_client = None
         self.hunyuan_ocr_client = None
         if HAS_OPENAI:
@@ -179,19 +180,49 @@ class FileHandler:
             return self._call_ollama_ocr_generate(prompt, images, options)
 
     def _call_ollama_ocr_generate(self, prompt: str, images: Optional[List[str]] = None, options: Optional[dict] = None) -> dict:
-        """Make Ollama OCR LLM generate call with retry logic."""
+        """Make OpenAI-compatible OCR LLM generate call with retry logic."""
         @retry_on_llm_failure(max_retries=self.max_retries,
                              base_delay=self.retry_base_delay,
                              exceptions=(Exception,))  # OCR can fail for various reasons
         def _generate():
-            generate_kwargs = {
-                'model': self.ocr_model,
-                'prompt': prompt,
-                'options': options or {'num_predict': 1}
-            }
+            max_tokens = options.get('num_predict', 12000) if options else 12000
+            temperature = options.get('temperature', 0.1) if options else 0.1
+
+            # Build messages for vision API
+            messages = [{"role": "user", "content": []}]
+
+            # Add text prompt
+            messages[0]["content"].append({"type": "text", "text": prompt})
+
+            # Add images if provided
             if images:
-                generate_kwargs['images'] = images
-            return self.ollama_ocr_client.generate(**generate_kwargs)
+                for image_path in images:
+                    # Read image and encode as base64
+                    import base64
+                    with open(image_path, "rb") as image_file:
+                        base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+                    messages[0]["content"].append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    })
+
+            response = self.ollama_ocr_client.chat.completions.create(
+                model=self.ocr_model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+
+            # Convert OpenAI response format to Ollama-like format for compatibility
+            return {
+                'response': response.choices[0].message.content,
+                'done_reason': 'stop',  # Assume completion was successful
+                'eval_count': None,     # Not available in OpenAI API
+                'error': None
+            }
 
         return _generate()
 
