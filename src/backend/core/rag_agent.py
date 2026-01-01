@@ -468,13 +468,17 @@ Reasoning: This is a grocery receipt; no connection to the query about passport 
                     progress_callback(status_msg, "log")
                 
                 try:
-                    info = self._extract_relevant_info(query, doc, i, verbose)
+                    # Extract info with streaming support
+                    info = self._extract_relevant_info(query, doc, i, verbose, progress_callback=progress_callback)
                     if info and info.strip():
                         extracted_info.append({
                             'document_index': i,
                             'document': doc,
                             'extracted_info': info
                         })
+                        # Signal completion of this document's extraction
+                        if progress_callback:
+                            progress_callback(f"[Document {i}] Extraction complete.", "log")
                 except Exception as e:
                     logger.warning(f"Error extracting info from document {i}: {e}")
                     if progress_callback:
@@ -626,14 +630,15 @@ ANSWER:"""
 
         return prompt
 
-    def _extract_relevant_info(self, query: str, document: Dict, doc_index: int, verbose: bool = False) -> str:
-        """Extract relevant information from a single document for the query.
+    def _extract_relevant_info(self, query: str, document: Dict, doc_index: int, verbose: bool = False, progress_callback=None) -> str:
+        """Extract relevant information from a single document for the query, with optional streaming.
 
         Args:
             query: User's question
             document: Single document dictionary
             doc_index: Document index (1-based)
             verbose: If True, log detailed LLM interactions
+            progress_callback: Optional callback to stream LLM response chunks (message, type)
 
         Returns:
             Extracted relevant information as a string
@@ -684,17 +689,45 @@ Extract the relevant information now:
 RELEVANT INFORMATION:"""
 
         try:
-            response = self._call_llm_generate(
-                prompt=prompt,
-                options={
-                    'temperature': 0.1,  # Low temperature for consistent extraction
-                    'num_predict': min(self.num_predict, 4000),  # Limit response length
-                },
-                stream=False
-            )
+            # Use streaming if progress_callback is provided
+            if progress_callback:
+                # Stream the LLM response
+                stream = self._call_llm_generate(
+                    prompt=prompt,
+                    options={
+                        'temperature': 0.1,  # Low temperature for consistent extraction
+                        'num_predict': min(self.num_predict, 4000),  # Limit response length
+                    },
+                    stream=True
+                )
 
-            extracted = response.get('response', '').strip()
-            extracted = self._clean_llm_response(extracted)
+                extracted = ""
+                for chunk in stream:
+                    # Handle OpenAI streaming format
+                    if hasattr(chunk, 'choices') and chunk.choices:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, 'content') and delta.content:
+                            chunk_text = delta.content
+                            extracted += chunk_text
+                            # Stream chunk to frontend with document context
+                            # The chunk_text already contains proper spacing from the LLM
+                            progress_callback(f"[Document {doc_index}]{chunk_text}", "llm_chunk")
+                
+                extracted = extracted.strip()
+                extracted = self._clean_llm_response(extracted)
+            else:
+                # Non-streaming mode
+                response = self._call_llm_generate(
+                    prompt=prompt,
+                    options={
+                        'temperature': 0.1,  # Low temperature for consistent extraction
+                        'num_predict': min(self.num_predict, 4000),  # Limit response length
+                    },
+                    stream=False
+                )
+
+                extracted = response.get('response', '').strip()
+                extracted = self._clean_llm_response(extracted)
             
             if verbose:
                 logger.debug(f"Extracted {len(extracted)} chars from document {doc_index} ({filename})")
@@ -703,6 +736,8 @@ RELEVANT INFORMATION:"""
 
         except Exception as e:
             logger.error(f"Error extracting info from document {doc_index}: {e}")
+            if progress_callback:
+                progress_callback(f"[Document {doc_index}] Error: {str(e)}", "error")
             return ""
 
     def _synthesize_answer(self, query: str, extracted_info: List[Dict], all_documents: List[Dict], verbose: bool = False) -> Generator[Tuple[str, Optional[List[Dict]]], None, None]:

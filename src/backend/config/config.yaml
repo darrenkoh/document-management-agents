@@ -247,7 +247,7 @@ webapp:
 # Semantic search configuration
 semantic_search:
   # Default number of results to return
-  top_k: 5
+  top_k: 15
   # Minimum similarity threshold (0.0 to 1.0)
   # Lower values return more results, higher values return more precise results
   min_similarity_threshold: 0.1

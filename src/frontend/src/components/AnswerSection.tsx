@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, FileText, ExternalLink, AlertCircle, X } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { MessageSquare, FileText, ExternalLink, AlertCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -57,6 +57,116 @@ export function AnswerSection({
 
   const setQuestionQuery = externalOnQuestionQueryChange || setInternalQuestionQuery;
 
+  // Group log messages by document
+  const documentGroups = useMemo(() => {
+    const groups: Map<number, { filename: string; status: string; chunks: string[]; isComplete: boolean }> = new Map();
+    
+    logMessages.forEach((msg) => {
+      // Check for "Processing document X/Y: filename" messages
+      const processingMatch = msg.match(/Processing document (\d+)\/(\d+):\s*(.+?)$/);
+      if (processingMatch) {
+        const docNum = parseInt(processingMatch[1]);
+        const filename = processingMatch[3].trim();
+        
+        if (!groups.has(docNum)) {
+          groups.set(docNum, {
+            filename: filename || 'unknown',
+            status: 'processing',
+            chunks: [],
+            isComplete: false
+          });
+        } else {
+          // Update filename if we have it
+          const group = groups.get(docNum)!;
+          if (filename && filename !== 'unknown') {
+            group.filename = filename;
+          }
+        }
+        return;
+      }
+      
+      // Check for "[Document N]..." LLM chunks (no space after bracket to preserve LLM spacing)
+      const docChunkMatch = msg.match(/^\[Document (\d+)\](.+)$/);
+      if (docChunkMatch) {
+        const docNum = parseInt(docChunkMatch[1]);
+        const content = docChunkMatch[2]; // Content includes any leading/trailing spaces from LLM
+        
+        if (!groups.has(docNum)) {
+          groups.set(docNum, {
+            filename: 'unknown',
+            status: 'processing',
+            chunks: [],
+            isComplete: false
+          });
+        }
+        
+        const group = groups.get(docNum)!;
+        // Add content as-is to preserve spacing from LLM
+        group.chunks.push(content);
+        return;
+      }
+      
+      // Check for "[Document N] Extraction complete." messages
+      const completeMatch = msg.match(/^\[Document (\d+)\]\s*Extraction complete\./);
+      if (completeMatch) {
+        const docNum = parseInt(completeMatch[1]);
+        
+        if (!groups.has(docNum)) {
+          groups.set(docNum, {
+            filename: 'unknown',
+            status: 'complete',
+            chunks: [],
+            isComplete: true
+          });
+        } else {
+          const group = groups.get(docNum)!;
+          group.status = 'complete';
+          group.isComplete = true;
+        }
+        return;
+      }
+      
+      // Check for error/warning messages with document number
+      const errorMatch = msg.match(/\[Document (\d+)\].*?(Error|Warning):/);
+      if (errorMatch) {
+        const docNum = parseInt(errorMatch[1]);
+        const isError = errorMatch[2] === 'Error';
+        
+        if (!groups.has(docNum)) {
+          groups.set(docNum, {
+            filename: 'unknown',
+            status: isError ? 'error' : 'warning',
+            chunks: [],
+            isComplete: false
+          });
+        } else {
+          const group = groups.get(docNum)!;
+          group.status = isError ? 'error' : 'warning';
+        }
+        return;
+      }
+    });
+    
+    return Array.from(groups.entries())
+      .map(([docNum, data]) => ({ docNum, ...data }))
+      .sort((a, b) => a.docNum - b.docNum);
+  }, [logMessages]);
+
+  // Track expanded document sections
+  const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
+
+  const toggleDocument = (docNum: number) => {
+    setExpandedDocuments(prev => {
+      const next = new Set(prev);
+      if (next.has(docNum)) {
+        next.delete(docNum);
+      } else {
+        next.add(docNum);
+      }
+      return next;
+    });
+  };
+
   // Auto-scroll to bottom when answer is streaming (only if user is already near bottom)
   useEffect(() => {
     if (isAnswering && answerContainerRef.current && answerEndRef.current) {
@@ -67,7 +177,7 @@ export function AnswerSection({
         answerEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
     }
-  }, [answer, isAnswering]);
+  }, [answer, isAnswering, logMessages]);
 
   const handleQuestionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +206,7 @@ export function AnswerSection({
           setInternalAnswer(prev => prev + chunk);
         },
         (event: AnswerStreamEvent) => {
-          if (event.type === 'log' && event.message) {
+          if ((event.type === 'log' || event.type === 'llm_chunk') && event.message) {
             setInternalLogMessages(prev => [...prev, event.message!]);
           } else if (event.type === 'citations' && event.citations) {
             setInternalAnswerCitations(event.citations);
@@ -198,31 +308,129 @@ export function AnswerSection({
                     <span className="text-sm">Searching documents and generating answer...</span>
                   </div>
                   
-                  {/* Log Messages */}
-                  {logMessages.length > 0 && (
-                    <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 max-h-64 overflow-y-auto">
-                      <div className="space-y-1">
-                        {logMessages.map((msg, idx) => (
-                          <div key={idx} className="text-xs text-primary-700 font-mono py-1">
-                            {msg}
+                  {/* Document Processing Status - Collapsible by Document */}
+                  {documentGroups.length > 0 && (
+                    <div className="space-y-2">
+                      {documentGroups.map(({ docNum, filename, status, chunks, isComplete }) => {
+                        const isExpanded = expandedDocuments.has(docNum);
+                        const statusColor = 
+                          status === 'error' ? 'text-red-600' :
+                          status === 'warning' ? 'text-yellow-600' :
+                          status === 'complete' ? 'text-green-600' :
+                          'text-primary-600';
+                        
+                        return (
+                          <div key={docNum} className="border border-primary-200 rounded-lg overflow-hidden bg-white">
+                            <button
+                              onClick={() => toggleDocument(docNum)}
+                              className="w-full flex items-center justify-between px-4 py-2 bg-primary-50 hover:bg-primary-100 transition-colors text-left"
+                              type="button"
+                            >
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-primary-600 flex-shrink-0" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-primary-600 flex-shrink-0" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-primary-900">
+                                      Document {docNum}: {filename}
+                                    </span>
+                                    {isComplete && (
+                                      <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">
+                                        Complete
+                                      </span>
+                                    )}
+                                    {status === 'error' && (
+                                      <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
+                                        Error
+                                      </span>
+                                    )}
+                                    {status === 'processing' && !isComplete && (
+                                      <LoadingSpinner size="xs" />
+                                    )}
+                                  </div>
+                                  {!isExpanded && chunks.length > 0 && (
+                                    <div className="text-xs text-primary-500 mt-1 truncate">
+                                      {chunks.join('').slice(0, 100)}...
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                            {isExpanded && (
+                              <div className="px-4 py-3 bg-white border-t border-primary-200">
+                                <div className="space-y-2">
+                                  <div className="text-xs font-mono text-primary-700 whitespace-pre-wrap break-words">
+                                    {chunks.length > 0 ? (
+                                      <div className="bg-accent-50/50 border-l-2 border-accent-400 px-3 py-2 rounded">
+                                        {chunks.join('')}
+                                      </div>
+                                    ) : (
+                                      <div className="text-primary-500 italic">
+                                        Waiting for LLM response...
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               )}
               
-              {/* Log Messages during answer streaming */}
-              {answer && isAnswering && logMessages.length > 0 && (
-                <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <div className="space-y-1">
-                    {logMessages.slice(-5).map((msg, idx) => (
-                      <div key={idx} className="text-xs text-primary-600 font-mono py-0.5">
-                        {msg}
+              {/* Document Processing Status during answer streaming */}
+              {answer && isAnswering && documentGroups.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  {documentGroups.map(({ docNum, filename, status, chunks, isComplete }) => {
+                    const isExpanded = expandedDocuments.has(docNum);
+                    
+                    return (
+                      <div key={docNum} className="border border-primary-200 rounded-lg overflow-hidden bg-white">
+                        <button
+                          onClick={() => toggleDocument(docNum)}
+                          className="w-full flex items-center justify-between px-3 py-2 bg-primary-50 hover:bg-primary-100 transition-colors text-left"
+                          type="button"
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {isExpanded ? (
+                              <ChevronUp className="w-3 h-3 text-primary-600 flex-shrink-0" />
+                            ) : (
+                              <ChevronDown className="w-3 h-3 text-primary-600 flex-shrink-0" />
+                            )}
+                            <span className="text-xs font-medium text-primary-900 truncate">
+                              Doc {docNum}: {filename}
+                            </span>
+                            {isComplete && (
+                              <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded flex-shrink-0">
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          <div className="px-3 py-2 bg-white border-t border-primary-200">
+                            <div className="text-xs font-mono text-primary-700 whitespace-pre-wrap break-words">
+                              {chunks.length > 0 ? (
+                                <div className="bg-accent-50/50 border-l-2 border-accent-400 px-2 py-1 rounded">
+                                  {chunks.join('')}
+                                </div>
+                              ) : (
+                                <div className="text-primary-500 italic">
+                                  Waiting for LLM response...
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
 

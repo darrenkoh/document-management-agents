@@ -178,7 +178,7 @@ export default function HomePage() {
                   setAnswer(prev => prev + chunk);
                 },
                 (event: AnswerStreamEvent) => {
-                  if (event.type === 'log' && event.message) {
+                  if ((event.type === 'log' || event.type === 'llm_chunk') && event.message) {
                     setAnswerLogMessages(prev => [...prev, event.message!]);
                   } else if (event.type === 'citations' && event.citations) {
                     setAnswerCitations(event.citations);

@@ -233,7 +233,7 @@ export interface AnswerResponse {
 }
 
 export interface AnswerStreamEvent {
-  type: 'start' | 'log' | 'answer_chunk' | 'citations' | 'complete' | 'error';
+  type: 'start' | 'log' | 'llm_chunk' | 'answer_chunk' | 'citations' | 'complete' | 'error';
   message?: string;
   chunk?: string;
   answer?: string;
