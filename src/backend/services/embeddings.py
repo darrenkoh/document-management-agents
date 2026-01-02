@@ -23,7 +23,10 @@ class EmbeddingGenerator:
 
     def __init__(self, endpoint: str, embedding_endpoint: str = None, model: str = "text-embedding-3-small",
                  summarizer_model: str = "gpt-3.5-turbo", timeout: int = 30,
-                 max_retries: int = 3, retry_base_delay: float = 1.0):
+                 max_retries: int = 3, retry_base_delay: float = 1.0,
+                 summary_max_length: Optional[int] = 1000,
+                 summary_initial_tokens: int = 1500,
+                 summary_token_increment: int = 500):
         """Initialize embedding generator.
 
         Args:
@@ -42,6 +45,9 @@ class EmbeddingGenerator:
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
+        self.summary_max_length = summary_max_length
+        self.summary_initial_tokens = summary_initial_tokens
+        self.summary_token_increment = summary_token_increment
         # Use a dummy API key since local servers often don't require authentication
         self.client = OpenAI(base_url=endpoint, api_key="dummy", timeout=timeout)
         self.embedding_client = OpenAI(base_url=self.embedding_endpoint, api_key="dummy", timeout=timeout)
@@ -210,12 +216,20 @@ class EmbeddingGenerator:
 
         return _generate()
 
-    def generate_document_summary(self, text: str, max_length: int = 1000) -> Optional[str]:
+    def generate_document_summary(
+        self,
+        text: str,
+        max_length: Optional[int] = None,
+        initial_tokens: Optional[int] = None,
+        token_increment: Optional[int] = None,
+    ) -> Optional[str]:
         """Generate a concise summary of the document.
 
         Args:
             text: Full document text
-            max_length: Maximum length of summary in characters
+            max_length: Maximum length of summary in characters (None for unlimited)
+            initial_tokens: Starting token budget for the summarizer call
+            token_increment: Additional tokens to add on each retry
 
         Returns:
             Document summary or None if generation failed
@@ -224,7 +238,25 @@ class EmbeddingGenerator:
         if len(text) > 10000:
             text = text[:10000] + "..."
 
-        prompt = f"""Please provide a concise summary of the following document in {max_length // 10} sentences or less, capturing the main topics, key information, and purpose:
+        max_length = max_length if max_length is not None else self.summary_max_length
+        if max_length is not None:
+            try:
+                max_length = int(max_length)
+            except (TypeError, ValueError):
+                max_length = None
+            else:
+                if max_length <= 0:
+                    max_length = None
+
+        initial_tokens = initial_tokens if initial_tokens is not None else self.summary_initial_tokens
+        token_increment = token_increment if token_increment is not None else self.summary_token_increment
+
+        sentence_clause = ""
+        if max_length:
+            sentence_limit = max(1, max_length // 10)
+            sentence_clause = f" in {sentence_limit} sentences or less"
+
+        prompt = f"""Please provide a concise summary of the following document{sentence_clause}, capturing the main topics, key information, and purpose:
 
 {text}
 
@@ -234,7 +266,7 @@ Summary:"""
         for attempt in range(self.max_retries + 1):  # +1 for initial attempt
             try:
                 # Increase token limit with each retry to handle length issues
-                token_limit = 1500 + (attempt * 500)  # Start at 1500, increase by 500 each retry
+                token_limit = initial_tokens + (attempt * token_increment)
                 response = self._call_llm_generate(
                     model=self.summarizer_model,
                     prompt=prompt,
@@ -269,7 +301,7 @@ Summary:"""
                     summary = self._clean_llm_response(summary)
                     # Clean up and truncate if needed
                     summary = summary.replace('Summary:', '').strip()
-                    if len(summary) > max_length:
+                    if max_length and len(summary) > max_length:
                         summary = summary[:max_length] + "..."
                     return summary
                 else:

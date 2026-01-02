@@ -114,6 +114,36 @@ class Config:
         """Get the maximum number of tokens to predict."""
         llm_config = self._config.get('llm', {})
         return llm_config.get('num_predict', 200)
+
+    @property
+    def _llm_summary_config(self) -> Dict:
+        """Internal helper to read the summary-specific LLM config."""
+        llm_config = self._config.get('llm', {})
+        return llm_config.get('summary', {}) or {}
+
+    @property
+    def summary_max_length(self) -> Optional[int]:
+        """Maximum summary length in characters (None for unlimited)."""
+        summary_config = self._llm_summary_config
+        max_length = summary_config.get('max_length')
+        if max_length is None:
+            return None
+        try:
+            return int(max_length)
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def summary_initial_tokens(self) -> int:
+        """Initial number of tokens to request from the summarizer."""
+        summary_config = self._llm_summary_config
+        return summary_config.get('initial_num_predict', 1500)
+
+    @property
+    def summary_token_increment(self) -> int:
+        """Token budget increment applied on each retry."""
+        summary_config = self._llm_summary_config
+        return summary_config.get('incremental_num_predict', 500)
     
     @property
     def file_extensions(self) -> List[str]:

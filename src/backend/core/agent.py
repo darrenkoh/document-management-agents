@@ -83,7 +83,10 @@ class DocumentAgent:
             summarizer_model=config.llm_summarizer_model,
             timeout=config.llm_timeout,
             max_retries=config.llm_max_retries,
-            retry_base_delay=config.llm_retry_base_delay
+            retry_base_delay=config.llm_retry_base_delay,
+            summary_max_length=config.summary_max_length,
+            summary_initial_tokens=config.summary_initial_tokens,
+            summary_token_increment=config.summary_token_increment
         )
 
         # Create method to get existing categories for classifier
@@ -112,9 +115,9 @@ class DocumentAgent:
                 return []
 
         # Create summarizer function for classifier
-        def summarize_for_classification(text: str, max_length: int = 1500) -> str:
+        def summarize_for_classification(text: str) -> str:
             """Summarize document text for classification purposes."""
-            return self.embedding_generator.generate_document_summary(text, max_length=max_length)
+            return self.embedding_generator.generate_document_summary(text, max_length=config.summary_max_length)
 
         self.classifier = Classifier(
             endpoint=config.llm_endpoint,
