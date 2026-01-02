@@ -8,7 +8,7 @@ This system automatically processes, classifies, and indexes your documents usin
 
 ### Processing Pipeline
 
-1. **Text Extraction**: Documents are parsed using format-specific libraries (PDF, Word, images). For image-based documents or scanned PDFs, OCR is performed using local AI models (Ollama, Chandra, or HunyuanOCR).
+1. **Text Extraction**: Documents are parsed using format-specific libraries (PDF, Word, images). For image-based documents or scanned PDFs, OCR is performed using local AI models (Ollama, Chandra, or HunyuanOCR). Multi-receipt images are automatically segmented using SAM3 (Meta's Segment Anything Model) to separate individual receipts before OCR processing.
 
 2. **Content Hashing**: Each document is hashed (SHA256) to detect duplicates and prevent reprocessing.
 
@@ -33,7 +33,7 @@ This system automatically processes, classifies, and indexes your documents usin
 - **Chandra/HunyuanOCR** (optional): Alternative OCR engines via vLLM
 - **SQLite**: Lightweight database for document metadata
 - **ChromaDB**: Vector database for semantic embeddings
-- **SAM3** (optional): Image segmentation for multi-receipt images
+- **SAM3** (optional): Meta's Segment Anything Model for intelligent image segmentation. Automatically detects and separates multiple receipts in a single image, enabling individual processing of each receipt before OCR.
 
 All services run locally - your documents never leave your machine.
 
@@ -44,7 +44,8 @@ graph TB
     A[Document Files] --> B[File Handler]
     B --> C{Text Extraction}
     C -->|PDF/Word/TXT| D[Native Parsers]
-    C -->|Images/Scanned PDF| E[OCR Service]
+    C -->|Images/Scanned PDF| S[SAM3 Segmentation]
+    S -->|Single/Multiple Segments| E[OCR Service]
     E -->|OpenAI-compatible LLM| F[Text Content]
     D --> F
     
@@ -145,7 +146,13 @@ For other servers (vLLM, LiteLLM, etc.), ensure they provide OpenAI-compatible A
 
 ### Optional Dependencies
 
-- **SAM3** (for receipt segmentation): Install from [facebookresearch/sam3](https://github.com/facebookresearch/sam3)
+- **SAM3** (for receipt segmentation): Meta's Segment Anything Model for automatic receipt detection and segmentation. Install via:
+  ```bash
+  git clone https://github.com/facebookresearch/segment-anything.git
+  cd segment-anything
+  pip install -e .
+  ```
+  Requires PyTorch and will automatically download model checkpoints on first use. Supports GPU acceleration on CUDA/MPS devices.
 - **Chandra OCR**: Install via `pip install chandra-ocr` and run vLLM server
 - **HunyuanOCR**: Configure vLLM server with HunyuanOCR model
 
@@ -278,11 +285,15 @@ hunyuan:
 #### Receipt Segmentation (Optional)
 ```yaml
 segmentation:
-  enable: true
-  checkpoint_path: "~/.cache/huggingface/.../sam3.pt"
-  output_dir: "data/segmented_receipts"
-  text_prompt: "receipt"
-  confidence_threshold: 0.5
+  enable: true                          # Enable/disable SAM3 segmentation for multi-receipt images
+  checkpoint_path: "~/.cache/huggingface/.../sam3.pt"  # Path to SAM model checkpoint (auto-downloads if not found)
+  output_dir: "data/segmented_receipts"  # Directory to save segmented receipt images
+  text_prompt: "receipt"                 # Text prompt for SAM3 to identify receipt regions
+  confidence_threshold: 0.5             # Minimum confidence score for segmentation (0.0-1.0)
+  device: "auto"                        # Device for SAM3 inference: "auto", "cuda", "mps", or "cpu"
+  model_type: "vit_h"                   # SAM model size: "vit_h" (huge), "vit_l" (large), "vit_b" (base)
+  min_segment_area: 10000               # Minimum pixel area for a valid receipt segment
+  overlap_threshold: 0.1                # Maximum overlap allowed between segments (0.0-1.0)
 ```
 
 #### Search Settings
@@ -395,11 +406,38 @@ prompt_template: |
 **Problem**: SAM3 segmentation not working
 
 **Solutions**:
-- Ensure SAM3 is installed: `git clone https://github.com/facebookresearch/sam3.git && cd sam3 && pip install -e .`
-- Verify `segmentation.checkpoint_path` is set correctly
-- On Apple Silicon, use `device: "auto"` or `device: "mps"` for Metal acceleration
-- For CPU-only: `device: "cpu"`
-- Test standalone: `python src/backend/scripts/segment_receipts.py --input /path/to/image`
+- **Installation Issues**:
+  - Install SAM3 correctly: `git clone https://github.com/facebookresearch/segment-anything.git && cd segment-anything && pip install -e .`
+  - Ensure PyTorch is installed with CUDA support if using GPU: `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`
+  - Check PyTorch installation: `python -c "import torch; print(torch.cuda.is_available())"`
+
+- **Model Checkpoint Issues**:
+  - SAM3 automatically downloads checkpoints on first use - ensure internet connection
+  - If download fails, manually download from [SAM checkpoints](https://github.com/facebookresearch/segment-anything#model-checkpoints) and place in `~/.cache/torch/hub/checkpoints/`
+  - Verify `segmentation.checkpoint_path` points to a valid checkpoint file
+
+- **Device/Acceleration Issues**:
+  - On Apple Silicon: use `device: "auto"` or `device: "mps"` for Metal acceleration
+  - On NVIDIA GPU: use `device: "cuda"` (ensure CUDA drivers installed)
+  - For CPU-only systems: use `device: "cpu"` (slower but works)
+  - Test device availability: `python -c "import torch; print(torch.backends.mps.is_available() if torch.backends.mps else 'MPS not available')"`
+
+- **Segmentation Quality Issues**:
+  - Adjust `confidence_threshold`: lower values (0.3-0.4) for more segments, higher (0.7-0.8) for fewer false positives
+  - Modify `text_prompt`: try "receipt", "invoice", "document", or "paper" based on your images
+  - Adjust `min_segment_area`: increase for larger receipts, decrease for smaller ones
+  - Use different `model_type`: "vit_b" (fastest), "vit_l" (balanced), "vit_h" (most accurate)
+
+- **Performance Issues**:
+  - Use smaller model (`vit_b`) for faster processing
+  - Enable GPU acceleration if available
+  - Reduce `overlap_threshold` to allow more overlapping segments if needed
+
+- **Testing and Debugging**:
+  - Test standalone: `python src/backend/scripts/segment_receipts.py --input /path/to/image`
+  - Check segmentation output directory for generated segments
+  - Enable verbose logging to see segmentation details
+  - Verify input images are high quality and well-lit
 
 ### Database/Vector Store Errors
 
