@@ -92,7 +92,7 @@ graph TB
     style U fill:#f3e5f5
 ```
 
-Document summarization is orchestrated by the `EmbeddingGenerator` (see [src/backend/services/embeddings.py](src/backend/services/embeddings.py)). It respects the `llm.summary` controls so that both classification prompts and embedding-based summaries share the same maximum length and retry budgets before results are persisted in SQLite/ChromaDB.
+Document summarization is orchestrated by the `EmbeddingGenerator` (see [src/backend/services/embeddings.py](src/backend/services/embeddings.py)). Summaries are generated without length constraints, allowing the LLM to capture all key information. Token budgets in `llm.summary` control how much output the model can produce before results are persisted in SQLite/ChromaDB.
 
 ## Dependencies
 
@@ -173,12 +173,11 @@ llm:
   model: "gpt-4"
   embedding_model: "text-embedding-3-small"
   summary:
-    max_length: null          # Set to null to capture the entire document; otherwise limit characters
-    initial_num_predict: 1500 # Starting token budget for the summarizer
-    incremental_num_predict: 500 # Tokens added per retry when the model hits limits
+    initial_num_predict: 4000 # Starting token budget for the summarizer
+    incremental_num_predict: 1000 # Tokens added per retry when the model hits limits
 ```
 
-**Summary generation** for both classification prompts and embedding summaries pulls its limits from `llm.summary`. Set `max_length` to `null` to avoid truncation, and tune the token budgets if your LLM struggles with larger outputs. All summary requests honor these values before the result is cached in the SQLite metadata table and summarized embeddings stored in ChromaDB.
+**Summary generation** for both classification prompts and embedding summaries is unlimited - the LLM writes comprehensive summaries without truncation. Tune the token budgets in `llm.summary` if your model needs more output capacity. All summary requests honor these values before the result is cached in the SQLite metadata table and summarized embeddings stored in ChromaDB.
 
 ### 2. Process Documents
 

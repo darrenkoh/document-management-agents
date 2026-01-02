@@ -122,28 +122,16 @@ class Config:
         return llm_config.get('summary', {}) or {}
 
     @property
-    def summary_max_length(self) -> Optional[int]:
-        """Maximum summary length in characters (None for unlimited)."""
-        summary_config = self._llm_summary_config
-        max_length = summary_config.get('max_length')
-        if max_length is None:
-            return None
-        try:
-            return int(max_length)
-        except (TypeError, ValueError):
-            return None
-
-    @property
     def summary_initial_tokens(self) -> int:
         """Initial number of tokens to request from the summarizer."""
         summary_config = self._llm_summary_config
-        return summary_config.get('initial_num_predict', 1500)
+        return summary_config.get('initial_num_predict', 4000)
 
     @property
     def summary_token_increment(self) -> int:
         """Token budget increment applied on each retry."""
         summary_config = self._llm_summary_config
-        return summary_config.get('incremental_num_predict', 500)
+        return summary_config.get('incremental_num_predict', 1000)
     
     @property
     def file_extensions(self) -> List[str]:

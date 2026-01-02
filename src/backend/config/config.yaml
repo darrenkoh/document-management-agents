@@ -68,12 +68,10 @@ llm:
     base_delay: 1.0
   # Document summary controls
   summary:
-    # Maximum summary length in characters; set to null to allow unlimited summaries
-    max_length: 10000
     # Initial token budget for the summarizer call
-    initial_num_predict: 1500
+    initial_num_predict: 10000
     # Increment to the token budget on each retry
-    incremental_num_predict: 500
+    incremental_num_predict: 1000
 
 # OCR configuration for text extraction from images/PDFs
 ocr:

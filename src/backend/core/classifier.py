@@ -199,7 +199,7 @@ class Classifier:
         if len(content) > 3000 and self.summarizer:
             logger.info(f"Document too long ({len(content)} chars), generating summary for classification")
             try:
-                summarized_content = self.summarizer(content, max_length=1500)  # Longer summary for classification
+                summarized_content = self.summarizer(content)  # Generate full summary for classification
                 if summarized_content:
                     content_for_classification = summarized_content
                     logger.info(f"Using document summary for classification ({len(summarized_content)} chars)")

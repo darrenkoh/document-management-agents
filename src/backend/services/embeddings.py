@@ -24,9 +24,8 @@ class EmbeddingGenerator:
     def __init__(self, endpoint: str, embedding_endpoint: str = None, model: str = "text-embedding-3-small",
                  summarizer_model: str = "gpt-3.5-turbo", timeout: int = 30,
                  max_retries: int = 3, retry_base_delay: float = 1.0,
-                 summary_max_length: Optional[int] = 1000,
-                 summary_initial_tokens: int = 1500,
-                 summary_token_increment: int = 500):
+                 summary_initial_tokens: int = 4000,
+                 summary_token_increment: int = 1000):
         """Initialize embedding generator.
 
         Args:
@@ -37,6 +36,8 @@ class EmbeddingGenerator:
             timeout: API timeout in seconds
             max_retries: Maximum number of retry attempts for failed API calls
             retry_base_delay: Base delay in seconds between retry attempts
+            summary_initial_tokens: Initial token budget for summary generation
+            summary_token_increment: Token budget increment on each retry
         """
         self.endpoint = endpoint
         self.embedding_endpoint = embedding_endpoint or endpoint
@@ -45,7 +46,6 @@ class EmbeddingGenerator:
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
-        self.summary_max_length = summary_max_length
         self.summary_initial_tokens = summary_initial_tokens
         self.summary_token_increment = summary_token_increment
         # Use a dummy API key since local servers often don't require authentication
@@ -219,15 +219,13 @@ class EmbeddingGenerator:
     def generate_document_summary(
         self,
         text: str,
-        max_length: Optional[int] = None,
         initial_tokens: Optional[int] = None,
         token_increment: Optional[int] = None,
     ) -> Optional[str]:
-        """Generate a concise summary of the document.
+        """Generate a comprehensive summary of the document.
 
         Args:
             text: Full document text
-            max_length: Maximum length of summary in characters (None for unlimited)
             initial_tokens: Starting token budget for the summarizer call
             token_increment: Additional tokens to add on each retry
 
@@ -238,25 +236,10 @@ class EmbeddingGenerator:
         if len(text) > 10000:
             text = text[:10000] + "..."
 
-        max_length = max_length if max_length is not None else self.summary_max_length
-        if max_length is not None:
-            try:
-                max_length = int(max_length)
-            except (TypeError, ValueError):
-                max_length = None
-            else:
-                if max_length <= 0:
-                    max_length = None
-
         initial_tokens = initial_tokens if initial_tokens is not None else self.summary_initial_tokens
         token_increment = token_increment if token_increment is not None else self.summary_token_increment
 
-        sentence_clause = ""
-        if max_length:
-            sentence_limit = max(1, max_length // 10)
-            sentence_clause = f" in {sentence_limit} sentences or less"
-
-        prompt = f"""Please provide a concise summary of the following document{sentence_clause}, capturing the main topics, key information, and purpose:
+        prompt = f"""Please provide a comprehensive summary of the following document, capturing all key information, main topics, important details, and purpose:
 
 {text}
 
@@ -299,10 +282,7 @@ Summary:"""
                 if summary:
                     # Clean up LLM encoding tokens and other artifacts
                     summary = self._clean_llm_response(summary)
-                    # Clean up and truncate if needed
                     summary = summary.replace('Summary:', '').strip()
-                    if max_length and len(summary) > max_length:
-                        summary = summary[:max_length] + "..."
                     return summary
                 else:
                     # Empty summary response - log detailed response info for debugging
