@@ -301,6 +301,9 @@ Use lowercase for sub-categories and separate with commas."""
         Returns:
             Cleaned response string
         """
+        # Remove <think>...</think> blocks (reasoning models like DeepSeek-R1, Claude)
+        response = re.sub(r'<think>[\s\S]*?</think>', '', response, flags=re.IGNORECASE)
+
         # Remove DeepSeek-style encoding tokens like <|ref|>content<|/ref|><|det|>[[...]]<|/det|>
         response = re.sub(r'<\|[^>]+\|>.*?<\|/[^>]+\|>', '', response, flags=re.DOTALL)
 

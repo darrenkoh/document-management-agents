@@ -59,6 +59,7 @@ config.local.yaml
 config.local.yml
 .env
 .env.local
+.cursor/
 
 # Database and exports
 documents.json

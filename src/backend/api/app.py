@@ -3,6 +3,8 @@
 import os
 import sys
 import argparse
+import sqlite3
+from datetime import datetime
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
@@ -1287,6 +1289,14 @@ def api_delete_record(table_name, record_id):
         if not pk_column:
             return jsonify({'error': 'Table must have a primary key for deletion'}), 400
 
+        deleted_file_info = None
+        if table_name.lower() == 'documents':
+            cursor.execute(
+                f'SELECT file_hash, filename FROM "{table_name}" WHERE "{pk_column}" = ?',
+                (record_id,)
+            )
+            deleted_file_info = cursor.fetchone()
+
         # Delete the record
         query = f'DELETE FROM "{table_name}" WHERE "{pk_column}" = ?'
         cursor.execute(query, [record_id])
@@ -1294,6 +1304,23 @@ def api_delete_record(table_name, record_id):
         if cursor.rowcount == 0:
             cursor.close()
             return jsonify({'error': 'Record not found'}), 404
+
+        if table_name.lower() == 'documents' and deleted_file_info:
+            file_hash = deleted_file_info['file_hash']
+            filename = deleted_file_info['filename']
+            if file_hash:
+                current_time = datetime.now().timestamp()
+                try:
+                    cursor.execute('''
+                        INSERT INTO deleted_files (file_hash, original_filename, deleted_at, deleted_doc_id)
+                        VALUES (?, ?, ?, ?)
+                    ''', (file_hash, filename, current_time, record_id))
+                except sqlite3.IntegrityError:
+                    cursor.execute('''
+                        UPDATE deleted_files
+                        SET deleted_at = ?, deleted_doc_id = ?
+                        WHERE file_hash = ?
+                    ''', (current_time, record_id, file_hash))
 
         database.connection.commit()
         cursor.close()
