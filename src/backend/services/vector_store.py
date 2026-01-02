@@ -104,6 +104,15 @@ class VectorStore(ABC):
         """Close the vector store connection."""
         pass
 
+    @abstractmethod
+    def reset_collection(self) -> bool:
+        """Reset (delete and recreate) the collection to fix corruption.
+        
+        Returns:
+            True if reset was successful
+        """
+        pass
+
 
 class ChromaVectorStore(VectorStore):
     """ChromaDB-based vector store implementation."""
@@ -414,6 +423,41 @@ class ChromaVectorStore(VectorStore):
             logger.error(f"Error getting document by ID from ChromaDB: {e}")
             return None
 
+    def reset_collection(self) -> bool:
+        """Reset (delete and recreate) the current collection to fix corruption.
+        
+        This is useful when the ChromaDB collection becomes corrupted (e.g., 'finding id' errors).
+        After calling this, you will need to re-ingest all documents to regenerate embeddings.
+        
+        Returns:
+            True if reset was successful
+        """
+        try:
+            logger.warning(f"Resetting ChromaDB collection: {self.collection_name}")
+            
+            # Delete the existing collection
+            try:
+                self.client.delete_collection(name=self.collection_name)
+                logger.info(f"Deleted corrupted collection: {self.collection_name}")
+            except Exception as delete_error:
+                logger.warning(f"Could not delete collection (may not exist): {delete_error}")
+            
+            # Recreate the collection with the same settings
+            collection_metadata = {"hnsw:space": self.distance_metric}
+            if self.expected_dimension:
+                collection_metadata["embedding_dimension"] = int(self.expected_dimension)
+            
+            self.collection = self.client.create_collection(
+                name=self.collection_name,
+                metadata=collection_metadata
+            )
+            logger.info(f"Created fresh collection: {self.collection_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to reset collection: {e}")
+            return False
+
     def get_all_embeddings(self) -> List[Dict[str, Any]]:
         """Get all embeddings and metadata from ChromaDB."""
         try:
@@ -482,13 +526,28 @@ class ChromaVectorStore(VectorStore):
                 return all_data
 
             except Exception as e:
+                error_str = str(e).lower()
                 logger.error(f"Error getting all embeddings from ChromaDB: {e}")
-                # If the error is related to "finding id", this might indicate corruption
-                # But let's be more conservative - only reset if we can't even get the collection
-                if "finding id" in str(e).lower():
-                    logger.warning("ChromaDB 'finding id' error detected - this may indicate data corruption")
-                    logger.warning("Try running the document ingestion process to regenerate embeddings")
-                    # Don't automatically reset - let the user decide
+                
+                # If the error is related to "finding id", this indicates corruption
+                if "finding id" in error_str or "error executing plan" in error_str:
+                    logger.error("=" * 60)
+                    logger.error("ChromaDB DATA CORRUPTION DETECTED")
+                    logger.error("=" * 60)
+                    logger.error("The ChromaDB collection is corrupted and cannot retrieve embeddings.")
+                    logger.error("")
+                    logger.error("To fix this issue, you have two options:")
+                    logger.error("")
+                    logger.error("OPTION 1: Reset via API (recommended)")
+                    logger.error("  Call the /api/embeddings/reset endpoint to reset the collection")
+                    logger.error("  Then re-run the document ingestion to regenerate embeddings")
+                    logger.error("")
+                    logger.error("OPTION 2: Manual reset")
+                    logger.error(f"  1. Stop the application")
+                    logger.error(f"  2. Delete the vector store directory: {self.persist_directory}")
+                    logger.error(f"  3. Restart the application")
+                    logger.error(f"  4. Re-run the document ingestion to regenerate embeddings")
+                    logger.error("=" * 60)
                     return []
                 return []
 
@@ -736,6 +795,39 @@ class FAISSVectorStore(VectorStore):
     def close(self):
         """Save index before closing."""
         self._save_index()
+
+    def reset_collection(self) -> bool:
+        """Reset (delete and recreate) the FAISS index to fix corruption.
+        
+        Returns:
+            True if reset was successful
+        """
+        try:
+            import faiss
+            logger.warning("Resetting FAISS index")
+            
+            # Delete index files
+            if self.index_file.exists():
+                self.index_file.unlink()
+                logger.info(f"Deleted FAISS index file: {self.index_file}")
+            
+            metadata_file = self.persist_directory / "metadata.json"
+            if metadata_file.exists():
+                metadata_file.unlink()
+                logger.info(f"Deleted FAISS metadata file: {metadata_file}")
+            
+            # Reinitialize empty index
+            self.index = faiss.IndexFlatIP(self.dimension)
+            self.metadata_store = {}
+            self.id_to_idx = {}
+            self.idx_to_id = {}
+            
+            logger.info("Created fresh FAISS index")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to reset FAISS index: {e}")
+            return False
 
 
 def create_vector_store(store_type: str, **kwargs) -> VectorStore:

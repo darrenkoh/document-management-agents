@@ -450,6 +450,41 @@ prompt_template: |
 - Check ChromaDB logs in `data/vector_store/`
 - Ensure embedding dimension matches model output
 
+### ChromaDB Corruption / "Error finding id"
+
+**Problem**: ChromaDB shows errors like `Error executing plan: Internal error: Error finding id` or similar corruption messages. This can happen when the internal SQLite database and HNSW index get out of sync.
+
+**Solutions**:
+
+#### Option 1: Reset via API (Recommended)
+
+```bash
+# Reset the vector store collection
+curl -X POST http://localhost:8081/api/embeddings/reset
+
+# Then regenerate all embeddings
+python src/backend/scripts/add_embeddings.py --force
+```
+
+#### Option 2: Manual Reset
+
+```bash
+# 1. Stop the application (backend API)
+
+# 2. Delete the vector store directory
+rm -rf data/vector_store
+
+# 3. Restart the application
+python src/backend/api/app.py
+
+# 4. Regenerate all embeddings
+python src/backend/scripts/add_embeddings.py --force
+```
+
+The `--force` flag is required because the SQLite database still has `embedding_stored=True` for documents, but the vector store is empty. Without `--force`, the script would skip all documents thinking they already have embeddings.
+
+**Note**: Regenerating embeddings can take a while depending on the number of documents and your embedding model speed.
+
 ### Files Keep Failing / Avoid Reprocessing Them
 
 **Problem**: The same file fails on every run and you want to stop retrying it automatically.

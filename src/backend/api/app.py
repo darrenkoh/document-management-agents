@@ -848,6 +848,57 @@ def api_get_embeddings():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/embeddings/reset', methods=['POST'])
+def api_reset_embeddings():
+    """Reset the vector store collection to fix corruption issues.
+    
+    This endpoint should be called when ChromaDB shows 'Error finding id' or similar
+    corruption errors. After resetting, you will need to re-run document ingestion
+    to regenerate all embeddings.
+    
+    Returns:
+        JSON response with success status and message
+    """
+    try:
+        # Check if vector store is available
+        if not agent.database.vector_store:
+            return jsonify({'error': 'Vector store not available'}), 503
+        
+        app.logger.warning("Resetting vector store collection due to API request")
+        
+        # Get the count before reset (if possible)
+        try:
+            count_before = agent.database.vector_store.count()
+        except Exception:
+            count_before = "unknown"
+        
+        # Reset the collection
+        success = agent.database.vector_store.reset_collection()
+        
+        if success:
+            app.logger.info("Vector store collection reset successfully")
+            return jsonify({
+                'success': True,
+                'message': 'Vector store collection has been reset successfully',
+                'embeddings_deleted': count_before,
+                'next_steps': [
+                    'Re-run the document ingestion process to regenerate embeddings',
+                    'Use: python document_ingestion.py --all-embeddings'
+                ]
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to reset vector store collection'
+            }), 500
+            
+    except Exception as e:
+        app.logger.error(f"Error resetting vector store: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/refresh')
 @app.route('/refresh')  # legacy alias
 def refresh_data():
