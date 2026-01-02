@@ -69,4 +69,5 @@ classifications.json
 vector_store/
 node_modules
 data/
+data_backup/
 MagicMock/
