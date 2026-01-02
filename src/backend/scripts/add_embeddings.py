@@ -38,27 +38,26 @@ def add_embeddings_to_existing_docs(config_path=None, force=False):
         # Process each document to add embeddings (ChromaDB handles duplicates)
         processed = 0
         skipped = 0
+        failed = 0
         for doc in documents:
             try:
                 file_path = Path(doc['file_path'])
-                if not file_path.exists():
-                    print(f"Warning: File not found: {file_path}")
-                    skipped += 1
-                    continue
+                filename = doc.get('filename', file_path.name)
 
                 # Check if embedding already exists (skip unless force mode)
                 if doc.get('embedding_stored', False) and not force:
-                    print(f"Skipping {file_path.name} - embedding already exists (use --force to regenerate)")
+                    print(f"Skipping {filename} - embedding already exists (use --force to regenerate)")
                     skipped += 1
                     continue
 
-                # Extract text content (similar to process_file but just for embedding)
-                content, _, _ = agent.file_handler.extract_text(file_path)
+                # Use already-extracted content from database (no need to re-extract/OCR!)
+                content = doc.get('content', '')
                 if not content:
-                    print(f"Warning: Could not extract content from {file_path} (no content)")
+                    print(f"Warning: No content stored in database for {filename}")
+                    failed += 1
                     continue
 
-                print(f"Extracted content length: {len(content)} for {file_path.name}")
+                print(f"Using cached content ({len(content)} chars) for {filename}")
 
                 # Generate embeddings (chunks + optional summary) and store them
                 embedding_result = agent.embedding_generator.generate_document_embeddings(
@@ -69,13 +68,14 @@ def add_embeddings_to_existing_docs(config_path=None, force=False):
                 )
 
                 if not embedding_result.get('chunks') and not embedding_result.get('summary'):
-                    print(f"Warning: Could not generate any embeddings for {file_path} (embedding generation failed)")
+                    print(f"Warning: Could not generate any embeddings for {filename} (embedding generation failed)")
+                    failed += 1
                     continue
 
                 chunk_count = len(embedding_result.get('chunks', []))
                 summary_dim = len(embedding_result['summary']) if embedding_result.get('summary') else None
                 chunk_dim = len(embedding_result['chunks'][0]) if chunk_count else None
-                print(f"Generated embeddings for {file_path.name}: chunks={chunk_count} (dim={chunk_dim}), summary_dim={summary_dim}")
+                print(f"Generated embeddings for {filename}: chunks={chunk_count} (dim={chunk_dim}), summary_dim={summary_dim}")
 
                 success = agent.database.store_document_embeddings(
                     str(file_path),
@@ -84,17 +84,20 @@ def add_embeddings_to_existing_docs(config_path=None, force=False):
                 )
                 if success:
                     processed += 1
-                    print(f"✅ Successfully added embedding for: {file_path.name}")
+                    print(f"✅ Successfully added embedding for: {filename}")
                 else:
-                    print(f"❌ Failed to store embedding for: {file_path.name}")
+                    print(f"❌ Failed to store embedding for: {filename}")
+                    failed += 1
 
             except Exception as e:
                 print(f"Error processing {doc.get('filename', 'unknown')}: {e}")
+                failed += 1
                 continue
 
         print(f"\nSummary:")
         print(f"  Successfully added embeddings: {processed}")
-        print(f"  Skipped: {skipped}")
+        print(f"  Skipped (already exist): {skipped}")
+        print(f"  Failed: {failed}")
 
     except Exception as e:
         print(f"Error: {e}")

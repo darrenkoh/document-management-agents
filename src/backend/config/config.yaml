@@ -42,6 +42,12 @@ database:
     # Distance metric for ChromaDB: 'l2', 'cosine', 'ip' (inner product)
     # 'cosine' is recommended for semantic search with normalized embeddings
     distance_metric: "cosine"
+    # ChromaDB Server Mode (RECOMMENDED for concurrent access)
+    # When enabled, connects to a ChromaDB server instead of using local files.
+    # This allows running the API server and document ingestion simultaneously.
+    # To start ChromaDB server: chroma run --path data/vector_store --port 8100
+    server_host: "localhost"
+    server_port: 8100
 
 # OpenAI-compatible LLM configuration for operations (classification, embedding, summarization)
 # Works with Ollama (with OpenAI compatibility), vLLM, LiteLLM, and other OpenAI-compatible servers

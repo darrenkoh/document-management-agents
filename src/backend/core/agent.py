@@ -68,9 +68,14 @@ class DocumentAgent:
                 persist_directory=config.vector_store_directory,
                 collection_name=config.vector_store_collection,
                 dimension=config.embedding_dimension,
-                distance_metric=config.vector_store_distance_metric
+                distance_metric=config.vector_store_distance_metric,
+                server_host=config.vector_store_server_host,
+                server_port=config.vector_store_server_port
             )
-            logger.info(f"Initialized {config.vector_store_type} vector store")
+            if config.vector_store_server_host:
+                logger.info(f"Initialized {config.vector_store_type} vector store (server mode: {config.vector_store_server_host}:{config.vector_store_server_port})")
+            else:
+                logger.info(f"Initialized {config.vector_store_type} vector store (local mode)")
         except Exception as e:
             logger.error(f"Failed to initialize vector store: {e}")
             raise RuntimeError("Vector store initialization failed - embeddings cannot be stored")

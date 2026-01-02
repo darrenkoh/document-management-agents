@@ -450,9 +450,46 @@ prompt_template: |
 - Check ChromaDB logs in `data/vector_store/`
 - Ensure embedding dimension matches model output
 
+### Running API Server and Document Ingestion Simultaneously
+
+**Problem**: You want to view embeddings in the web UI while document ingestion is running in the background.
+
+**Solution**: Use **ChromaDB Server Mode** which allows concurrent access from multiple processes.
+
+#### Enable ChromaDB Server Mode
+
+1. **Start ChromaDB as a server** (in a separate terminal):
+   ```bash
+   chroma run --path data/vector_store --port 8100
+   ```
+
+2. **Enable server mode in config** (`src/backend/config/config.yaml`):
+   ```yaml
+   database:
+     vector_store:
+       server_host: "localhost"
+       server_port: 8100
+   ```
+
+3. Now you can run both simultaneously:
+   ```bash
+   # Terminal 1: API server
+   python src/backend/api/app.py
+   
+   # Terminal 2: Document ingestion
+   python document_ingestion.py classify
+   ```
+
+#### Local Mode (Default - Single Process Only)
+
+If you don't enable server mode, ChromaDB uses local file access which doesn't support concurrent access. In this case:
+- **Stop the API server** before running `document_ingestion.py`
+- Wait for `document_ingestion.py` to finish before starting the API server
+- If the lock file is stale (process crashed), delete it: `rm data/vector_store/.chromadb.lock`
+
 ### ChromaDB Corruption / "Error finding id"
 
-**Problem**: ChromaDB shows errors like `Error executing plan: Internal error: Error finding id` or similar corruption messages. This can happen when the internal SQLite database and HNSW index get out of sync.
+**Problem**: ChromaDB shows errors like `Error executing plan: Internal error: Error finding id` or similar corruption messages. This typically happens when multiple processes accessed ChromaDB simultaneously.
 
 **Solutions**:
 

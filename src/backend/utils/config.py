@@ -444,6 +444,24 @@ class Config:
         return vector_config.get('distance_metric', 'l2')
 
     @property
+    def vector_store_server_host(self) -> Optional[str]:
+        """Get the ChromaDB server host for server mode.
+        
+        If set, ChromaDB will use HttpClient instead of PersistentClient,
+        allowing concurrent access from multiple processes.
+        """
+        db_config = self._config.get('database', {})
+        vector_config = db_config.get('vector_store', {})
+        return vector_config.get('server_host')
+
+    @property
+    def vector_store_server_port(self) -> int:
+        """Get the ChromaDB server port for server mode."""
+        db_config = self._config.get('database', {})
+        vector_config = db_config.get('vector_store', {})
+        return vector_config.get('server_port', 8000)
+
+    @property
     def chunk_size(self) -> int:
         """Get the document chunk size for embeddings."""
         chunking_config = self._config.get('chunking', {})

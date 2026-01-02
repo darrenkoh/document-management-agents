@@ -683,25 +683,30 @@ class FileHandler:
         import re
         text = re.sub(r'\[\[\d+,\s*\d+,\s*\d+,\s*\d+\]\]', '', text).strip()
 
-        # Check for minimum length (at least 10 characters for meaningful content)
-        if len(text) < 10:
+        # Remove HTML tags (common in some OCR outputs like Chandra/DeepSeek)
+        # We replace with space to avoid merging words like <div>Word</div>
+        clean_text = re.sub(r'<[^>]+>', ' ', text).strip()
+
+        # Check for minimum length (at least 5 characters for meaningful content after stripping tags)
+        if len(clean_text) < 5:
             return False
 
         # Check if it's just whitespace, punctuation, or common OCR artifacts
-        if text.replace(' ', '').replace('\n', '').replace('\t', '').replace('-', '').replace('_', '').replace('=', '').replace('*', '').replace('#', '') == '':
+        if clean_text.replace(' ', '').replace('\n', '').replace('\t', '').replace('-', '').replace('_', '').replace('=', '').replace('*', '').replace('#', '') == '':
             return False
 
-        # Check for common "no content" responses
+        # Check for common "no content" responses in the cleaned text
         no_content_indicators = [
             'no text found', 'no content', 'empty', 'blank',
             'no readable text', 'unable to extract', 'no data',
             'image', 'photo', 'picture', 'diagram', 'chart', 'graph'
         ]
-        if any(indicator in text.lower() for indicator in no_content_indicators):
+        if any(indicator in clean_text.lower() for indicator in no_content_indicators):
             return False
 
         # Check if text contains actual readable words (not just symbols)
-        words = [word for word in text.split() if word.isalnum() and len(word) > 1]
+        # Filter for words that have at least one alphanumeric character and length >= 2
+        words = [word for word in clean_text.split() if any(c.isalnum() for c in word) and len(word) >= 2]
         if len(words) < 2:  # Need at least 2 meaningful words
             return False
 

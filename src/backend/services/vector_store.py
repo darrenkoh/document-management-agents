@@ -2,6 +2,8 @@
 import logging
 import numpy as np
 import os
+import fcntl
+import atexit
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
@@ -10,6 +12,126 @@ from pathlib import Path
 os.environ.setdefault('ANONYMIZED_TELEMETRY', 'False')
 
 logger = logging.getLogger(__name__)
+
+
+class ChromaDBLock:
+    """File-based lock to prevent concurrent ChromaDB access from multiple processes.
+    
+    ChromaDB's PersistentClient doesn't handle concurrent access well, which can
+    cause data corruption. This lock ensures only one process accesses the database
+    at a time.
+    """
+    
+    _instances: Dict[str, 'ChromaDBLock'] = {}
+    
+    def __init__(self, persist_directory: str):
+        self.lock_file_path = Path(persist_directory) / ".chromadb.lock"
+        self.lock_file_path.parent.mkdir(parents=True, exist_ok=True)
+        self.lock_file = None
+        self._locked = False
+        
+    @classmethod
+    def get_lock(cls, persist_directory: str) -> 'ChromaDBLock':
+        """Get or create a lock for the given directory."""
+        if persist_directory not in cls._instances:
+            cls._instances[persist_directory] = cls(persist_directory)
+        return cls._instances[persist_directory]
+    
+    def _get_lock_holder_pid(self) -> Optional[int]:
+        """Try to read the PID of the process holding the lock."""
+        try:
+            if self.lock_file_path.exists():
+                with open(self.lock_file_path, 'r') as f:
+                    content = f.read().strip()
+                    if content:
+                        return int(content)
+        except Exception:
+            pass
+        return None
+    
+    def acquire(self, blocking: bool = False) -> bool:
+        """Acquire the lock.
+        
+        Args:
+            blocking: If True, block until lock is acquired. If False, fail immediately
+                     if lock is held by another process.
+        
+        Returns:
+            True if lock was acquired
+            
+        Raises:
+            RuntimeError: If non-blocking and lock is held by another process
+        """
+        if self._locked:
+            return True  # Already locked by this process
+            
+        self.lock_file = open(self.lock_file_path, 'w')
+        try:
+            lock_flags = fcntl.LOCK_EX
+            if not blocking:
+                lock_flags |= fcntl.LOCK_NB
+                
+            fcntl.flock(self.lock_file.fileno(), lock_flags)
+            self._locked = True
+            # Write PID to lock file for debugging
+            self.lock_file.write(f"{os.getpid()}\n")
+            self.lock_file.flush()
+            logger.debug(f"Acquired ChromaDB lock: {self.lock_file_path}")
+            return True
+            
+        except BlockingIOError:
+            # Lock is held by another process
+            if self.lock_file:
+                self.lock_file.close()
+                self.lock_file = None
+            
+            holder_pid = self._get_lock_holder_pid()
+            pid_info = f" (PID: {holder_pid})" if holder_pid else ""
+            
+            error_msg = (
+                f"\n{'='*70}\n"
+                f"ERROR: ChromaDB is locked by another process{pid_info}\n"
+                f"{'='*70}\n"
+                f"\n"
+                f"ChromaDB cannot be accessed by multiple processes simultaneously.\n"
+                f"This causes data corruption.\n"
+                f"\n"
+                f"SOLUTION: Stop the other process before running this one:\n"
+                f"  - If the API server (app.py) is running, stop it first\n"
+                f"  - If document_ingestion.py is running, wait for it to finish\n"
+                f"\n"
+                f"Lock file: {self.lock_file_path}\n"
+                f"{'='*70}\n"
+            )
+            logger.error(error_msg)
+            raise RuntimeError(f"ChromaDB locked by another process{pid_info}. Stop it before continuing.")
+            
+        except Exception as e:
+            logger.error(f"Failed to acquire ChromaDB lock: {e}")
+            if self.lock_file:
+                self.lock_file.close()
+                self.lock_file = None
+            raise
+    
+    def release(self):
+        """Release the lock."""
+        if self.lock_file and self._locked:
+            try:
+                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
+                self.lock_file.close()
+                self.lock_file = None
+                self._locked = False
+                logger.debug(f"Released ChromaDB lock: {self.lock_file_path}")
+            except Exception as e:
+                logger.error(f"Failed to release ChromaDB lock: {e}")
+    
+    def __enter__(self):
+        self.acquire()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
+        return False
 
 
 class VectorStore(ABC):
@@ -123,7 +245,11 @@ class ChromaVectorStore(VectorStore):
         Args:
             persist_directory: Directory to persist ChromaDB data
             collection_name: Name of the ChromaDB collection
-            **kwargs: Additional ChromaDB configuration
+            **kwargs: Additional ChromaDB configuration including:
+                - server_host: If set, connect to ChromaDB server instead of using PersistentClient
+                - server_port: Port for ChromaDB server (default: 8000)
+                - dimension: Expected embedding dimension
+                - distance_metric: Distance metric for similarity search
         """
         # Disable ChromaDB telemetry by setting environment variable
         import os
@@ -142,19 +268,38 @@ class ChromaVectorStore(VectorStore):
         self.base_collection_name = collection_name
         self.collection_name = collection_name
         self.expected_dimension = kwargs.get('dimension')
-
-        # Filter out ChromaDB-specific parameters that shouldn't go to Settings
-        chromadb_settings = {k: v for k, v in kwargs.items() if k not in ['dimension', 'distance_metric']}
-        # Note: 'dimension' is not used by ChromaDB as it handles embedding dimensions automatically
+        
+        # Check if we should use server mode (HttpClient) for concurrent access
+        server_host = kwargs.get('server_host')
+        server_port = kwargs.get('server_port', 8000)
+        self._using_server_mode = server_host is not None
+        self._lock = None
 
         # Extract distance metric configuration
         self.distance_metric = kwargs.get('distance_metric', 'l2')  # Default to 'l2' for backward compatibility
 
-        # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(
-            path=str(self.persist_directory),
-            settings=Settings(**chromadb_settings)
-        )
+        if self._using_server_mode:
+            # Use HttpClient for server mode - supports concurrent access
+            logger.info(f"Connecting to ChromaDB server at {server_host}:{server_port}")
+            self.client = chromadb.HttpClient(host=server_host, port=server_port)
+        else:
+            # Use PersistentClient with file locking for local mode
+            # Acquire file lock to prevent concurrent access from multiple processes
+            self._lock = ChromaDBLock.get_lock(str(self.persist_directory))
+            self._lock.acquire(blocking=False)
+            
+            # Register cleanup on exit to ensure lock is released
+            atexit.register(self._release_lock)
+
+            # Filter out ChromaDB-specific parameters that shouldn't go to Settings
+            chromadb_settings = {k: v for k, v in kwargs.items() 
+                                if k not in ['dimension', 'distance_metric', 'server_host', 'server_port']}
+
+            # Initialize ChromaDB client
+            self.client = chromadb.PersistentClient(
+                path=str(self.persist_directory),
+                settings=Settings(**chromadb_settings)
+            )
 
         # Get or create collection with distance metric (and store our expected embedding dim in metadata)
         try:
@@ -565,10 +710,22 @@ class ChromaVectorStore(VectorStore):
             logger.error(f"Error getting count from ChromaDB: {e}")
             return 0
 
+    def _release_lock(self):
+        """Release the file lock (called on close or atexit)."""
+        if hasattr(self, '_lock') and self._lock:
+            self._lock.release()
+
     def close(self):
-        """Close ChromaDB connection."""
+        """Close ChromaDB connection and release lock."""
         # ChromaDB handles persistence automatically
-        pass
+        # Release the file lock to allow other processes to access
+        self._release_lock()
+        
+        # Unregister atexit handler since we're closing explicitly
+        try:
+            atexit.unregister(self._release_lock)
+        except Exception:
+            pass
 
 
 class FAISSVectorStore(VectorStore):
