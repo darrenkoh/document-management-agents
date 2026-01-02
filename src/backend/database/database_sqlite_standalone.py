@@ -143,6 +143,21 @@ class SQLiteDocumentDatabase:
                 )
             ''')
 
+            # Failed files table to track files that could not be processed (by hash)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS failed_files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_path TEXT,
+                    filename TEXT,
+                    file_hash TEXT UNIQUE,
+                    stage TEXT,
+                    reason TEXT,
+                    error_type TEXT,
+                    error_message TEXT,
+                    failed_at REAL
+                )
+            ''')
+
             # Indexes for fast lookups (critical for performance)
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_file_hash ON documents(file_hash)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_file_path ON documents(file_path)')
@@ -151,6 +166,9 @@ class SQLiteDocumentDatabase:
 
             # Index for deleted files lookup
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_deleted_file_hash ON deleted_files(file_hash)')
+
+            # Index for failed files lookup / sorting
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_failed_files_failed_at ON failed_files(failed_at)')
 
     @contextmanager
     def _get_cursor(self):
@@ -284,6 +302,73 @@ class SQLiteDocumentDatabase:
             cursor.execute('SELECT 1 FROM deleted_files WHERE file_hash = ? LIMIT 1', (file_hash,))
             row = cursor.fetchone()
             return row is not None
+
+    def is_file_hash_failed(self, file_hash: str) -> bool:
+        """Check if a file hash exists in the failed_files table (FAST - uses UNIQUE index).
+
+        Args:
+            file_hash: SHA-256 hash of the file content
+
+        Returns:
+            True if the file hash was previously recorded as failed, False otherwise
+        """
+        with self._get_cursor() as cursor:
+            cursor.execute('SELECT 1 FROM failed_files WHERE file_hash = ? LIMIT 1', (file_hash,))
+            row = cursor.fetchone()
+            return row is not None
+
+    def record_failed_file(
+        self,
+        file_path: str,
+        file_hash: Optional[str],
+        stage: str,
+        reason: str,
+        error_type: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """Record a file processing failure for later inspection and skip-on-rerun.
+
+        If file_hash is provided, this will upsert by file_hash (latest failure wins).
+        If file_hash is None, a new row is inserted (cannot be deduped by hash).
+        """
+        now = datetime.now().timestamp()
+        filename = Path(file_path).name if file_path else None
+
+        with self._get_cursor() as cursor:
+            if file_hash:
+                # Upsert (SQLite 3.24+)
+                cursor.execute(
+                    '''
+                    INSERT INTO failed_files
+                      (file_path, filename, file_hash, stage, reason, error_type, error_message, failed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(file_hash) DO UPDATE SET
+                      file_path=excluded.file_path,
+                      filename=excluded.filename,
+                      stage=excluded.stage,
+                      reason=excluded.reason,
+                      error_type=excluded.error_type,
+                      error_message=excluded.error_message,
+                      failed_at=excluded.failed_at
+                    ''',
+                    (file_path, filename, file_hash, stage, reason, error_type, error_message, now),
+                )
+            else:
+                cursor.execute(
+                    '''
+                    INSERT INTO failed_files
+                      (file_path, filename, file_hash, stage, reason, error_type, error_message, failed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''',
+                    (file_path, filename, None, stage, reason, error_type, error_message, now),
+                )
+
+    def clear_failed_file(self, file_hash: str) -> None:
+        """Remove any failed_files entry for the given file hash."""
+        if not file_hash:
+            return
+        with self._get_cursor() as cursor:
+            cursor.execute('DELETE FROM failed_files WHERE file_hash = ?', (file_hash,))
 
     def _row_to_dict(self, row) -> Dict:
         """Convert SQLite Row to dictionary with proper JSON parsing."""

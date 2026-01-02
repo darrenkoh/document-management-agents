@@ -18,6 +18,7 @@ This system automatically processes, classifies, and indexes your documents usin
 
 5. **Storage**: 
    - **SQLite Database**: Stores document metadata, categories, file paths, and content previews
+   - **Failed Files Tracking**: Stores ingestion failures in a `failed_files` table (file path, hash, stage, reason, error details) so you can review and manage failed items from the UI
    - **ChromaDB Vector Store**: Stores embeddings for fast semantic similarity search
 
 6. **Search & Retrieval**: The system uses hybrid search combining:
@@ -48,15 +49,20 @@ graph TB
     D --> F
     
     F --> G[Content Hash]
-    G --> H{Duplicate Check}
+    G --> H{Skip Checks}
+    H -->|Deleted_hash| ZD[Skip_Deleted]
+    H -->|Failed_hash| ZF[Skip_Failed]
+    H -->|Duplicate_hash| Z[Skip_Duplicate]
     H -->|New| I[AI Classifier]
-    H -->|Duplicate| Z[Skip]
     
     I -->|LLM| J[Categories & Metadata]
     F --> K[Embedding Generator]
     K -->|text-embedding-3-small| L[Vector Embeddings]
     
-    J --> M[SQLite Database]
+    J --> M[SQLite_Documents_Table]
+    I -->|on_failure| FF[SQLite_Failed_Files_Table]
+    C -->|on_failure| FF
+    K -->|on_failure| FF
     L --> N[ChromaDB Vector Store]
     
     O[User Query] --> P[Query Embedding]
@@ -72,12 +78,14 @@ graph TB
     X --> T
     T --> M
     M --> U[Web UI / CLI]
+    FF --> U
     
     style A fill:#e1f5ff
     style I fill:#fff4e1
     style K fill:#fff4e1
     style R fill:#fff4e1
     style M fill:#e8f5e9
+    style FF fill:#e8f5e9
     style N fill:#e8f5e9
     style V fill:#e8f5e9
     style X fill:#fff4e1
@@ -171,9 +179,19 @@ llm:
 python document_ingestion.py classify
 ```
 
+**Skip previously-failed files (by file hash):**
+```bash
+python document_ingestion.py classify --skip-failed
+```
+
 **Continuous monitoring (watch mode):**
 ```bash
 python document_ingestion.py watch
+```
+
+**Watch mode + skip previously-failed files (by file hash):**
+```bash
+python document_ingestion.py watch --skip-failed
 ```
 
 **CLI search:**
@@ -386,6 +404,15 @@ prompt_template: |
 - Try recreating database (backup first)
 - Check ChromaDB logs in `data/vector_store/`
 - Ensure embedding dimension matches model output
+
+### Files Keep Failing / Avoid Reprocessing Them
+
+**Problem**: The same file fails on every run and you want to stop retrying it automatically.
+
+**Solutions**:
+- Use `python document_ingestion.py classify --skip-failed` to skip any file whose SHA256 hash exists in the `failed_files` table.
+- To allow a previously-failed file to be retried, delete its row from the `failed_files` table:
+  - In the Web UI: go to **Database → failed_files** and delete the row.
 
 ### General Debugging
 

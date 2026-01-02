@@ -314,7 +314,7 @@ export default function DatabasePage() {
 
   const getDefaultSortColumn = (columns: ColumnInfo[]): string | null => {
     // Priority order for default sort columns
-    const priorityColumns = ['id', 'created_at', 'updated_at', 'deleted_at', 'classification_date'];
+    const priorityColumns = ['id', 'created_at', 'updated_at', 'deleted_at', 'failed_at', 'classification_date'];
 
     for (const colName of priorityColumns) {
       const column = columns.find(col => col.name === colName);
@@ -709,7 +709,11 @@ export default function DatabasePage() {
                           {row.map((cell, cellIndex) => {
                             const columnName = tableData.columns[cellIndex];
                             const isContentColumn = columnName === 'content';
-                            const isTimestampColumn = columnName === 'created_at' || columnName === 'updated_at' || columnName === 'deleted_at';
+                            const isTimestampColumn =
+                              columnName === 'created_at' ||
+                              columnName === 'updated_at' ||
+                              columnName === 'deleted_at' ||
+                              columnName === 'failed_at';
 
                             // Format timestamp columns
                             let displayValue = cell;

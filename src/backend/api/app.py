@@ -63,7 +63,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:3000", "http://localhost:5173", "http://localhost:5000"],
-        "methods": ["GET", "POST", "DELETE", "OPTIONS"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Cache-Control"]
     }
 })

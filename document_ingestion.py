@@ -94,6 +94,11 @@ def main():
         nargs='+',
         help='Override source directories from config (can specify multiple)'
     )
+    classify_parser.add_argument(
+        '--skip-failed',
+        action='store_true',
+        help='Skip files whose hash exists in the failed_files table (avoid reprocessing known failures)'
+    )
     
     # Watch command
     watch_parser = subparsers.add_parser(
@@ -110,6 +115,11 @@ def main():
         '--interval',
         type=int,
         help='Override polling interval from config (seconds)'
+    )
+    watch_parser.add_argument(
+        '--skip-failed',
+        action='store_true',
+        help='Skip files whose hash exists in the failed_files table (avoid reprocessing known failures)'
     )
     
     # Search command
@@ -169,7 +179,7 @@ def main():
             logger.info("Verbose logging enabled - LLM requests and responses will be logged")
         
         # Initialize agent
-        agent = DocumentAgent(config, verbose=verbose)
+        agent = DocumentAgent(config, verbose=verbose, skip_failed=getattr(args, 'skip_failed', False))
         
         try:
             # Execute command
@@ -180,10 +190,16 @@ def main():
                 print(f"  Processed: {stats['processed']}")
                 print(f"  Skipped (duplicates): {stats.get('skipped', 0)}")
                 print(f"  Skipped (deleted): {stats.get('skipped_deleted', 0)}")
+                print(f"  Skipped (failed): {stats.get('skipped_failed', 0)}")
                 print(f"  Failed: {stats['failed']}")
 
                 # Display and log performance metrics
-                processed_or_skipped = stats['processed'] + stats.get('skipped', 0) + stats.get('skipped_deleted', 0)
+                processed_or_skipped = (
+                    stats['processed']
+                    + stats.get('skipped', 0)
+                    + stats.get('skipped_deleted', 0)
+                    + stats.get('skipped_failed', 0)
+                )
                 if 'performance' in stats and processed_or_skipped > 0:
                     perf = stats['performance']
                     print(f"\nPerformance metrics (per file averages, including skipped files):")

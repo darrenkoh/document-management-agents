@@ -24,15 +24,17 @@ logger = logging.getLogger(__name__)
 class DocumentAgent:
     """Main agent that orchestrates the document classification workflow."""
     
-    def __init__(self, config: Config, verbose: bool = False):
+    def __init__(self, config: Config, verbose: bool = False, skip_failed: bool = False):
         """Initialize the document agent.
         
         Args:
             config: Configuration object
             verbose: If True, enable verbose logging for LLM interactions
+            skip_failed: If True, skip files whose hash exists in the failed_files table
         """
         self.config = config
         self.verbose = verbose
+        self.skip_failed = skip_failed
         self.file_handler = FileHandler(
             config.source_paths,
             ollama_endpoint=config.llm_endpoint,
@@ -179,6 +181,7 @@ class DocumentAgent:
             'failed': 0,
             'skipped': 0,
             'skipped_deleted': 0,
+            'skipped_failed': 0,
             'segmented': 0,
             'performance': {
                 'total_hash_duration': 0.0,
@@ -216,6 +219,9 @@ class DocumentAgent:
                     elif status == 'skipped_deleted':
                         stats['skipped_deleted'] += 1
                         processed_files_count += 1  # Still count for performance averages
+                    elif status == 'skipped_failed':
+                        stats['skipped_failed'] += 1
+                        processed_files_count += 1  # Still count for performance averages
                     elif status == 'segmented':
                         stats['segmented'] += 1
                         processed_files_count += 1  # Count for progress/averages (metrics are near-zero)
@@ -232,14 +238,20 @@ class DocumentAgent:
 
                     # Call progress callback after each file
                     if progress_callback:
-                        progress_callback(stats['processed'] + stats['skipped'] + stats['skipped_deleted'] + stats['failed'], stats['total'])
+                        progress_callback(
+                            stats['processed'] + stats['skipped'] + stats['skipped_deleted'] + stats['skipped_failed'] + stats['failed'],
+                            stats['total']
+                        )
 
                 except Exception as e:
                     logger.error(f"Unexpected error processing {file_path}: {e}")
                     stats['failed'] += 1
                     # Call progress callback even on error
                     if progress_callback:
-                        progress_callback(stats['processed'] + stats['skipped'] + stats['skipped_deleted'] + stats['failed'], stats['total'])
+                        progress_callback(
+                            stats['processed'] + stats['skipped'] + stats['skipped_deleted'] + stats['skipped_failed'] + stats['failed'],
+                            stats['total']
+                        )
 
         # Calculate averages
         if processed_files_count > 0:
@@ -254,6 +266,7 @@ class DocumentAgent:
             f"Batch processing complete: {stats['processed']} processed, "
             f"{stats['skipped']} skipped (duplicates), "
             f"{stats['skipped_deleted']} skipped (deleted), "
+            f"{stats['skipped_failed']} skipped (failed), "
             f"{stats['failed']} failed, {stats['total']} total"
         )
 
@@ -269,6 +282,8 @@ class DocumentAgent:
             Tuple of (status string, performance metrics dictionary)
             Status can be: 'processed', 'skipped_duplicate', 'skipped_deleted', 'failed'
         """
+        file_hash: str | None = None
+        stage: str = 'start'
         try:
             # Initialize performance metrics
             perf_metrics = {
@@ -285,9 +300,20 @@ class DocumentAgent:
                 return ('segmented', perf_metrics)
 
             # Generate file hash first
+            stage = 'hash'
             hash_result = self.file_handler.generate_file_hash(file_path)
             if not hash_result:
                 logger.error(f"Failed to generate hash for {file_path.name}, skipping")
+                try:
+                    self.database.record_failed_file(
+                        file_path=str(file_path),
+                        file_hash=None,
+                        stage='hash',
+                        reason='Failed to generate file hash',
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to record failed_files entry for {file_path}: {e}")
+
                 return ('failed', {'hash_duration': 0.0, 'ocr_duration': 0.0, 'classification_duration': 0.0,
                                'embedding_duration': 0.0, 'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
 
@@ -295,6 +321,7 @@ class DocumentAgent:
 
             # Check if file was previously deleted (skip processing deleted files)
             db_lookup_start = time.time()
+            stage = 'db_lookup'
             if self.database.is_file_hash_deleted(file_hash):
                 logger.info(f"Skipping previously deleted file: {file_path.name} (hash: {file_hash[:16]}...)")
                 perf_metrics['db_lookup_duration'] = time.time() - db_lookup_start
@@ -307,6 +334,19 @@ class DocumentAgent:
                            f"total={total_duration:.3f}s")
 
                 return ('skipped_deleted', {**perf_metrics, 'ocr_duration': 0.0, 'classification_duration': 0.0, 'embedding_duration': 0.0, 'db_insert_duration': 0.0})
+
+            # Optional: skip processing files known to fail (by hash)
+            if self.skip_failed and self.database.is_file_hash_failed(file_hash):
+                logger.info(f"Skipping previously failed file: {file_path.name} (hash: {file_hash[:16]}...)")
+                perf_metrics['db_lookup_duration'] = time.time() - db_lookup_start
+
+                total_duration = perf_metrics['hash_duration'] + perf_metrics['db_lookup_duration']
+                logger.info(f"Performance for {file_path.name} (skipped - previously failed): "
+                           f"hash={perf_metrics['hash_duration']:.3f}s, "
+                           f"db_lookup={perf_metrics['db_lookup_duration']:.3f}s, "
+                           f"total={total_duration:.3f}s")
+
+                return ('skipped_failed', {**perf_metrics, 'ocr_duration': 0.0, 'classification_duration': 0.0, 'embedding_duration': 0.0, 'db_insert_duration': 0.0})
 
             # Check if already processed by hash (content-based duplicate detection)
             existing = self.database.get_document_by_hash(file_hash)
@@ -328,21 +368,41 @@ class DocumentAgent:
             logger.info(f"Processing file: {file_path.name} (hash: {file_hash[:16]}...)")
 
             # Extract text content
+            stage = 'extract_text'
             content, ocr_duration, ocr_used = self.file_handler.extract_text(file_path)
             perf_metrics['ocr_duration'] = ocr_duration
 
             if not content or not content.strip():
                 logger.warning(f"No content extracted from {file_path.name}, skipping")
+                try:
+                    self.database.record_failed_file(
+                        file_path=str(file_path),
+                        file_hash=file_hash,
+                        stage='extract_text',
+                        reason='No content extracted',
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to record failed_files entry for {file_path}: {e}")
                 # Add missing metrics for early returns
                 perf_metrics.update({'db_lookup_duration': perf_metrics.get('db_lookup_duration', 0.0),
                                    'db_insert_duration': 0.0})
                 return ('failed', perf_metrics)
             
             # Classify content
+            stage = 'classify'
             classification_result = self.classifier.classify(content, file_path.name, verbose=self.verbose)
 
             if not classification_result:
                 logger.error(f"Failed to classify {file_path.name}")
+                try:
+                    self.database.record_failed_file(
+                        file_path=str(file_path),
+                        file_hash=file_hash,
+                        stage='classify',
+                        reason='Failed to classify',
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to record failed_files entry for {file_path}: {e}")
                 # Add missing metrics for early returns
                 perf_metrics.update({'db_lookup_duration': perf_metrics.get('db_lookup_duration', 0.0),
                                    'db_insert_duration': 0.0})
@@ -357,6 +417,7 @@ class DocumentAgent:
                 sub_categories = []
 
             # Generate embeddings using semantic chunking and summary
+            stage = 'embeddings'
             logger.info(f"Generating embeddings for {file_path.name}...")
             embedding_start = time.time()
             embedding_result = self.embedding_generator.generate_document_embeddings(
@@ -370,6 +431,15 @@ class DocumentAgent:
             # Check if we have at least one embedding (chunks or summary)
             if not embedding_result['chunks'] and not embedding_result['summary']:
                 logger.error(f"Failed to generate any embeddings for {file_path.name}")
+                try:
+                    self.database.record_failed_file(
+                        file_path=str(file_path),
+                        file_hash=file_hash,
+                        stage='embeddings',
+                        reason='Failed to generate any embeddings',
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to record failed_files entry for {file_path}: {e}")
                 # Add missing metrics for early returns
                 perf_metrics.update({'db_lookup_duration': perf_metrics.get('db_lookup_duration', 0.0),
                                    'db_insert_duration': 0.0})
@@ -397,6 +467,7 @@ class DocumentAgent:
             }
 
             # Store in database
+            stage = 'db_insert'
             db_insert_start = time.time()
             doc_id = self.database.store_classification(
                 file_path=str(file_path),
@@ -417,6 +488,13 @@ class DocumentAgent:
             )
             perf_metrics['db_insert_duration'] = time.time() - db_insert_start
 
+            # Clear any prior failure marker for this hash (so it can be reprocessed)
+            try:
+                if file_hash:
+                    self.database.clear_failed_file(file_hash)
+            except Exception as e:
+                logger.debug(f"Failed to clear failed_files entry for {file_path} (hash: {file_hash}): {e}")
+
             logger.info(f"Successfully processed {file_path.name} -> {categories} (DB ID: {doc_id})")
 
             # Log performance metrics for this file
@@ -435,6 +513,17 @@ class DocumentAgent:
 
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {e}")
+            try:
+                self.database.record_failed_file(
+                    file_path=str(file_path),
+                    file_hash=file_hash,
+                    stage=stage or 'unknown',
+                    reason='Unhandled exception during processing',
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
+            except Exception as e2:
+                logger.debug(f"Failed to record failed_files entry for {file_path}: {e2}")
             return ('failed', {'hash_duration': 0.0, 'ocr_duration': 0.0, 'classification_duration': 0.0,
                            'embedding_duration': 0.0, 'db_lookup_duration': 0.0, 'db_insert_duration': 0.0})
 
@@ -579,6 +668,8 @@ class DocumentAgent:
             'processed': 0,
             'failed': 0,
             'skipped': 0,
+            'skipped_deleted': 0,
+            'skipped_failed': 0,
             'segmented': 0,
             'performance': {
                 'total_hash_duration': 0.0,
@@ -620,6 +711,8 @@ class DocumentAgent:
             total_stats['processed'] += batch_stats['processed']
             total_stats['failed'] += batch_stats['failed']
             total_stats['skipped'] += batch_stats.get('skipped', 0)
+            total_stats['skipped_deleted'] += batch_stats.get('skipped_deleted', 0)
+            total_stats['skipped_failed'] += batch_stats.get('skipped_failed', 0)
             total_stats['segmented'] += batch_stats.get('segmented', 0)
 
             # Accumulate performance metrics
@@ -643,6 +736,9 @@ class DocumentAgent:
 
         logger.info(
             f"File processing complete: {total_stats['processed']} processed, "
+            f"{total_stats['skipped']} skipped (duplicates), "
+            f"{total_stats['skipped_deleted']} skipped (deleted), "
+            f"{total_stats['skipped_failed']} skipped (failed), "
             f"{total_stats['failed']} failed, {total_stats['total']} total"
         )
 
