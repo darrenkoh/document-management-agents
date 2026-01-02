@@ -166,7 +166,7 @@ class ChromaVectorStore(VectorStore):
         # Prefer a dimension-specific collection whenever dimension is configured.
         # This avoids hard failures (and subtle correctness issues) when the embedding model changes.
         if self.expected_dimension:
-            self._switch_to_dimension_collection()
+            self._switch_to_dimension_collection(warn_on_mismatch=False)
 
     def _dimension_collection_name(self) -> Optional[str]:
         """Return the dimension-suffixed collection name (if dimension is known)."""
@@ -174,7 +174,7 @@ class ChromaVectorStore(VectorStore):
             return None
         return f"{self.base_collection_name}_dim{int(self.expected_dimension)}"
 
-    def _switch_to_dimension_collection(self) -> bool:
+    def _switch_to_dimension_collection(self, warn_on_mismatch: bool = True) -> bool:
         """Switch to a dimension-specific collection to avoid embedding-dimension mismatches.
 
         This is non-destructive: we do not delete or modify the old collection; we simply
@@ -195,15 +195,17 @@ class ChromaVectorStore(VectorStore):
         collection_metadata["embedding_dimension"] = int(self.expected_dimension)
 
         self.collection_name = dim_name
+        log_func = logger.warning if warn_on_mismatch else logger.info
+        reason_suffix = "due to embedding dimension mismatch" if warn_on_mismatch else f"for configured dimension {int(self.expected_dimension)}"
         try:
             self.collection = self.client.get_collection(name=dim_name)
-            logger.warning(
-                f"Switched to existing ChromaDB collection '{dim_name}' due to embedding dimension mismatch"
+            log_func(
+                f"Switched to existing ChromaDB collection '{dim_name}' {reason_suffix}"
             )
         except NotFoundError:
             self.collection = self.client.create_collection(name=dim_name, metadata=collection_metadata)
-            logger.warning(
-                f"Created and switched to new ChromaDB collection '{dim_name}' due to embedding dimension mismatch"
+            log_func(
+                f"Created and switched to new ChromaDB collection '{dim_name}' {reason_suffix}"
             )
         return True
 
