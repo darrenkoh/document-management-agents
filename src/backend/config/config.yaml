@@ -108,7 +108,7 @@ ocr:
     # Model name in vLLM (default: chandra)
     model: "chandra"
     # Timeout for OCR operations in seconds
-    timeout: 1800
+    timeout: 300
     # Maximum output tokens
     max_tokens: 16384
     # Frequency penalty to reduce repetition in generated text (0.0 to 2.0)
@@ -127,7 +127,7 @@ ocr:
     # Model name in vLLM (default: tencent/HunyuanOCR)
     model: "tencent/HunyuanOCR"
     # Timeout for OCR operations in seconds
-    timeout: 1800
+    timeout: 300
     # Maximum output tokens
     max_tokens: 16384
     # Retry configuration
