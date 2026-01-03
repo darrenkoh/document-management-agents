@@ -469,84 +469,80 @@ class FileHandler:
         Returns:
             Tuple of (extracted text content or None if extraction fails, OCR duration in seconds, whether OCR was used)
         """
+        # No try-except here to allow exceptions to propagate
         # Ensure file_path is a Path object
         if isinstance(file_path, str):
             file_path = Path(file_path)
-        try:
-            suffix = file_path.suffix.lower()
+        suffix = file_path.suffix.lower()
 
-            if suffix == '.pdf':
-                text = self._extract_from_pdf(file_path)
-                # Check if PDF text extraction returned meaningful content
-                should_use_ocr = False
-                if not text or not text.strip():
-                    should_use_ocr = True
-                elif len(text.strip()) < 50:  # Threshold for "minimal" content
-                    should_use_ocr = True
-                elif self._is_garbage_text(text):  # Check for garbage/random text
-                    should_use_ocr = True
+        if suffix == '.pdf':
+            text = self._extract_from_pdf(file_path)
+            # Check if PDF text extraction returned meaningful content
+            should_use_ocr = False
+            if not text or not text.strip():
+                should_use_ocr = True
+            elif len(text.strip()) < 50:  # Threshold for "minimal" content
+                should_use_ocr = True
+            elif self._is_garbage_text(text):  # Check for garbage/random text
+                should_use_ocr = True
 
-                if should_use_ocr:
-                    if self.ocr_available:
-                        ocr_provider_name = self._get_ocr_provider_name()
-                        reason = "no content" if not text else "minimal content" if len(text.strip()) < 50 else "garbage text detected"
-                        logger.info(f"PDF text extraction returned {reason}, trying {ocr_provider_name} for {file_path}")
-                        ocr_result = self._extract_text_with_ocr(file_path)
-                        if ocr_result:
-                            ocr_text, ocr_duration = ocr_result
-                            logger.info(f"{ocr_provider_name} successfully extracted text from {file_path}")
-                            return (ocr_text, ocr_duration, True)
-                        else:
-                            logger.warning(f"{ocr_provider_name} failed, using extracted text (may be garbage)")
-                            return (text, 0.0, False)
-                    else:
-                        ocr_provider_name = self._get_ocr_provider_name()
-                        logger.warning(f"{ocr_provider_name} not available, using potentially garbage text from {file_path}")
-                        return (text, 0.0, False)
-                return (text, 0.0, False)
-            elif suffix == '.docx':
-                text = self._extract_from_docx(file_path)
-                # If DOCX text extraction returns minimal content, try OCR as fallback
-                if not text or len(text.strip()) < 50:  # Threshold for "empty" content
-                    if self.ocr_available:
-                        ocr_provider_name = self._get_ocr_provider_name()
-                        logger.info(f"DOCX text extraction returned minimal content, trying {ocr_provider_name} for {file_path}")
-                        ocr_result = self._extract_text_with_ocr(file_path)
-                        if ocr_result:
-                            ocr_text, ocr_duration = ocr_result
-                            logger.info(f"{ocr_provider_name} successfully extracted text from DOCX {file_path}")
-                            return (ocr_text, ocr_duration, True)
-                        else:
-                            return (text, 0.0, False)
-                    else:
-                        ocr_provider_name = self._get_ocr_provider_name()
-                        logger.warning(f"{ocr_provider_name} not available, skipping OCR fallback for {file_path}")
-                        return (text, 0.0, False)
-                return (text, 0.0, False)
-            elif suffix == '.doc':
-                return (self._extract_from_doc(file_path), 0.0, False)
-            elif suffix == '.txt':
-                return (self._extract_from_txt(file_path), 0.0, False)
-            elif suffix in ['.png', '.jpg', '.jpeg', '.heic', '.gif', '.tiff', '.bmp']:
+            if should_use_ocr:
                 if self.ocr_available:
-                    text, ocr_duration = self._extract_from_image(file_path)
-                    if text is not None:
-                        return (text, ocr_duration, True)
+                    ocr_provider_name = self._get_ocr_provider_name()
+                    reason = "no content" if not text else "minimal content" if len(text.strip()) < 50 else "garbage text detected"
+                    logger.info(f"PDF text extraction returned {reason}, trying {ocr_provider_name} for {file_path}")
+                    ocr_result = self._extract_text_with_ocr(file_path)
+                    if ocr_result:
+                        ocr_text, ocr_duration = ocr_result
+                        logger.info(f"{ocr_provider_name} successfully extracted text from {file_path}")
+                        return (ocr_text, ocr_duration, True)
                     else:
-                        logger.info(f"Skipping image {file_path} - no meaningful text content found")
-                        return (None, ocr_duration, True)
+                        logger.warning(f"{ocr_provider_name} failed, using extracted text (may be garbage)")
+                        return (text, 0.0, False)
                 else:
                     ocr_provider_name = self._get_ocr_provider_name()
-                    logger.warning(f"{ocr_provider_name} not available, skipping image {file_path}")
-                    return (None, 0.0, False)
+                    logger.warning(f"{ocr_provider_name} not available, using potentially garbage text from {file_path}")
+                    return (text, 0.0, False)
+            return (text, 0.0, False)
+        elif suffix == '.docx':
+            text = self._extract_from_docx(file_path)
+            # If DOCX text extraction returns minimal content, try OCR as fallback
+            if not text or len(text.strip()) < 50:  # Threshold for "empty" content
+                if self.ocr_available:
+                    ocr_provider_name = self._get_ocr_provider_name()
+                    logger.info(f"DOCX text extraction returned minimal content, trying {ocr_provider_name} for {file_path}")
+                    ocr_result = self._extract_text_with_ocr(file_path)
+                    if ocr_result:
+                        ocr_text, ocr_duration = ocr_result
+                        logger.info(f"{ocr_provider_name} successfully extracted text from DOCX {file_path}")
+                        return (ocr_text, ocr_duration, True)
+                    else:
+                        return (text, 0.0, False)
+                else:
+                    ocr_provider_name = self._get_ocr_provider_name()
+                    logger.warning(f"{ocr_provider_name} not available, skipping OCR fallback for {file_path}")
+                    return (text, 0.0, False)
+            return (text, 0.0, False)
+        elif suffix == '.doc':
+            return (self._extract_from_doc(file_path), 0.0, False)
+        elif suffix == '.txt':
+            return (self._extract_from_txt(file_path), 0.0, False)
+        elif suffix in ['.png', '.jpg', '.jpeg', '.heic', '.gif', '.tiff', '.bmp']:
+            if self.ocr_available:
+                text, ocr_duration = self._extract_from_image(file_path)
+                if text is not None:
+                    return (text, ocr_duration, True)
+                else:
+                    logger.info(f"Skipping image {file_path} - no meaningful text content found")
+                    return (None, ocr_duration, True)
             else:
-                logger.warning(f"Unsupported file type: {suffix}")
+                ocr_provider_name = self._get_ocr_provider_name()
+                logger.warning(f"{ocr_provider_name} not available, skipping image {file_path}")
                 return (None, 0.0, False)
-
-        except Exception as e:
-            logger.error(f"Error extracting text from {file_path}: {e}")
+        else:
+            logger.warning(f"Unsupported file type: {suffix}")
             return (None, 0.0, False)
-    
+
     def _extract_from_pdf(self, file_path: Path) -> str:
         """Extract text from PDF file."""
         text_parts = []
@@ -638,27 +634,24 @@ class FileHandler:
         Returns:
             Tuple of (extracted text or None if no meaningful text found, OCR duration in seconds)
         """
-        try:
-            image = Image.open(file_path)
-            ocr_result = self._ocr_image(image)
-            if ocr_result:
-                text, duration = ocr_result
-                # Check for meaningful content (not just whitespace or markdown boilerplate)
-                stripped_text = text.strip() if text else ""
-                if self._has_meaningful_content(stripped_text):
-                    ocr_provider_name = self._get_ocr_provider_name()
-                    logger.info(f"{ocr_provider_name} successfully extracted {len(stripped_text)} characters of meaningful content from {file_path}")
-                    return (text, duration)
-                else:
-                    ocr_provider_name = self._get_ocr_provider_name()
-                    logger.info(f"{ocr_provider_name} found no meaningful text content in image {file_path} (likely a photo, chart, or empty image). Extracted: '{stripped_text[:100]}{'...' if len(stripped_text) > 100 else ''}'")
-                    return (None, duration)
+        # No try-except here to allow exceptions to propagate
+        image = Image.open(file_path)
+        ocr_result = self._ocr_image(image)
+        if ocr_result:
+            text, duration = ocr_result
+            # Check for meaningful content (not just whitespace or markdown boilerplate)
+            stripped_text = text.strip() if text else ""
+            if self._has_meaningful_content(stripped_text):
+                ocr_provider_name = self._get_ocr_provider_name()
+                logger.info(f"{ocr_provider_name} successfully extracted {len(stripped_text)} characters of meaningful content from {file_path}")
+                return (text, duration)
             else:
                 ocr_provider_name = self._get_ocr_provider_name()
-                logger.warning(f"{ocr_provider_name} processing failed for {file_path}")
-                return (None, 0.0)
-        except Exception as e:
-            logger.error(f"Failed to process image {file_path}: {e}")
+                logger.info(f"{ocr_provider_name} found no meaningful text content in image {file_path} (likely a photo, chart, or empty image). Extracted: '{stripped_text[:100]}{'...' if len(stripped_text) > 100 else ''}'")
+                return (None, duration)
+        else:
+            ocr_provider_name = self._get_ocr_provider_name()
+            logger.warning(f"{ocr_provider_name} processing failed for {file_path}")
             return (None, 0.0)
 
     def _has_meaningful_content(self, text: str) -> bool:
@@ -842,59 +835,54 @@ class FileHandler:
         Returns:
             Tuple of (extracted text, duration) or None if OCR fails
         """
-        try:
-            suffix = file_path.suffix.lower()
-            ocr_provider_name = self._get_ocr_provider_name()
+        # No try-except here to allow exceptions to propagate
+        suffix = file_path.suffix.lower()
+        ocr_provider_name = self._get_ocr_provider_name()
 
-            if suffix == '.pdf':
-                # Convert PDF to images first
-                images = self._pdf_to_images(file_path)
-                if not images:
-                    # If we can't extract images, try to render PDF pages as images
-                    # For now, return None - in production you might want to use pdf2image
-                    logger.warning(f"Could not extract images from PDF: {file_path}")
-                    return None
-
-                # Limit the number of pages to process based on max_ocr_pages
-                total_pages = len(images)
-                if total_pages > self.max_ocr_pages:
-                    images = images[:self.max_ocr_pages]
-                    logger.info(f"PDF has {total_pages} pages, limiting OCR processing to first {self.max_ocr_pages} pages")
-
-                # Process each image with OCR
-                all_text = []
-                total_ocr_duration = 0.0
-                for i, image in enumerate(images):
-                    logger.info(f"Processing page {i+1}/{len(images)} with {ocr_provider_name}")
-                    ocr_result = self._ocr_image(image)
-                    if ocr_result:
-                        text, duration = ocr_result
-                        all_text.append(text)
-                        total_ocr_duration += duration
-                    else:
-                        logger.warning(f"Failed to extract text from page {i+1}")
-
-                if all_text:
-                    return ('\n'.join(all_text), total_ocr_duration)
-                else:
-                    return None
-
-            elif suffix == '.docx':
-                # For DOCX files, we need to convert to images first
-                # This requires additional dependencies like docx2pdf and pdf2image
-                logger.warning(f"DOCX OCR not yet implemented. Consider installing docx2pdf and pdf2image for DOCX OCR support.")
+        if suffix == '.pdf':
+            # Convert PDF to images first
+            images = self._pdf_to_images(file_path)
+            if not images:
+                # If we can't extract images, try to render PDF pages as images
+                # For now, return None - in production you might want to use pdf2image
+                logger.warning(f"Could not extract images from PDF: {file_path}")
                 return None
 
-            elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
-                # Direct image OCR
-                image = Image.open(file_path)
-                return self._ocr_image(image)  # Already returns (text, duration) or None
+            # Limit the number of pages to process based on max_ocr_pages
+            total_pages = len(images)
+            if total_pages > self.max_ocr_pages:
+                images = images[:self.max_ocr_pages]
+                logger.info(f"PDF has {total_pages} pages, limiting OCR processing to first {self.max_ocr_pages} pages")
+
+            # Process each image with OCR
+            all_text = []
+            total_ocr_duration = 0.0
+            for i, image in enumerate(images):
+                logger.info(f"Processing page {i+1}/{len(images)} with {ocr_provider_name}")
+                ocr_result = self._ocr_image(image)
+                if ocr_result:
+                    text, duration = ocr_result
+                    all_text.append(text)
+                    total_ocr_duration += duration
+                else:
+                    logger.warning(f"Failed to extract text from page {i+1}")
+
+            if all_text:
+                return ('\n'.join(all_text), total_ocr_duration)
             else:
                 return None
 
-        except Exception as e:
-            ocr_provider_name = self._get_ocr_provider_name()
-            logger.error(f"{ocr_provider_name} failed for {file_path}: {e}")
+        elif suffix == '.docx':
+            # For DOCX files, we need to convert to images first
+            # This requires additional dependencies like docx2pdf and pdf2image
+            logger.warning(f"DOCX OCR not yet implemented. Consider installing docx2pdf and pdf2image for DOCX OCR support.")
+            return None
+
+        elif suffix in ['.png', '.jpg', '.jpeg', '.gif', '.tiff', '.bmp']:
+            # Direct image OCR
+            image = Image.open(file_path)
+            return self._ocr_image(image)  # Already returns (text, duration) or None
+        else:
             return None
 
     def _ocr_image(self, image: Image.Image) -> Optional[tuple[str, float]]:
@@ -922,86 +910,73 @@ class FileHandler:
         Returns:
             Tuple of (extracted text, duration in seconds) or None if failed
         """
-        try:
-            # Convert image to base64 string (not data URL)
-            import io
-            buffer = io.BytesIO()
-            image.save(buffer, format='PNG')
-            image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        # No try-except here to allow RetryError or Exception to propagate
+        # Convert image to base64 string (not data URL)
+        import io
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-            # Call Ollama OCR with timing and retry logic
-            # Based on https://ollama.com/library/deepseek-ocr examples
-            start_time = time.time()
-            response = self._call_ollama_ocr_generate(
-                prompt="<|grounding|>Convert the document to markdown.",
-                images=[image_data],  # Base64 image data
-                options={
-                    'temperature': 0.0,  # Deterministic output for OCR
-                    'num_predict': self.ocr_num_predict,  # Configurable token limit
-                }
-            )
-            ocr_duration = time.time() - start_time
+        # Call Ollama OCR with timing and retry logic
+        # Based on https://ollama.com/library/deepseek-ocr examples
+        start_time = time.time()
+        response = self._call_ollama_ocr_generate(
+            prompt="<|grounding|>Convert the document to markdown.",
+            images=[image_data],  # Base64 image data
+            options={
+                'temperature': 0.0,  # Deterministic output for OCR
+                'num_predict': self.ocr_num_predict,  # Configurable token limit
+            }
+        )
+        ocr_duration = time.time() - start_time
 
-            # Check response field first
-            extracted_text = response.get('response', '').strip()
-            
-            # For reasoning models, check thinking field as fallback if response is empty
-            # Some reasoning models output to thinking field when they hit token limits
-            if not extracted_text:
-                thinking = response.get('thinking', '').strip()
-                if thinking:
-                    # Check if thinking contains markdown patterns (final output)
-                    has_markdown = any(marker in thinking for marker in ['# ', '## ', '- ', '* ', '| ', '```'])
+        # Check response field first
+        extracted_text = response.get('response', '').strip()
+        
+        # For reasoning models, check thinking field as fallback if response is empty
+        # Some reasoning models output to thinking field when they hit token limits
+        if not extracted_text:
+            thinking = response.get('thinking', '').strip()
+            if thinking:
+                # Check if thinking contains markdown patterns (final output)
+                has_markdown = any(marker in thinking for marker in ['# ', '## ', '- ', '* ', '| ', '```'])
+                
+                # Also check the last portion of thinking for final output
+                # Reasoning models sometimes put the answer at the end after reasoning
+                last_portion = thinking[-2000:] if len(thinking) > 2000 else thinking
+                has_final_output = any(marker in last_portion for marker in ['# ', '## ', '- ', '* ', '| ', '```'])
+                
+                if has_markdown or has_final_output:
+                    # Try to extract just the markdown portion if possible
+                    # Look for the start of markdown (first header or list)
+                    markdown_start = -1
+                    for marker in ['# ', '## ', '- ', '* ', '| ', '```']:
+                        idx = thinking.find(marker)
+                        if idx != -1 and (markdown_start == -1 or idx < markdown_start):
+                            markdown_start = idx
                     
-                    # Also check the last portion of thinking for final output
-                    # Reasoning models sometimes put the answer at the end after reasoning
-                    last_portion = thinking[-2000:] if len(thinking) > 2000 else thinking
-                    has_final_output = any(marker in last_portion for marker in ['# ', '## ', '- ', '* ', '| ', '```'])
-                    
-                    if has_markdown or has_final_output:
-                        # Try to extract just the markdown portion if possible
-                        # Look for the start of markdown (first header or list)
-                        markdown_start = -1
-                        for marker in ['# ', '## ', '- ', '* ', '| ', '```']:
-                            idx = thinking.find(marker)
-                            if idx != -1 and (markdown_start == -1 or idx < markdown_start):
-                                markdown_start = idx
-                        
-                        if markdown_start > 0:
-                            # Extract from markdown start to end
-                            extracted_text = thinking[markdown_start:].strip()
-                            logger.info(f"{self._get_ocr_provider_name()} response was empty but found markdown in thinking field (starting at position {markdown_start}), using markdown portion")
-                        else:
-                            # Use entire thinking if we can't find a clear start
-                            extracted_text = thinking
-                            logger.info(f"{self._get_ocr_provider_name()} response was empty but found markdown in thinking field, using thinking content")
+                    if markdown_start > 0:
+                        # Extract from markdown start to end
+                        extracted_text = thinking[markdown_start:].strip()
+                        logger.info(f"{self._get_ocr_provider_name()} response was empty but found markdown in thinking field (starting at position {markdown_start}), using markdown portion")
                     else:
-                        # If thinking is just reasoning without output, log it but don't use it
-                        logger.warning(f"{self._get_ocr_provider_name()} response empty and thinking field contains only reasoning, not final output")
-            
-            ocr_provider_name = self._get_ocr_provider_name()
-            if extracted_text:
-                logger.info(f"{ocr_provider_name} extracted text: {extracted_text[:100]}...")
-                return (extracted_text, ocr_duration)
-            else:
-                # Check if it was cut off due to token limit
-                done_reason = response.get('done_reason', '')
-                if done_reason == 'length':
-                    logger.warning(f"{ocr_provider_name} hit token limit (num_predict={self.ocr_num_predict}). Consider increasing num_predict in config.yaml")
-                logger.info(f"{ocr_provider_name} returned empty response. Full response: {response}")
-                return None
-
-        except RetryError as e:
-            ocr_provider_name = self._get_ocr_provider_name()
-            logger.error(f"{ocr_provider_name} failed after retries: {e.last_exception}")
-            return None
-        except Exception as e:
-            # Log connection issues but don't spam the logs for each image
-            ocr_provider_name = self._get_ocr_provider_name()
-            if "No route to host" in str(e) or "Connection refused" in str(e):
-                logger.warning(f"{ocr_provider_name} unavailable: Cannot connect to Ollama at {self.ollama_endpoint}. OCR fallback disabled.")
-            else:
-                logger.error(f"{ocr_provider_name} failed: {e}")
+                        # Use entire thinking if we can't find a clear start
+                        extracted_text = thinking
+                        logger.info(f"{self._get_ocr_provider_name()} response was empty but found markdown in thinking field, using thinking content")
+                else:
+                    # If thinking is just reasoning without output, log it but don't use it
+                    logger.warning(f"{self._get_ocr_provider_name()} response empty and thinking field contains only reasoning, not final output")
+        
+        ocr_provider_name = self._get_ocr_provider_name()
+        if extracted_text:
+            logger.info(f"{ocr_provider_name} extracted text: {extracted_text[:100]}...")
+            return (extracted_text, ocr_duration)
+        else:
+            # Check if it was cut off due to token limit
+            done_reason = response.get('done_reason', '')
+            if done_reason == 'length':
+                logger.warning(f"{ocr_provider_name} hit token limit (num_predict={self.ocr_num_predict}). Consider increasing num_predict in config.yaml")
+            logger.info(f"{ocr_provider_name} returned empty response. Full response: {response}")
             return None
 
     def _ocr_image_with_chandra(self, image: Image.Image) -> Optional[tuple[str, float]]:
@@ -1013,40 +988,29 @@ class FileHandler:
         Returns:
             Tuple of (extracted text, duration in seconds) or None if failed
         """
-        try:
-            # Convert image to base64 string
-            import io
-            buffer = io.BytesIO()
-            image.save(buffer, format='PNG')
-            image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        # No try-except here to allow RetryError or Exception to propagate
+        # Convert image to base64 string
+        import io
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-            # Call Chandra-OCR with timing and retry logic
-            # Based on Chandra documentation, it uses OpenAI-compatible API
-            start_time = time.time()
-            response = self._call_chandra_ocr_generate(
-                prompt="Convert the document to markdown.",
-                images=[image_data],  # Base64 image data
-                max_tokens=self.chandra_max_tokens
-            )
-            ocr_duration = time.time() - start_time
+        # Call Chandra-OCR with timing and retry logic
+        # Based on Chandra documentation, it uses OpenAI-compatible API
+        start_time = time.time()
+        response = self._call_chandra_ocr_generate(
+            prompt="Convert the document to markdown.",
+            images=[image_data],  # Base64 image data
+            max_tokens=self.chandra_max_tokens
+        )
+        ocr_duration = time.time() - start_time
 
-            extracted_text = response.get('response', '').strip()
-            if extracted_text:
-                logger.info(f"Chandra-OCR extracted text: {extracted_text[:100]}...")
-                return (extracted_text, ocr_duration)
-            else:
-                logger.info(f"Chandra-OCR returned empty response. Full response: {response}")
-                return None
-
-        except RetryError as e:
-            logger.error(f"Chandra OCR failed after retries: {e.last_exception}")
-            return None
-        except Exception as e:
-            # Log connection issues but don't spam the logs for each image
-            if "No route to host" in str(e) or "Connection refused" in str(e):
-                logger.warning(f"Chandra OCR unavailable: Cannot connect to vLLM at {self.chandra_endpoint}. OCR fallback disabled.")
-            else:
-                logger.error(f"Chandra OCR failed: {e}")
+        extracted_text = response.get('response', '').strip()
+        if extracted_text:
+            logger.info(f"Chandra-OCR extracted text: {extracted_text[:100]}...")
+            return (extracted_text, ocr_duration)
+        else:
+            logger.info(f"Chandra-OCR returned empty response. Full response: {response}")
             return None
 
     def _ocr_image_with_hunyuan(self, image: Image.Image) -> Optional[tuple[str, float]]:
@@ -1058,40 +1022,29 @@ class FileHandler:
         Returns:
             Tuple of (extracted text, duration in seconds) or None if failed
         """
-        try:
-            # Convert image to base64 string
-            import io
-            buffer = io.BytesIO()
-            image.save(buffer, format='PNG')
-            image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        # No try-except here to allow RetryError or Exception to propagate
+        # Convert image to base64 string
+        import io
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-            # Call HunyuanOCR with timing and retry logic
-            # Using HunyuanOCR Document Parsing prompt
-            start_time = time.time()
-            response = self._call_hunyuan_ocr_generate(
-                prompt="Extract all information from the main body of the document image and represent it in markdown format, ignoring headers and footers. Tables should be expressed in HTML format, formulas in the document should be represented using LaTeX format, and the parsing should be organized according to the reading order.",
-                images=[image_data],  # Base64 image data
-                max_tokens=self.hunyuan_max_tokens
-            )
-            ocr_duration = time.time() - start_time
+        # Call HunyuanOCR with timing and retry logic
+        # Using HunyuanOCR Document Parsing prompt
+        start_time = time.time()
+        response = self._call_hunyuan_ocr_generate(
+            prompt="Extract all information from the main body of the document image and represent it in markdown format, ignoring headers and footers. Tables should be expressed in HTML format, formulas in the document should be represented using LaTeX format, and the parsing should be organized according to the reading order.",
+            images=[image_data],  # Base64 image data
+            max_tokens=self.hunyuan_max_tokens
+        )
+        ocr_duration = time.time() - start_time
 
-            extracted_text = response.get('response', '').strip()
-            if extracted_text:
-                logger.info(f"HunyuanOCR extracted text: {extracted_text[:100]}...")
-                return (extracted_text, ocr_duration)
-            else:
-                logger.info(f"HunyuanOCR returned empty response. Full response: {response}")
-                return None
-
-        except RetryError as e:
-            logger.error(f"HunyuanOCR failed after retries: {e.last_exception}")
-            return None
-        except Exception as e:
-            # Log connection issues but don't spam the logs for each image
-            if "No route to host" in str(e) or "Connection refused" in str(e):
-                logger.warning(f"HunyuanOCR unavailable: Cannot connect to vLLM at {self.hunyuan_endpoint}. OCR fallback disabled.")
-            else:
-                logger.error(f"HunyuanOCR failed: {e}")
+        extracted_text = response.get('response', '').strip()
+        if extracted_text:
+            logger.info(f"HunyuanOCR extracted text: {extracted_text[:100]}...")
+            return (extracted_text, ocr_duration)
+        else:
+            logger.info(f"HunyuanOCR returned empty response. Full response: {response}")
             return None
 
     def generate_file_hash(self, file_path: Path) -> Optional[tuple[str, float]]:

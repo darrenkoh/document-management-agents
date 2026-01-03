@@ -14,6 +14,11 @@ from src.backend.core.classifier import Classifier
 from src.backend.utils.config import Config
 from src.backend.database.database_sqlite_standalone import SQLiteDocumentDatabase
 from src.backend.services.embeddings import EmbeddingGenerator
+from src.backend.utils.retry import RetryError
+try:
+    from openai import APITimeoutError
+except ImportError:
+    APITimeoutError = None  # Fallback if openai is not installed or different version
 from src.backend.services.vector_store import create_vector_store
 from src.backend.core.rag_agent import RAGAgent
 from src.backend.services.receipt_segmentation import SegmentationConfig, Sam3ReceiptSegmenter
@@ -380,13 +385,18 @@ class DocumentAgent:
             perf_metrics['ocr_duration'] = ocr_duration
 
             if not content or not content.strip():
-                logger.warning(f"No content extracted from {file_path.name}, skipping")
+                if ocr_used:
+                    reason = 'OCR failed to extract any meaningful text'
+                else:
+                    reason = 'No content extracted'
+                    
+                logger.warning(f"{reason} from {file_path.name}, skipping")
                 try:
                     self.database.record_failed_file(
                         file_path=str(file_path),
                         file_hash=file_hash,
                         stage='extract_text',
-                        reason='No content extracted',
+                        reason=reason,
                     )
                 except Exception as e:
                     logger.debug(f"Failed to record failed_files entry for {file_path}: {e}")
@@ -520,14 +530,41 @@ class DocumentAgent:
 
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {e}")
+            
+            # Determine reason and error details
+            error_type = type(e).__name__
+            error_message = str(e)
+            reason = 'Unhandled exception during processing'
+            
+            # Handle RetryError (extract underlying exception)
+            actual_error = e
+            if isinstance(e, RetryError):
+                actual_error = e.last_exception
+                error_type = type(actual_error).__name__
+                error_message = str(actual_error)
+                reason = f'Failed after retries'
+            
+            # Specifically handle timeouts
+            is_timeout = False
+            if APITimeoutError and isinstance(actual_error, APITimeoutError):
+                is_timeout = True
+            elif 'timeout' in error_message.lower():
+                is_timeout = True
+                
+            if is_timeout:
+                if stage == 'extract_text':
+                    reason = 'OCR LLM timeout'
+                else:
+                    reason = f'Timeout during {stage}'
+
             try:
                 self.database.record_failed_file(
                     file_path=str(file_path),
                     file_hash=file_hash,
                     stage=stage or 'unknown',
-                    reason='Unhandled exception during processing',
-                    error_type=type(e).__name__,
-                    error_message=str(e),
+                    reason=reason,
+                    error_type=error_type,
+                    error_message=error_message,
                 )
             except Exception as e2:
                 logger.debug(f"Failed to record failed_files entry for {file_path}: {e2}")
