@@ -8,8 +8,8 @@
 #   - "/path/to/other/folder"
 source_paths:
   - "/Volumes/Documents/Private"
+  # - "/Volumes/Documents/Private/School/Stanford/STF_SSRTSRPT.pdf"
   
-
 # File extensions to process (REQUIRED - only files with these extensions will be processed)
 # Empty list means NO files will be processed - you must specify extensions
 # Common document formats:
@@ -55,7 +55,7 @@ llm:
   # OpenAI-compatible API endpoint (e.g., http://localhost:11434/v1 for Ollama with OpenAI compatibility)
   endpoint: "http://spark-7819.local:11434/v1"
   # Model name to use for classification
-  model: "nvidia/Qwen3-30B-A3B-NVFP4"
+  model: "nvidia/Qwen3-8B-NVFP4"
   # Timeout in seconds for API calls
   timeout: 300
   # Maximum number of tokens to predict (higher for reasoning models)
@@ -65,7 +65,7 @@ llm:
   # Embedding model for semantic search (default: text-embedding-3-small)
   embedding_model: "Qwen/Qwen3-Embedding-8B"
   # Summarizer model for document summaries (default: gpt-3.5-turbo)
-  summarizer_model: "nvidia/Qwen3-30B-A3B-NVFP4"
+  summarizer_model: "nvidia/Qwen3-8B-NVFP4"
   # Retry configuration for failed LLM API calls
   retry:
     # Maximum number of retry attempts for failed API calls
@@ -319,10 +319,11 @@ rag_answer_prompt_template: |
 
 # Document chunking configuration for embeddings
 chunking:
-  # Maximum characters per chunk (optimized for qwen3-embedding:8b with 32K context)
-  chunk_size: 12000
+  # Maximum characters per chunk (optimized for models with 8K-32K context)
+  # Reduced to 8000 to safely stay within vLLM server limits
+  chunk_size: 8000
   # Characters to overlap between chunks
-  chunk_overlap: 200
+  chunk_overlap: 500
   # Whether to generate summary embeddings for documents
   enable_summary_embedding: true
 

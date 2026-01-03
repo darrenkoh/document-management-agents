@@ -1,5 +1,6 @@
 """Embedding generation for semantic search with semantic chunking."""
 import logging
+import numpy as np
 from openai import OpenAI
 import re
 import time
@@ -88,6 +89,9 @@ class EmbeddingGenerator:
 
     def generate_embedding(self, text: str) -> Optional[List[float]]:
         """Generate embedding vector for text.
+        
+        If the text exceeds the model's context limit, it is automatically split into
+        sub-chunks, and the resulting embeddings are averaged and re-normalized.
 
         Args:
             text: Text to generate embedding for
@@ -95,24 +99,54 @@ class EmbeddingGenerator:
         Returns:
             Embedding vector as list of floats, or None if failed
         """
+        if not text or not text.strip():
+            return None
+
         try:
-            # Truncate text if too long (qwen3-embedding:8b supports 32K tokens, ~128K chars)
-            # Using 30K chars (~7.5K tokens) to stay well within limits and ensure quality
-            truncated_text = text[:30000] if len(text) > 30000 else text
+            # Safe character limit to avoid exceeding token window (8192 tokens)
+            # Based on user error: 13,914 tokens for ~30,000 chars -> ~2.15 chars/token
+            # 8192 * 2.15 = ~17,600 chars. We'll use 15,000 as a safe limit.
+            safe_char_limit = 15000
 
-            logger.info(f"Generating embedding for text (length: {len(truncated_text)} chars)")
-
-            embedding = self._call_llm_embeddings(
-                model=self.model,
-                prompt=truncated_text
-            )
-
-            if embedding:
-                logger.info(f"Generated embedding of dimension {len(embedding)}")
+            if len(text) <= safe_char_limit:
+                logger.info(f"Generating embedding for text (length: {len(text)} chars)")
+                embedding = self._call_llm_embeddings(
+                    model=self.model,
+                    prompt=text
+                )
                 return embedding
-            else:
-                logger.warning("No embedding returned from model")
+
+            # Text exceeds safe limit, use chunk-and-average strategy
+            logger.info(f"Text length ({len(text)} chars) exceeds safe limit ({safe_char_limit}). Using chunk-and-average.")
+            
+            # Use semantic_chunk_text for internal sub-chunking
+            sub_chunks = self.semantic_chunk_text(text, chunk_size=safe_char_limit, overlap=500)
+            logger.info(f"Split long text into {len(sub_chunks)} sub-chunks for averaging")
+
+            chunk_embeddings = []
+            for i, chunk in enumerate(sub_chunks):
+                logger.info(f"Generating sub-chunk embedding {i+1}/{len(sub_chunks)} (length: {len(chunk)})")
+                emb = self._call_llm_embeddings(model=self.model, prompt=chunk)
+                if emb:
+                    chunk_embeddings.append(emb)
+                else:
+                    logger.warning(f"Failed to generate embedding for sub-chunk {i+1}")
+
+            if not chunk_embeddings:
+                logger.error("Failed to generate any sub-chunk embeddings")
                 return None
+
+            # Average the vectors
+            avg_vector = np.mean(chunk_embeddings, axis=0)
+            
+            # Re-normalize the vector (for cosine similarity compatibility)
+            norm = np.linalg.norm(avg_vector)
+            if norm > 0:
+                normalized_vector = (avg_vector / norm).tolist()
+                logger.info(f"Generated averaged and normalized embedding of dimension {len(normalized_vector)}")
+                return normalized_vector
+            else:
+                return avg_vector.tolist()
 
         except RetryError as e:
             # All retry attempts failed
@@ -146,6 +180,9 @@ class EmbeddingGenerator:
         Returns:
             List of text chunks
         """
+        if not text:
+            return []
+            
         if len(text) <= chunk_size:
             return [text]
 
@@ -156,8 +193,37 @@ class EmbeddingGenerator:
 
         current_chunk = ""
         for paragraph in paragraphs:
-            # If adding this paragraph would exceed chunk size, save current chunk
-            if len(current_chunk) + len(paragraph) > chunk_size and current_chunk:
+            # If a single paragraph is larger than chunk_size, we need to handle it separately
+            if len(paragraph) > chunk_size:
+                # If we have a pending current_chunk, add it first
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
+                
+                # Split this massive paragraph into sentences or hard chunks
+                sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+                for sentence in sentences:
+                    if len(sentence) > chunk_size:
+                        # If a single sentence is still too large, use hard splitting
+                        if current_chunk:
+                            chunks.append(current_chunk.strip())
+                            current_chunk = ""
+                            
+                        # Hard split with overlap
+                        start = 0
+                        while start < len(sentence):
+                            end = start + chunk_size
+                            chunks.append(sentence[start:end].strip())
+                            start = end - overlap if end < len(sentence) else end
+                    elif len(current_chunk) + len(sentence) > chunk_size and current_chunk:
+                        chunks.append(current_chunk.strip())
+                        overlap_text = current_chunk[-overlap:] if len(current_chunk) > overlap else current_chunk
+                        current_chunk = overlap_text + " " + sentence
+                    else:
+                        current_chunk += (" " + sentence) if current_chunk else sentence
+            
+            # Normal case: paragraph fits or can be added to current_chunk
+            elif len(current_chunk) + len(paragraph) > chunk_size and current_chunk:
                 chunks.append(current_chunk.strip())
                 # Start new chunk with overlap from previous chunk
                 overlap_text = current_chunk[-overlap:] if len(current_chunk) > overlap else current_chunk
@@ -169,26 +235,7 @@ class EmbeddingGenerator:
         if current_chunk:
             chunks.append(current_chunk.strip())
 
-        # If we still have very long chunks, split them further
-        final_chunks = []
-        for chunk in chunks:
-            if len(chunk) > chunk_size:
-                # Split long chunks at sentence boundaries
-                sentences = re.split(r'(?<=[.!?])\s+', chunk)
-                sub_chunk = ""
-                for sentence in sentences:
-                    if len(sub_chunk) + len(sentence) > chunk_size and sub_chunk:
-                        final_chunks.append(sub_chunk.strip())
-                        overlap_text = sub_chunk[-overlap:] if len(sub_chunk) > overlap else sub_chunk
-                        sub_chunk = overlap_text + " " + sentence
-                    else:
-                        sub_chunk += (" " + sentence) if sub_chunk else sentence
-                if sub_chunk:
-                    final_chunks.append(sub_chunk.strip())
-            else:
-                final_chunks.append(chunk)
-
-        return final_chunks
+        return chunks
 
     def _call_llm_generate(self, model: str, prompt: str, options: Dict) -> Dict:
         """Make LLM generate call with retry logic."""
