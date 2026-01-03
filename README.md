@@ -6,6 +6,31 @@ An intelligent document classification and search system that uses **local AI mo
 
 This system automatically processes, classifies, and indexes your documents using local AI services. Here's how it works:
 
+## Screenshots
+
+<table>
+  <tr>
+    <th>Feature</th>
+    <th>Screenshot</th>
+  </tr>
+  <tr>
+    <td>Main Page</td>
+    <td><img src="screenshots/main.png"  width="450" alt="Main Page"></td>
+  </tr>
+  <tr>
+    <td>Detail</td>
+    <td><img src="screenshots/details.png"  width="450" alt="Detail Page"></td>
+  </tr>
+  <tr>
+    <td>Embedding</td>
+    <td><img src="screenshots/embedding.png"  width="450" alt="Embedding Page"></td>
+  </tr>
+  <tr>
+    <td>Embedding</td>
+    <td><img src="screenshots/stat.png"  width="450" alt="Stat Page"></td>
+  </tr>
+</table>
+
 ### Processing Pipeline
 
 1. **Text Extraction**: Documents are parsed using format-specific libraries (PDF, Word, images). For image-based documents or scanned PDFs, OCR is performed using local AI models (Ollama, Chandra, or HunyuanOCR). Multi-receipt images are automatically segmented using SAM3 (Meta's Segment Anything Model) to separate individual receipts before OCR processing.
@@ -538,20 +563,3 @@ The `--force` flag is required because the SQLite database still has `embedding_
 - Test LLM server directly: `curl -X POST http://localhost:11434/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"gpt-4","messages":[{"role":"user","content":"test"}]}'`
 - Verify Python environment: `python --version` (should be 3.12+)
 - Check all dependencies: `pip list | grep -E "openai|chromadb|flask"`
-
-## Screenshots
-
-<!-- Add screenshots here -->
-<!-- 
-### Dashboard
-![Dashboard Screenshot](screenshots/dashboard.png)
-
-### Document Browser
-![Document Browser Screenshot](screenshots/browser.png)
-
-### Search Interface
-![Search Screenshot](screenshots/search.png)
-
-### Document Details
-![Document Details Screenshot](screenshots/details.png)
--->
