@@ -1,5 +1,7 @@
 # Document Management Agent
 
+![Banner Image](screenshots/banner.png)
+
 An intelligent document classification and search system that uses **local AI models** to automatically categorize documents, extract text content, and provide semantic search capabilities. All processing runs entirely on your hardware using local LLMs - no cloud dependencies.
 
 ## Description
