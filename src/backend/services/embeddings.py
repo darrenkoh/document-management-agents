@@ -367,7 +367,8 @@ Summary:"""
         return None
 
     def generate_document_embeddings(self, text: str, chunk_size: int = 4000,
-                                   overlap: int = 200, generate_summary: bool = True) -> Dict[str, List]:
+                                   overlap: int = 200, generate_summary: bool = True,
+                                   existing_summary: Optional[str] = None) -> Dict[str, List]:
         """Generate embeddings for a document using semantic chunking and optional summary.
 
         Args:
@@ -375,6 +376,7 @@ Summary:"""
             chunk_size: Maximum characters per chunk
             overlap: Characters to overlap between chunks
             generate_summary: Whether to generate a summary embedding
+            existing_summary: Optional pre-generated summary text to use instead of calling LLM
 
         Returns:
             Dictionary with 'chunks' (list of chunk embeddings), 'summary' (summary embedding or None),
@@ -396,10 +398,17 @@ Summary:"""
 
         # Generate summary embedding if requested
         if generate_summary and len(text) > chunk_size:
-            logger.info("Generating document summary...")
-            summary_text = self.generate_document_summary(text)
+            summary_text = None
+            if existing_summary:
+                logger.info("Using existing document summary from database")
+                summary_text = existing_summary
+            else:
+                logger.info("Generating document summary...")
+                summary_text = self.generate_document_summary(text)
+
             if summary_text:
-                logger.info(f"Generated summary (length: {len(summary_text)} chars)")
+                if not existing_summary:
+                    logger.info(f"Generated summary (length: {len(summary_text)} chars)")
                 result['summary_text'] = summary_text
                 summary_embedding = self.generate_embedding(summary_text)
                 if summary_embedding:

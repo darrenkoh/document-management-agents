@@ -38,7 +38,7 @@ database:
     # Collection name for ChromaDB
     collection_name: "documents"
     # Embedding dimension (should match your embedding model)
-    dimension: 4096
+    dimension: 2560
     # Distance metric for ChromaDB: 'l2', 'cosine', 'ip' (inner product)
     # 'cosine' is recommended for semantic search with normalized embeddings
     distance_metric: "cosine"
@@ -63,7 +63,7 @@ llm:
   # Embedding endpoint (separate from main LLM endpoint if needed)
   embedding_endpoint: "http://spark-7819.local:8000/v1"
   # Embedding model for semantic search (default: text-embedding-3-small)
-  embedding_model: "Qwen/Qwen3-Embedding-8B"
+  embedding_model: "Qwen/Qwen3-Embedding-4B"
   # Summarizer model for document summaries (default: gpt-3.5-turbo)
   summarizer_model: "nvidia/Qwen3-8B-NVFP4"
   # Retry configuration for failed LLM API calls

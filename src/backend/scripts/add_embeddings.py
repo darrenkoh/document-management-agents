@@ -59,12 +59,16 @@ def add_embeddings_to_existing_docs(config_path=None, force=False):
 
                 print(f"Using cached content ({len(content)} chars) for {filename}")
 
+                # Use existing summary if available to avoid calling LLM again
+                existing_summary = doc.get('summary')
+
                 # Generate embeddings (chunks + optional summary) and store them
                 embedding_result = agent.embedding_generator.generate_document_embeddings(
                     content,
                     chunk_size=config.chunk_size,
                     overlap=config.chunk_overlap,
-                    generate_summary=config.enable_summary_embedding
+                    generate_summary=config.enable_summary_embedding,
+                    existing_summary=existing_summary
                 )
 
                 if not embedding_result.get('chunks') and not embedding_result.get('summary'):
