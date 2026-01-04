@@ -4,9 +4,74 @@
 
 An intelligent document classification and search system that uses **local AI models** to automatically categorize documents, extract text content, and provide semantic search capabilities. All processing runs entirely on your hardware using local LLMs - no cloud dependencies.
 
-## Description
+## Architecture
 
-This system automatically processes, classifies, and indexes your documents using local AI services. Here's how it works:
+```mermaid
+graph TB
+    A[Document Files] --> B[File Handler]
+    B --> C{Text Extraction}
+    C -->|PDF/Word/TXT| D[Native Parsers]
+    C -->|Images/Scanned PDF| S[SAM3 Segmentation]
+    S -->|Single/Multiple Segments| E[OCR Service]
+    E -->|OpenAI-compatible LLM| F[Text Content]
+    D --> F
+    
+    F --> G[Content Hash]
+    G --> H{Skip Checks}
+    H -->|Deleted_hash| ZD[Skip_Deleted]
+    H -->|Failed_hash| ZF[Skip_Failed]
+    H -->|Duplicate_hash| Z[Skip_Duplicate]
+    H -->|New| I[AI Classifier]
+    
+    I -->|LLM| J[Categories & Metadata]
+    F --> K[Embedding Generator]
+    K -->|text-embedding-3-small| L[Vector Embeddings]
+    
+    J --> M[SQLite_Documents_Table]
+    I -->|on_failure| FF[SQLite_Failed_Files_Table]
+    C -->|on_failure| FF
+    K -->|on_failure| FF
+    L --> N[ChromaDB Vector Store]
+    
+    O[User Query] --> P[Query Embedding]
+    O --> V[BM25 Index]
+    P --> Q[Semantic Search]
+    Q --> N
+    V --> W[BM25 Search]
+    Q --> X[Hybrid Search]
+    W --> X
+    X --> R[RAG Agent]
+    R -->|LLM| S[Relevance Analysis]
+    S --> T[Search Results]
+    X --> T
+    T --> M
+    M --> U[Web UI / CLI]
+    FF --> U
+    
+    style A fill:#e1f5ff
+    style I fill:#fff4e1
+    style K fill:#fff4e1
+    style R fill:#fff4e1
+    style M fill:#e8f5e9
+    style FF fill:#e8f5e9
+    style N fill:#e8f5e9
+    style V fill:#e8f5e9
+    style X fill:#fff4e1
+    style U fill:#f3e5f5
+```
+
+Document summarization is orchestrated by the `EmbeddingGenerator` (see [src/backend/services/embeddings.py](src/backend/services/embeddings.py)). Summaries are generated without length constraints, allowing the LLM to capture all key information. Token budgets in `llm.summary` control how much output the model can produce before results are persisted in SQLite/ChromaDB.
+
+<table>
+  <tr>
+    <td><img src="screenshots/main.png" width="400" height="250" alt="Main"></td>
+    <td><img src="screenshots/details.png" width="400" height="250" alt="Details"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/embedding.png" width="400" height="250" alt="Embedding"></td>
+    <td><img src="screenshots/stat.png" width="400" height="250" alt="Stats"></td>
+  </tr>
+</table>
 
 ## Quick Start
 
@@ -97,31 +162,6 @@ ollama pull text-embedding-3-small # Text embeddings
 ollama pull deepseek-ocr:3b       # OCR (optional, if not using Chandra/Hunyuan)
 ```
 
-## Screenshots
-
-<table>
-  <tr>
-    <th>Feature</th>
-    <th>Screenshot</th>
-  </tr>
-  <tr>
-    <td>Main Page</td>
-    <td><img src="screenshots/main.png"  width="450" alt="Main Page"></td>
-  </tr>
-  <tr>
-    <td>Detail</td>
-    <td><img src="screenshots/details.png"  width="450" alt="Detail Page"></td>
-  </tr>
-  <tr>
-    <td>Embedding</td>
-    <td><img src="screenshots/embedding.png"  width="450" alt="Embedding Page"></td>
-  </tr>
-  <tr>
-    <td>Embedding</td>
-    <td><img src="screenshots/stat.png"  width="450" alt="Stat Page"></td>
-  </tr>
-</table>
-
 ### Processing Pipeline
 
 1. **Text Extraction**: Documents are parsed using format-specific libraries (PDF, Word, images). For image-based documents or scanned PDFs, OCR is performed using local AI models (Ollama, Chandra, or HunyuanOCR). Multi-receipt images are automatically segmented using SAM3 (Meta's Segment Anything Model) to separate individual receipts before OCR processing.
@@ -153,63 +193,7 @@ ollama pull deepseek-ocr:3b       # OCR (optional, if not using Chandra/Hunyuan)
 
 All services run locally - your documents never leave your machine.
 
-## Architecture
 
-```mermaid
-graph TB
-    A[Document Files] --> B[File Handler]
-    B --> C{Text Extraction}
-    C -->|PDF/Word/TXT| D[Native Parsers]
-    C -->|Images/Scanned PDF| S[SAM3 Segmentation]
-    S -->|Single/Multiple Segments| E[OCR Service]
-    E -->|OpenAI-compatible LLM| F[Text Content]
-    D --> F
-    
-    F --> G[Content Hash]
-    G --> H{Skip Checks}
-    H -->|Deleted_hash| ZD[Skip_Deleted]
-    H -->|Failed_hash| ZF[Skip_Failed]
-    H -->|Duplicate_hash| Z[Skip_Duplicate]
-    H -->|New| I[AI Classifier]
-    
-    I -->|LLM| J[Categories & Metadata]
-    F --> K[Embedding Generator]
-    K -->|text-embedding-3-small| L[Vector Embeddings]
-    
-    J --> M[SQLite_Documents_Table]
-    I -->|on_failure| FF[SQLite_Failed_Files_Table]
-    C -->|on_failure| FF
-    K -->|on_failure| FF
-    L --> N[ChromaDB Vector Store]
-    
-    O[User Query] --> P[Query Embedding]
-    O --> V[BM25 Index]
-    P --> Q[Semantic Search]
-    Q --> N
-    V --> W[BM25 Search]
-    Q --> X[Hybrid Search]
-    W --> X
-    X --> R[RAG Agent]
-    R -->|LLM| S[Relevance Analysis]
-    S --> T[Search Results]
-    X --> T
-    T --> M
-    M --> U[Web UI / CLI]
-    FF --> U
-    
-    style A fill:#e1f5ff
-    style I fill:#fff4e1
-    style K fill:#fff4e1
-    style R fill:#fff4e1
-    style M fill:#e8f5e9
-    style FF fill:#e8f5e9
-    style N fill:#e8f5e9
-    style V fill:#e8f5e9
-    style X fill:#fff4e1
-    style U fill:#f3e5f5
-```
-
-Document summarization is orchestrated by the `EmbeddingGenerator` (see [src/backend/services/embeddings.py](src/backend/services/embeddings.py)). Summaries are generated without length constraints, allowing the LLM to capture all key information. Token budgets in `llm.summary` control how much output the model can produce before results are persisted in SQLite/ChromaDB.
 
 ## Configuration Examples
 
