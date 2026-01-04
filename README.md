@@ -352,6 +352,10 @@ You need:
 
 We welcome contributions to this project! Please submit pull requests or issues to our GitHub repository.
 
+For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 This project is licensed under MIT license. See the LICENSE file for details.
+
+For Apache-2.0 license information, see [LICENSE.md](LICENSE.md).
