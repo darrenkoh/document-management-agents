@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Database, Table, Plus, Search, SortAsc, SortDesc, Edit, Trash2, FileSearch } from 'lucide-react';
+import { Database, Table, Plus, Search, SortAsc, SortDesc, Edit, Trash2, FileSearch, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -19,6 +19,9 @@ export default function DatabasePage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [filterInputs, setFilterInputs] = useState<Record<string, string>>({});
+
+  // Full content view state
+  const [viewingRowIndex, setViewingRowIndex] = useState<number | null>(null);
 
   // CRUD state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -704,6 +707,13 @@ export default function DatabasePage() {
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
+                              <button
+                                onClick={() => setViewingRowIndex(index)}
+                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-md transition-colors duration-150"
+                                title="View full content"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
                             </div>
                           </td>
                           {row.map((cell, cellIndex) => {
@@ -765,8 +775,8 @@ export default function DatabasePage() {
                                 {cell === null ? (
                                   <span className="text-primary-400 italic">NULL</span>
                                 ) : (
-                                  <div className={isContentColumn ? 'truncate max-w-full' : ''}>
-                                    {String(displayValue)}
+                                  <div className={isContentColumn ? 'truncate max-w-[30vw] max-h-6' : 'truncate max-w-[30ch] max-h-6'} title={String(displayValue)}>
+                                    {String(displayValue).length > 30 ? String(displayValue).slice(0, 30) + '...' : String(displayValue)}
                                   </div>
                                 )}
                               </td>
@@ -818,6 +828,44 @@ export default function DatabasePage() {
             </Card>
           )}
         </div>
+
+      {/* Full Content Right Panel */}
+      {viewingRowIndex !== null && tableData && (
+        <>
+          {/* Backdrop overlay */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-30 z-40"
+            onClick={() => setViewingRowIndex(null)}
+          />
+          {/* Slide-over panel from right */}
+          <div className="fixed inset-y-0 right-0 w-[50vw] max-w-xl h-full bg-white shadow-xl z-50 overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4 border-b border-primary-200">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-primary-900">Record Details</h3>
+                </div>
+                <button
+                  onClick={() => setViewingRowIndex(null)}
+                  className="p-2 text-primary-400 hover:text-primary-600 hover:bg-primary-100 rounded-md transition-colors duration-150"
+                  title="Close"
+                >
+                  <div className="text-xl">✕</div>
+                </button>
+              </div>
+              <div className="space-y-4 mt-4">
+                {tableData.columns.map((columnName, colIndex) => (
+                  <div key={columnName}>
+                    <div className="text-sm font-medium text-primary-600 mb-1 uppercase text-xs">{columnName}</div>
+                    <div className="p-3 bg-primary-50 border border-primary-200 rounded-md max-h-48 overflow-y-auto">
+                      <pre className="text-sm text-primary-800 whitespace-pre-wrap">{String(tableData.rows[viewingRowIndex][colIndex] ?? 'NULL')}</pre>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Create Record Modal */}
       {showCreateModal && selectedTableInfo && (
