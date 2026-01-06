@@ -347,6 +347,128 @@ export default function DatabasePage() {
     table.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Helper to check if value is valid JSON
+  const isJsonValue = (value: any): boolean => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'));
+    }
+    return false;
+  };
+
+  // Helper to format JSON with syntax highlighting (returns array of {token, type} or null if not JSON)
+  const formatJsonValue = (value: any): string | null => {
+    if (!isJsonValue(value)) return null;
+    try {
+      return JSON.stringify(JSON.parse(String(value)), null, 2);
+    } catch {
+      return null;
+    }
+  };
+
+  // Tokenize JSON string for syntax highlighting
+  const tokenizeJson = (jsonString: string): Array<{value: string, type: string}> => {
+    const tokens: Array<{value: string, type: string}> = [];
+    let i = 0;
+
+    while (i < jsonString.length) {
+      // String literals
+      if (jsonString[i] === '"') {
+        let str = '"';
+        i++;
+        while (i < jsonString.length && (jsonString[i] !== '"' || jsonString[i-1] === '\\')) {
+          str += jsonString[i];
+          i++;
+        }
+        if (jsonString[i] === '"') {
+          str += '"';
+          i++;
+        }
+        tokens.push({value: str, type: 'string'});
+        continue;
+      }
+
+      // Numbers
+      if (/[0-9\-]/.test(jsonString[i])) {
+        let num = '';
+        while (i < jsonString.length && /[0-9.eE\-+]/.test(jsonString[i])) {
+          num += jsonString[i];
+          i++;
+        }
+        tokens.push({value: num, type: 'number'});
+        continue;
+      }
+
+      // Keywords
+      if (/[a-z]/.test(jsonString[i])) {
+        let word = '';
+        while (i < jsonString.length && /[a-zA-Z]/.test(jsonString[i])) {
+          word += jsonString[i];
+          i++;
+        }
+        if (['true', 'false', 'null'].includes(word)) {
+          tokens.push({value: word, type: 'keyword'});
+        } else {
+          tokens.push({value: word, type: 'text'});
+        }
+        continue;
+      }
+
+      // Punctuation
+      if ('{}[]:, '.includes(jsonString[i])) {
+        tokens.push({value: jsonString[i], type: 'punctuation'});
+        i++;
+        continue;
+      }
+
+      // Skip whitespace not caught by above
+      if (jsonString[i] === ' ' || jsonString[i] === '\n' || jsonString[i] === '\t' || jsonString[i] === '\r') {
+        tokens.push({value: jsonString[i], type: 'whitespace'});
+        i++;
+        continue;
+      }
+
+      // Other characters
+      tokens.push({value: jsonString[i], type: 'other'});
+      i++;
+    }
+
+    return tokens;
+  };
+
+  // Render JSON with syntax highlighting
+  const renderJsonTokens = (jsonString: string) => {
+    const tokens = tokenizeJson(jsonString);
+    return tokens
+      .map((token, idx) => {
+      // Skip regular whitespace (spaces, tabs) but keep newlines
+      if (token.type === 'whitespace' && token.value !== '\n') {
+        return null;
+      }
+
+      const baseClass = 'text-sm';
+      let typeClass = '';
+
+      if (token.type === 'string') typeClass = 'text-green-600';
+      else if (token.type === 'number') typeClass = 'text-purple-600';
+      else if (token.type === 'keyword') typeClass = 'text-orange-600';
+      else if (token.type === 'punctuation') typeClass = 'text-primary-400';
+      else typeClass = 'text-primary-700';
+
+      // Render newlines as line break
+      if (token.value === '\n') {
+        return <br key={idx} className={`${baseClass} ${typeClass}`} />;
+      }
+
+      return (
+        <span key={idx} className={`${baseClass} ${typeClass}`}>
+          {token.value}
+        </span>
+      );
+    })
+    .filter(Boolean);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -853,18 +975,60 @@ export default function DatabasePage() {
                 </button>
               </div>
               <div className="space-y-4 mt-4">
-                {tableData.columns.map((columnName, colIndex) => (
-                  <div key={columnName}>
-                    <div className="text-sm font-medium text-primary-600 mb-1 uppercase text-xs">{columnName}</div>
-                    <div className="p-3 bg-primary-50 border border-primary-200 rounded-md max-h-48 overflow-y-auto">
-                      <pre className="text-sm text-primary-800 whitespace-pre-wrap">{String(tableData.rows[viewingRowIndex][colIndex] ?? 'NULL')}</pre>
+                {tableData.columns.map((columnName, colIndex) => {
+                  const rawValue = tableData.rows[viewingRowIndex][colIndex];
+                  
+                  // Format timestamp columns
+                  const isTimestampColumn =
+                    columnName === 'created_at' ||
+                    columnName === 'updated_at' ||
+                    columnName === 'deleted_at' ||
+                    columnName === 'failed_at';
+
+                  let displayValue = rawValue;
+                  if (rawValue !== null && isTimestampColumn) {
+                    try {
+                      const numValue = typeof rawValue === 'number' ? rawValue : parseFloat(String(rawValue));
+                      if (!isNaN(numValue)) {
+                        const timestamp = numValue * 1000; // Convert to milliseconds
+                        const date = new Date(timestamp);
+                        if (date.getFullYear() >= 2000 && date.getFullYear() <= 2100) {
+                          displayValue = date.toLocaleString('en-US', {
+                            timeZone: 'America/Los_Angeles',
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                          });
+                        }
+                      }
+                    } catch {}
+                  }
+
+                  const stringValue = displayValue === null ? 'NULL' : String(displayValue);
+                  const formattedJson = formatJsonValue(displayValue);
+
+                  return (
+                    <div key={columnName}>
+                      <div className="text-sm font-medium text-primary-600 mb-1 uppercase text-xs">{columnName}</div>
+                      <div className="p-3 bg-primary-50 border border-primary-200 rounded-md max-h-48 overflow-y-auto">
+                        {formattedJson ? (
+                          <pre className="text-sm">{renderJsonTokens(formattedJson)}</pre>
+                        ) : (
+                          <pre className="text-sm text-primary-800 whitespace-pre-wrap">{stringValue}</pre>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
         </>
+
       )}
 
       {/* Create Record Modal */}
