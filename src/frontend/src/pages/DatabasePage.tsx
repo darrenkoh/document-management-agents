@@ -960,7 +960,7 @@ export default function DatabasePage() {
             onClick={() => setViewingRowIndex(null)}
           />
           {/* Slide-over panel from right */}
-          <div className="fixed inset-y-0 right-0 w-[50vw] max-w-xl h-full bg-white shadow-xl z-50 overflow-y-auto">
+          <div className="fixed inset-y-0 right-0 w-1/2 h-full bg-white shadow-xl z-50 overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4 border-b border-primary-200">
                 <div className="flex items-center gap-2">
