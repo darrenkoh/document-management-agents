@@ -57,14 +57,28 @@ export const FileInfoBar = ({ document }: FileInfoBarProps) => {
             {document.metadata.performance_metrics && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Time</span>
-                <CoolTooltip content={`Processing breakdown:
-• Hash: ${formatDuration(document.metadata.performance_metrics.hash_duration)}
-• OCR: ${formatDuration(document.metadata.performance_metrics.ocr_duration)}
-• Classification: ${formatDuration(document.metadata.performance_metrics.classification_duration)}
-• Embeddings: ${formatDuration(document.metadata.performance_metrics.embedding_duration)}
-• DB Lookup: ${formatDuration(document.metadata.performance_metrics.db_lookup_duration)}
-• DB Insert: ${formatDuration(document.metadata.performance_metrics.db_insert_duration)}`}>
-                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold border border-green-200">
+                <CoolTooltip
+                  content={
+                    <div className="space-y-2">
+                      <div className="font-semibold text-gray-900 border-b border-gray-200 pb-1">Processing Breakdown</div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                        <span className="text-gray-500">Hash</span>
+                        <span className="text-right font-mono">{formatDuration(document.metadata.performance_metrics.hash_duration)}</span>
+                        <span className="text-gray-500">OCR</span>
+                        <span className="text-right font-mono">{formatDuration(document.metadata.performance_metrics.ocr_duration)}</span>
+                        <span className="text-gray-500">Classification</span>
+                        <span className="text-right font-mono">{formatDuration(document.metadata.performance_metrics.classification_duration)}</span>
+                        <span className="text-gray-500">Embeddings</span>
+                        <span className="text-right font-mono">{formatDuration(document.metadata.performance_metrics.embedding_duration)}</span>
+                        <span className="text-gray-500">DB Lookup</span>
+                        <span className="text-right font-mono">{formatDuration(document.metadata.performance_metrics.db_lookup_duration)}</span>
+                        <span className="text-gray-500">DB Insert</span>
+                        <span className="text-right font-mono">{formatDuration(document.metadata.performance_metrics.db_insert_duration)}</span>
+                      </div>
+                    </div>
+                  }
+                >
+                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold border border-green-200 cursor-help">
                     {formatDuration(document.metadata.performance_metrics.total_processing_time)}
                   </span>
                 </CoolTooltip>
