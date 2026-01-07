@@ -20,6 +20,10 @@ export default function DatabasePage() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [filterInputs, setFilterInputs] = useState<Record<string, string>>({});
 
+  // Batch Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<number | string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Full content view state
   const [viewingRowIndex, setViewingRowIndex] = useState<number | null>(null);
 
@@ -177,6 +181,8 @@ export default function DatabasePage() {
       });
       console.log('Table data loaded:', data);
       setTableData(data);
+      // Reset selection when data changes
+      setSelectedIds(new Set());
     } catch (error: any) {
       console.error('Failed to load table data:', error);
       console.error('Error response:', error.response?.data);
@@ -308,6 +314,53 @@ export default function DatabasePage() {
     } catch (error) {
       console.error('Failed to update record:', error);
       toast.error('Failed to update record');
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (!selectedTable || selectedIds.size === 0) return;
+
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} records?`)) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      const response = await apiClient.batchDeleteRecords(selectedTable, Array.from(selectedIds));
+      toast.success(response.message || `Successfully deleted ${response.deleted_count} records`);
+      setSelectedIds(new Set());
+      loadTableData();
+    } catch (error: any) {
+      console.error('Failed to batch delete:', error);
+      toast.error(`Failed to batch delete: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleSelectRow = (recordId: number | string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(recordId)) {
+      newSelected.delete(recordId);
+    } else {
+      newSelected.add(recordId);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (!tableData || !selectedTableInfo) return;
+
+    const pkColumn = selectedTableInfo.columns.find(col => col.primaryKey);
+    if (!pkColumn) return;
+
+    const pkIndex = tableData.columns.indexOf(pkColumn.name);
+
+    if (selectedIds.size === tableData.rows.length) {
+      setSelectedIds(new Set());
+    } else {
+      const allIds = tableData.rows.map(row => row[pkIndex]);
+      setSelectedIds(new Set(allIds));
     }
   };
 
@@ -763,10 +816,24 @@ export default function DatabasePage() {
                     </span>
                   )}
                 </div>
-                <Button onClick={handleAddRecord} size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Record
-                </Button>
+                <div className="flex gap-2">
+                  {selectedIds.size > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleBatchDelete}
+                      disabled={isDeleting}
+                      className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Selected ({selectedIds.size})
+                    </Button>
+                  )}
+                  <Button onClick={handleAddRecord} size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Record
+                  </Button>
+                </div>
               </div>
 
               {loading ? (
@@ -778,6 +845,14 @@ export default function DatabasePage() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-primary-200">
+                        <th className="py-2 px-4 w-10">
+                          <input
+                            type="checkbox"
+                            checked={tableData.rows.length > 0 && selectedIds.size === tableData.rows.length}
+                            onChange={toggleSelectAll}
+                            className="rounded border-primary-300 text-primary-600 focus:ring-primary-500"
+                          />
+                        </th>
                         <th className="text-center py-2 px-4 font-semibold text-primary-900 w-20">Actions</th>
                         {tableData.columns.map((column) => {
                           const isContentColumn = column === 'content';
@@ -811,34 +886,49 @@ export default function DatabasePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {tableData.rows.map((row, index) => (
-                        <tr key={index} className="border-b border-primary-100 hover:bg-primary-50">
-                          <td className="py-2 px-4 w-20">
-                            <div className="flex gap-1 justify-center">
-                              <button
-                                onClick={() => handleEditRecord(index)}
-                                className="p-1.5 text-primary-600 hover:text-primary-800 hover:bg-primary-100 rounded-md transition-colors duration-150"
-                                title="Edit record"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteRecord(index)}
-                                className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-md transition-colors duration-150"
-                                title="Delete record"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => setViewingRowIndex(index)}
-                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-md transition-colors duration-150"
-                                title="View full content"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                          {row.map((cell, cellIndex) => {
+                      {tableData.rows.map((row, index) => {
+                        const pkColumn = selectedTableInfo?.columns.find(col => col.primaryKey);
+                        const pkIndex = pkColumn ? tableData.columns.indexOf(pkColumn.name) : -1;
+                        const recordId = pkIndex !== -1 ? row[pkIndex] : null;
+
+                        return (
+                          <tr key={index} className="border-b border-primary-100 hover:bg-primary-50">
+                            <td className="py-2 px-4 w-10 text-center">
+                              {recordId !== null && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(recordId)}
+                                  onChange={() => toggleSelectRow(recordId)}
+                                  className="rounded border-primary-300 text-primary-600 focus:ring-primary-500"
+                                />
+                              )}
+                            </td>
+                            <td className="py-2 px-4 w-20">
+                              <div className="flex gap-1 justify-center">
+                                <button
+                                  onClick={() => handleEditRecord(index)}
+                                  className="p-1.5 text-primary-600 hover:text-primary-800 hover:bg-primary-100 rounded-md transition-colors duration-150"
+                                  title="Edit record"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteRecord(index)}
+                                  className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-md transition-colors duration-150"
+                                  title="Delete record"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setViewingRowIndex(index)}
+                                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-md transition-colors duration-150"
+                                  title="View full content"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                            {row.map((cell, cellIndex) => {
                             const columnName = tableData.columns[cellIndex];
                             const isContentColumn = columnName === 'content';
                             const isTimestampColumn =
@@ -905,8 +995,9 @@ export default function DatabasePage() {
                             );
                           })}
                         </tr>
-                      ))}
-                    </tbody>
+                      );
+                    })}
+                  </tbody>
                   </table>
 
                   {/* Pagination */}

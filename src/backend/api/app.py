@@ -1387,6 +1387,73 @@ def api_delete_record(table_name, record_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/database/tables/<table_name>/batch-delete', methods=['POST'])
+def api_batch_delete_records(table_name):
+    """Delete multiple records from the specified table."""
+    try:
+        data = request.get_json()
+        if not data or 'ids' not in data:
+            return jsonify({'error': 'Missing "ids" field in request body'}), 400
+
+        record_ids = data['ids']
+        if not isinstance(record_ids, list) or not record_ids:
+            return jsonify({'error': '"ids" must be a non-empty list of record IDs'}), 400
+
+        # Special handling for documents table - use the existing method which handles vector store
+        if table_name.lower() == 'documents':
+            app.logger.info(f"Using database.delete_documents for batch delete on 'documents' table")
+            result = database.delete_documents(record_ids)
+            # Refresh database after deletion
+            refresh_database()
+            return jsonify({
+                'success': True,
+                'deleted_count': result['deleted_count'],
+                'vector_deleted_count': result.get('vector_deleted_count', 0),
+                'message': f"Successfully deleted {result['deleted_count']} document(s)"
+            })
+
+        # Generic handling for other tables
+        cursor = database.connection.cursor()
+
+        # Get column info to find primary key
+        cursor.execute(f'PRAGMA table_info("{table_name}")')
+        columns = cursor.fetchall()
+
+        pk_column = None
+        for col in columns:
+            if col['pk']:
+                pk_column = col['name']
+                break
+
+        if not pk_column:
+            return jsonify({'error': f'Table "{table_name}" must have a primary key for deletion'}), 400
+
+        # Delete the records
+        placeholders = ', '.join('?' for _ in record_ids)
+        query = f'DELETE FROM "{table_name}" WHERE "{pk_column}" IN ({placeholders})'
+        cursor.execute(query, record_ids)
+        
+        deleted_count = cursor.rowcount
+
+        database.connection.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'deleted_count': deleted_count,
+            'message': f'Successfully deleted {deleted_count} record(s) from {table_name}'
+        })
+
+    except Exception as e:
+        if 'database' in locals() and hasattr(database, 'connection'):
+            try:
+                database.connection.rollback()
+            except:
+                pass
+        app.logger.error(f"Error batch deleting records from {table_name}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/embeddings/search', methods=['POST'])
 def api_search_embeddings():
     """Search embedding database using a keyword.

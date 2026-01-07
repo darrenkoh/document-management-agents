@@ -82,7 +82,7 @@ llm:
 # OCR configuration for text extraction from images/PDFs
 ocr:
   # OCR provider to use: 'ollama', 'chandra', or 'hunyuan'
-  provider: "chandra"
+  provider: "hunyuan"
   # Maximum number of PDF pages to process with OCR (default: 12)
   # This limits OCR processing to the first N pages of PDFs to reduce processing time
   max_pages: 12
