@@ -71,6 +71,24 @@ export interface DocumentStats {
   file_types: Array<[string, number]>;
 }
 
+export interface DocumentDuration {
+  id: number;
+  index: number;
+  filename: string;
+  total_duration: number;
+  hash_duration: number;
+  ocr_duration: number;
+  classification_duration: number;
+  embedding_duration: number;
+  db_lookup_duration: number;
+  db_insert_duration: number;
+}
+
+export interface DocumentDurationsResponse {
+  documents: DocumentDuration[];
+  count: number;
+}
+
 // API request types
 export interface SearchRequest {
   query: string;

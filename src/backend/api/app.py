@@ -1603,8 +1603,47 @@ def toggle_verbose():
     return jsonify({'verbose': is_verbose})
 
 
+@app.route('/api/stats/durations')
+def api_get_stats_durations():
+    """Get document processing durations for the chart."""
+    try:
+        refresh_database()
 
+        all_docs = database.get_all_documents()
+        documents = []
 
+        for doc in all_docs:
+            perf_metrics = doc.get('metadata', {}).get('performance_metrics', {})
+            total_duration = perf_metrics.get('total_processing_time', 0)
+
+            if total_duration > 0:
+                documents.append({
+                    'id': doc.get('id', doc.get('doc_id', 0)),
+                    'filename': doc.get('filename', 'Unknown'),
+                    'total_duration': total_duration,
+                    'hash_duration': perf_metrics.get('hash_duration', 0),
+                    'ocr_duration': perf_metrics.get('ocr_duration', 0),
+                    'classification_duration': perf_metrics.get('classification_duration', 0),
+                    'embedding_duration': perf_metrics.get('embedding_duration', 0),
+                    'db_lookup_duration': perf_metrics.get('db_lookup_duration', 0),
+                    'db_insert_duration': perf_metrics.get('db_insert_duration', 0),
+                })
+
+        # Sort by duration (longest first) for better visualization
+        documents.sort(key=lambda x: x['total_duration'], reverse=True)
+
+        # Add index for display
+        for i, doc in enumerate(documents, 1):
+            doc['index'] = i
+
+        return jsonify({
+            'documents': documents,
+            'count': len(documents)
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error getting duration stats: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, FileText, Tag, PieChart } from 'lucide-react';
+import Plot from 'react-plotly.js';
+import { BarChart3, FileText, Tag, PieChart, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { DocumentStats } from '@/types';
+import { DocumentStats, DocumentDuration, DocumentDurationsResponse } from '@/types';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function StatsPage() {
   const [stats, setStats] = useState<DocumentStats | null>(null);
+  const [durations, setDurations] = useState<DocumentDurationsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,8 +19,12 @@ export default function StatsPage() {
   const loadStats = async () => {
     setLoading(true);
     try {
-      const data = await apiClient.getStats();
-      setStats(data);
+      const [statsData, durationsData] = await Promise.all([
+        apiClient.getStats(),
+        apiClient.getDocumentDurations().catch(() => null)
+      ]);
+      setStats(statsData);
+      setDurations(durationsData || null);
     } catch (error) {
       console.error('Failed to load stats:', error);
       toast.error('Failed to load statistics');
@@ -259,6 +265,81 @@ export default function StatsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Processing Durations Chart */}
+      {durations && durations.count > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Processing Durations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[400px]">
+              <Plot
+                data={[
+                  {
+                    y: durations.documents.map((d: DocumentDuration) => d.total_duration),
+                    x: durations.documents.map((d: DocumentDuration) => d.index),
+                    text: durations.documents.map((d: DocumentDuration) => d.filename),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    marker: {
+                      size: 8,
+                    },
+                    line: {
+                      color: '#6366a3',
+                      width: 2,
+                    },
+                    hoinfo: {
+                      suffix: '.<br>Filename: %{text}',
+                    },
+                  },
+                ]}
+                layout={{
+                  title: {
+                    text: `Document Processing Durations (${durations.count} documents)`,
+                    font: { size: 16 },
+                    x: 0.5,
+                  },
+                  xaxis: {
+                    title: 'Document (sorted by duration)',
+                    type: 'linear',
+                  },
+                  yaxis: {
+                    title: 'Duration (seconds)',
+                  },
+                  autosize: true,
+                  showlegend: false,
+                  plot_bgcolor: 'rgba(0,0,0,0)',
+                  paper_bgcolor: 'rgba(0,0,0,0)',
+                  hovermode: 'x+y',
+                }}
+                config={{
+                  displayModeBar: true,
+                  responsive: true,
+                }}
+                style={{ width: '100%', height: '100%' }}
+              />
+            </div>
+            <div className="flex gap-4 justify-center text-sm mt-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-success-600 rounded" />
+                <span className="text-gray-600">&lt; 5s</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-orange-500 rounded" />
+                <span className="text-gray-600">5-10s</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-500 rounded" />
+                <span className="text-gray-600">&gt; 10s</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
