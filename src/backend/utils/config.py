@@ -607,3 +607,65 @@ class Config:
         seg_config = self._config.get('segmentation', {})
         return int(seg_config.get('bbox_padding_px', 12))
 
+    # Cross-Encoder Reranking configuration properties
+    @property
+    def semantic_search_enable_cross_encoder_reranking(self) -> bool:
+        """Get whether cross-encoder reranking is enabled."""
+        search_config = self._config.get('semantic_search', {})
+        return bool(search_config.get('enable_cross_encoder_reranking', False))
+
+    @property
+    def cross_encoder_endpoint(self) -> str:
+        """Get the cross-encoder API endpoint."""
+        search_config = self._config.get('semantic_search', {})
+        cross_encoder_config = search_config.get('cross_encoder_reranking', {})
+        return cross_encoder_config.get('endpoint', self.llm_endpoint)
+
+    @property
+    def cross_encoder_model(self) -> str:
+        """Get the cross-encoder model name."""
+        search_config = self._config.get('semantic_search', {})
+        cross_encoder_config = search_config.get('cross_encoder_reranking', {})
+        return cross_encoder_config.get('model', self.llm_model)
+
+    @property
+    def cross_encoder_temperature(self) -> float:
+        """Get the cross-encoder sampling temperature."""
+        search_config = self._config.get('semantic_search', {})
+        cross_encoder_config = search_config.get('cross_encoder_reranking', {})
+        return float(cross_encoder_config.get('temperature', 0.1))
+
+    @property
+    def cross_encoder_timeout(self) -> int:
+        """Get the cross-encoder timeout in seconds."""
+        search_config = self._config.get('semantic_search', {})
+        cross_encoder_config = search_config.get('cross_encoder_reranking', {})
+        return int(cross_encoder_config.get('timeout', 300))
+
+    @property
+    def cross_encoder_max_retries(self) -> int:
+        """Get the maximum number of retry attempts for cross-encoder calls."""
+        search_config = self._config.get('semantic_search', {})
+        cross_encoder_config = search_config.get('cross_encoder_reranking', {})
+        return int(cross_encoder_config.get('max_retries', 3))
+
+    @property
+    def rrf_k(self) -> int:
+        """Get the RRF k parameter (typically 5-10)."""
+        search_config = self._config.get('semantic_search', {})
+        cross_encoder_config = search_config.get('cross_encoder_reranking', {})
+        return int(cross_encoder_config.get('rrf_k', 5))
+
+    @property
+    def rrf_weights(self) -> Dict[str, float]:
+        """Get the RRF weights for each ranker."""
+        search_config = self._config.get('semantic_search', {})
+        cross_encoder_config = search_config.get('cross_encoder_reranking', {})
+        rrf_weights = cross_encoder_config.get('rrf_weights', {
+            'semantic': 0.4,
+            'bm25': 0.2,
+            'rag': 0.3,
+            'cross_encoder': 0.1
+        })
+        return dict(rrf_weights)
+

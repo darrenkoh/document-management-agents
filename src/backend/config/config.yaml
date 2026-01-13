@@ -287,6 +287,31 @@ semantic_search:
   # When enabled, processes documents one at a time to avoid context size limits
   # This is useful when documents are large or when the model has limited context
   sequential_document_processing: true
+  # Enable Cross-Encoder Reranking
+  # Jointly scores query-document pairs for more accurate relevance
+  enable_cross_encoder_reranking: true
+  # Cross-encoder configuration
+  cross_encoder_reranking:
+    # OpenAI-compatible endpoint for cross-encoder scoring
+    endpoint: "http://localhost:11434/v1"
+    # Model name for cross-encoder
+    model: "nvidia/Qwen3-8B-NVFP4"
+    # Sampling temperature for cross-encoder
+    temperature: 0.1
+    # Timeout for cross-encoder calls
+    timeout: 300
+    # Retry configuration
+    max_retries: 3
+    # RRF k parameter (typically 5-10)
+    # Higher values reduce the impact of rank differences
+    rrf_k: 5
+    # Weights for each ranker in RRF (must sum to 1.0)
+    # These control how much each ranking signal contributes to the final score
+    rrf_weights:
+      semantic: 0.4
+      bm25: 0.2
+      rag: 0.3
+      cross_encoder: 0.1
 
 # RAG answer generation prompt template
 # Use {query} and {documents} as placeholders

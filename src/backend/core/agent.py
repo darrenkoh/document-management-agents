@@ -22,6 +22,7 @@ except ImportError:
 from src.backend.services.vector_store import create_vector_store
 from src.backend.core.rag_agent import RAGAgent
 from src.backend.services.receipt_segmentation import SegmentationConfig, Sam3ReceiptSegmenter
+from src.backend.core.cross_encoder_reranker import CrossEncoderReranker
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,28 @@ class DocumentAgent:
         self.receipt_segmenter: Sam3ReceiptSegmenter | None = None
         if self.segmentation_cfg.enable:
             self.receipt_segmenter = Sam3ReceiptSegmenter(self.segmentation_cfg)
+
+        # Initialize cross-encoder reranker for robust question answering
+        self.cross_encoder_reranker: CrossEncoderReranker | None = None
+        if config.semantic_search_enable_cross_encoder_reranking:
+            try:
+                self.cross_encoder_reranker = CrossEncoderReranker(
+                    endpoint=config.cross_encoder_endpoint,
+                    model=config.cross_encoder_model,
+                    temperature=config.cross_encoder_temperature,
+                    timeout=config.cross_encoder_timeout,
+                    max_retries=config.cross_encoder_max_retries,
+                    enable_rrf=True,
+                    rrf_k=config.rrf_k,
+                    rrf_weights=config.rrf_weights
+                )
+                if self.cross_encoder_reranker.is_available():
+                    logger.info(f"Cross-encoder reranker initialized: {config.cross_encoder_model}")
+                else:
+                    logger.warning("Cross-encoder endpoint unavailable, using fallback scoring")
+            except Exception as e:
+                logger.warning(f"Failed to initialize cross-encoder reranker: {e}")
+                self.cross_encoder_reranker = None
     
     def process_files_batch(self, file_paths: List[Path], batch_size: int = 10, progress_callback=None) -> Dict[str, any]:
         """Process multiple files in batches for better performance.
@@ -950,6 +973,69 @@ class DocumentAgent:
             except Exception as e:
                 logger.error(f"RAG analysis failed: {e}")
                 # Continue with original results if RAG fails
+
+        # Apply cross-encoder reranking if available and we have results
+        if self.cross_encoder_reranker and self.cross_encoder_reranker.is_available() and results:
+            if progress_callback:
+                progress_callback(f"Applying cross-encoder scoring on {len(results)} documents...", "log")
+            logger.info(f"Applying cross-encoder scoring on {len(results)} documents...")
+            try:
+                # Score each document with cross-encoder
+                scored_documents = self.cross_encoder_reranker.score_documents(query, results, verbose=debug_enabled)
+                
+                # Update documents with cross-encoder scores
+                for doc, ce_score in scored_documents:
+                    # Store cross-encoder score in document
+                    doc['cross_encoder_score'] = ce_score
+                    
+                # Add to results if not already present
+                for doc, ce_score in scored_documents:
+                    found = False
+                    for r in results:
+                        if r.get('doc_id') == doc.get('doc_id'):
+                            r['cross_encoder_score'] = ce_score
+                            found = True
+                            break
+                    if not found:
+                        results.append(doc)
+                
+                # Apply RRF to combine semantic, BM25, RAG, and cross-encoder ranks
+                if self.cross_encoder_reranker.enable_rrf:
+                    if progress_callback:
+                        progress_callback("Applying Reciprocal Rank Fusion to combine ranking signals...", "log")
+                    logger.info("Applying RRF to combine ranking signals...")
+                    
+                    # Build ranked lists for each ranker
+                    ranked_lists = {}
+                    
+                    # Semantic search ranking (already in results)
+                    if results:
+                        ranked_lists['semantic'] = [
+                            (doc.get('doc_id'), doc.get('similarity', 0.0)) 
+                            for doc in sorted(results, key=lambda d: d.get('similarity', 0.0), reverse=True)
+                        ]
+                    
+                    # BM25 ranking (if available)
+                    bm25_scores = [(doc.get('doc_id'), doc.get('bm25_score', 0.0)) for doc in results]
+                    if any(score > 0 for _, score in bm25_scores):
+                        ranked_lists['bm25'] = bm25_scores
+                    
+                    # RAG relevance ranking (if available)
+                    rag_scores = [(doc.get('doc_id'), doc.get('relevance_score', 0.5)) for doc in results]
+                    if any('relevance_score' in doc for doc in results):
+                        ranked_lists['rag'] = rag_scores
+                    
+                    # Cross-encoder ranking (always added)
+                    cross_encoder_scores = [(doc.get('doc_id'), doc.get('cross_encoder_score', 0.5)) for doc in results]
+                    ranked_lists['cross_encoder'] = cross_encoder_scores
+                    
+                    # Apply RRF
+                    results = self.cross_encoder_reranker.apply_rrf(query, results, ranked_lists, verbose=debug_enabled)
+                    logger.info(f"RRF completed. Re-ranked to {len(results)} documents")
+                    
+            except Exception as e:
+                logger.error(f"Cross-encoder scoring failed: {e}")
+                # Continue with original results if cross-encoder fails
 
         if results:
             logger.info(f"Returning {len(results)} search results")
